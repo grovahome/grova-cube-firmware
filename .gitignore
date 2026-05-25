@@ -1,0 +1,13 @@
+.pio/
+.vscode/
+.cache/
+
+include/secrets.h
+.env
+*.env
+
+*.log
+*.tmp
+*.bak
+.DS_Store
+Thumbs.db
