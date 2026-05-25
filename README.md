@@ -208,6 +208,12 @@ grova/v1/cubes/{cube_id}/ack
 - [Pump safety](docs/pump-safety.md)
 - [Changelog](CHANGELOG.md)
 
+## License
+
+This firmware is currently proprietary prototype software. See [LICENSE](LICENSE).
+
+No permission is granted to use, copy, modify, distribute, sublicense, or sell this software without prior written permission.
+
 ## Repository Scope
 
 This repository intentionally contains only firmware-relevant files.
