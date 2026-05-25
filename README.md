@@ -12,6 +12,21 @@ The cube is designed to work locally on its own first: sensor reading, OLED/enco
 - Local fallback UI/API: enabled on the ESP web server
 - MQTT: optional interface for a later local server, app, or cloud bridge
 
+## Features
+
+- DHT22 temperature and humidity sensing
+- 0.96 inch OLED status display
+- Rotary encoder local UI
+- Grow modes: germination, growth, harvest
+- Automatic and manual light control
+- Automatic and manual fan control
+- Pump schedule, pump test, and manual stop
+- Pump safety limits for automatic watering
+- Persistent climate targets, warning limits, schedules, and fan curve
+- Local ESP web UI and versioned HTTP APIs
+- OTA firmware updates
+- Optional MQTT telemetry, commands, and acknowledgements
+
 ## Setup
 
 Copy the example secrets file and fill in local credentials:
@@ -40,6 +55,21 @@ Current prototype hardware known to the firmware:
 | Power supply | Generic 12 V wall power supply | Exact current rating to confirm |
 | Protection parts | No flyback diode, fuse, level shifting, or extra protection parts currently installed | Important to revisit before production use |
 
+## Pinout
+
+| GPIO | Function |
+| --- | --- |
+| GPIO 4 | DHT22 data |
+| GPIO 16 | Encoder switch |
+| GPIO 18 | OLED SCL |
+| GPIO 19 | OLED SDA |
+| GPIO 25 | Fan PWM |
+| GPIO 26 | Light MOSFET |
+| GPIO 27 | Pump MOSFET |
+| GPIO 32 | Encoder CLK |
+| GPIO 33 | Encoder DT |
+| GPIO 35 | Fan tachometer input, currently disabled |
+
 Current fixed firmware defaults:
 
 ```text
@@ -67,6 +97,41 @@ Hardware details still to confirm:
 - pump current draw and how 5 V is supplied from the 12 V system
 - grow light power/current rating
 - main power supply current rating
+
+## Safety Notes
+
+This is prototype firmware for a local grow cube, not production hardware.
+
+- The current prototype has no flyback diode, fuse, level shifting, or extra protection parts installed.
+- Verify MOSFET, pump, grow light, wire, connector, and power supply current ratings before unattended use.
+- A 5 V pump in a 12 V system needs a suitable 5 V supply path.
+- Revisit fan tachometer wiring and signal quality before enabling tacho-based behavior.
+- Add electrical protection and safer power distribution before any production or long-term unattended setup.
+
+## Configuration
+
+Local secrets live in:
+
+```text
+include/secrets.h
+```
+
+Create it from:
+
+```text
+include/secrets.example.h
+```
+
+MQTT is optional. The cube can keep running locally through its display, encoder UI, schedules, and ESP web fallback even if MQTT is not connected.
+
+Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
+
+- grow mode
+- light schedule and mode
+- pump schedule and duration
+- climate day/night targets
+- warning limits
+- fan curve
 
 ## Build
 
@@ -99,6 +164,24 @@ GET  /api/v1/config
 POST /api/v1/config
 ```
 
+Example control commands:
+
+```json
+{"cmd":"set_fan_manual","percent":50}
+```
+
+```json
+{"cmd":"set_fan_auto"}
+```
+
+```json
+{"cmd":"pump_test","action":"start"}
+```
+
+```json
+{"cmd":"set_light_schedule","on_hour":8,"off_hour":20}
+```
+
 MQTT is optional and uses the topic shape:
 
 ```text
@@ -106,6 +189,16 @@ grova/v1/cubes/{cube_id}/telemetry
 grova/v1/cubes/{cube_id}/command
 grova/v1/cubes/{cube_id}/ack
 ```
+
+## Roadmap
+
+- Move from DHT22 to a BME sensor later for more robust climate sensing.
+- Add temperature and humidity calibration.
+- Store and expose daily min/max values directly on the cube.
+- Improve fan tachometer reliability before enabling tacho-based features.
+- Support easier runtime configuration for MQTT host, port, cube ID, and credentials.
+- Prepare TLS/certificates and provisioning for future app or cloud operation.
+- Add electrical protection and better power distribution before production use.
 
 ## Repository Scope
 
