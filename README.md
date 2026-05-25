@@ -8,7 +8,8 @@ The cube is designed to work locally on its own first: sensor reading, OLED/enco
 
 - Board: ESP32 DevKit (`esp32dev`)
 - Framework: Arduino
-- Stable firmware baseline: `v1.0.0`
+- Current firmware version: `v1.0.1`
+- First verified standalone baseline: `v1.0.0`
 - Local fallback UI/API: enabled on the ESP web server
 - MQTT: optional interface for a later local server, app, or cloud bridge
 
@@ -199,6 +200,13 @@ grova/v1/cubes/{cube_id}/ack
 - Support easier runtime configuration for MQTT host, port, cube ID, and credentials.
 - Prepare TLS/certificates and provisioning for future app or cloud operation.
 - Add electrical protection and better power distribution before production use.
+
+## Documentation
+
+- [API reference](docs/api.md)
+- [Display and encoder UI](docs/display-ui.md)
+- [Pump safety](docs/pump-safety.md)
+- [Changelog](CHANGELOG.md)
 
 ## Repository Scope
 
