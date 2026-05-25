@@ -30,12 +30,15 @@ Current prototype hardware known to the firmware:
 | --- | --- | --- |
 | Main controller | ESP32 DevKit-compatible board | PlatformIO board: `esp32dev` |
 | Temperature/humidity sensor | DHT22 | Data on GPIO 4 |
-| Display | I2C OLED, SSD1306-compatible | SDA GPIO 19, SCL GPIO 18 |
+| Display | 0.96 inch I2C OLED, SSD1306-compatible, 2.2-5.5 V | SDA GPIO 19, SCL GPIO 18 |
 | Local input | Rotary encoder with push button | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
-| Light output | MOSFET-switched grow light output | GPIO 26 |
-| Pump output | MOSFET-switched pump output | GPIO 27 |
-| Fan output | PWM fan control | PWM GPIO 25 |
+| Light output | 12 V full-spectrum LED grow light panel, switched through MOSFET module | GPIO 26 |
+| Pump output | 5 V micro peristaltic pump, switched through MOSFET module | GPIO 27 |
+| MOSFET switching | 15 A / 400 W MOSFET module | Used for light and pump outputs |
+| Fan output | Noctua NF-A8 PWM, chosen for low noise | PWM GPIO 25 |
 | Fan tachometer | Optional fan tacho signal | GPIO 35, currently disabled in firmware |
+| Power supply | Generic 12 V wall power supply | Exact current rating to confirm |
+| Protection parts | No flyback diode, fuse, level shifting, or extra protection parts currently installed | Important to revisit before production use |
 
 Current fixed firmware defaults:
 
@@ -59,13 +62,11 @@ Sensor fail fan:     60 %
 Hardware details still to confirm:
 
 - exact ESP32 development board model
-- OLED size, I2C address, and voltage
-- fan model, voltage, and whether it is 2-wire/3-wire/4-wire PWM
-- MOSFET module or MOSFET type used for light and pump switching
-- pump model, voltage, and power supply
-- grow light type, voltage, and power/current rating
-- main power supply voltage/current rating
-- any flyback diode, fuse, level shifting, or protection parts used
+- OLED I2C address
+- exact MOSFET module model/type
+- pump current draw and how 5 V is supplied from the 12 V system
+- grow light power/current rating
+- main power supply current rating
 
 ## Build
 
