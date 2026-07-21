@@ -1,26 +1,45 @@
 # GROVA Cube Firmware
 
-Standalone PlatformIO firmware for the GROVA Cube prototype.
+Standalone PlatformIO firmware for GROVA Cube ESP32 controllers.
 
-The cube is designed to work locally on its own first: sensor reading, OLED/encoder UI, grow modes, light/fan/pump automation, pump safety, HTTP fallback controls, OTA updates, and optional MQTT telemetry/commands.
+The firmware is local-first: each cube can run its sensors, OLED/encoder UI,
+grow modes, light/fan/pump automation, pump safety, HTTP fallback controls, and
+OTA updates on its own. MQTT telemetry and commands are optional and are used by
+the GROVA dashboard/server when enabled.
 
 ## Current Baseline
 
-- Board: ESP32 DevKit (`esp32dev`)
+- Board target: ESP32 DevKit compatible (`esp32dev`)
 - Framework: Arduino
-- Current firmware version: `v1.0.1`
-- First verified standalone baseline: `v1.0.0`
+- Firmware version: `v1.0.1`
+- Active branch: `grova-core-v1`
 - Local fallback UI/API: enabled on the ESP web server
-- MQTT: optional interface for a later local server, app, or cloud bridge
+- MQTT: enabled per production cube profile, disabled in local test profile
+- Multi-cube support: cube state, topics, ACKs, history, and commands are
+  separated by `MQTT_CUBE_ID`
+
+## Active Cube Profiles
+
+| Cube ID | Hardware | Sensors | Fan | OTA target | OTA IP |
+| --- | --- | --- | --- | --- | --- |
+| `grova-cube-001` | Legacy cube | DHT22 temperature/humidity | 1 fan | `grova_cube_001_dht_ota` | `192.168.1.70` |
+| `grova-cube-002` | GROVA PCB v1 | AHT20 temperature/humidity, Bosch BME/BMP pressure | 1 fan | `grova_cube_002_bme_ota` | `192.168.1.97` |
+
+For the current PCB cube, AHT20 is the primary temperature/humidity source. The
+Bosch sensor is used for pressure; its temperature reading is exposed as
+diagnostic information only.
 
 ## Features
 
-- DHT22 temperature and humidity sensing
-- 0.96 inch OLED status display
+- DHT22, AHT20, BME280, and BMP280 sensor support selected by build/profile
+  config
+- 0.96 inch I2C OLED status display
 - Rotary encoder local UI
 - Grow modes: germination, growth, harvest
 - Automatic and manual light control
 - Automatic and manual fan control
+- Optional second fan header support
+- Fan tachometer support
 - Pump schedule, pump test, and manual stop
 - Pump safety limits for automatic watering
 - Persistent climate targets, warning limits, schedules, and fan curve
@@ -38,92 +57,100 @@ cp include/secrets.example.h include/secrets.h
 
 `include/secrets.h` is ignored by Git and must not be committed.
 
-## Hardware
-
-Current prototype hardware known to the firmware:
-
-| Part | Current component / role | Firmware pins / notes |
-| --- | --- | --- |
-| Main controller | ESP32 DevKit-compatible board | PlatformIO board: `esp32dev` |
-| Temperature/humidity sensor | DHT22 | Data on GPIO 4 |
-| Display | 0.96 inch I2C OLED, SSD1306-compatible, 2.2-5.5 V | SDA GPIO 19, SCL GPIO 18 |
-| Local input | Rotary encoder with push button | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
-| Light output | 12 V full-spectrum LED grow light panel, switched through MOSFET module | GPIO 26 |
-| Pump output | 5 V micro peristaltic pump, switched through MOSFET module | GPIO 27 |
-| MOSFET switching | 15 A / 400 W MOSFET module | Used for light and pump outputs |
-| Fan output | Noctua NF-A8 PWM, chosen for low noise | PWM GPIO 25 |
-| Fan tachometer | Optional fan tacho signal | GPIO 35, currently disabled in firmware |
-| Power supply | Generic 12 V wall power supply | Exact current rating to confirm |
-| Protection parts | No flyback diode, fuse, level shifting, or extra protection parts currently installed | Important to revisit before production use |
-
-## Pinout
-
-| GPIO | Function |
-| --- | --- |
-| GPIO 4 | DHT22 data |
-| GPIO 16 | Encoder switch |
-| GPIO 18 | OLED SCL |
-| GPIO 19 | OLED SDA |
-| GPIO 25 | Fan PWM |
-| GPIO 26 | Light MOSFET |
-| GPIO 27 | Pump MOSFET |
-| GPIO 32 | Encoder CLK |
-| GPIO 33 | Encoder DT |
-| GPIO 35 | Fan tachometer input, currently disabled |
-
-Current fixed firmware defaults:
+Optional local hardware overrides can be placed in:
 
 ```text
-Light on hour:       08:00
-Light off hour:      20:00
-Pump run time:       08:45
-Pump runtime:        10 s
-Pump test runtime:   5 s
-Pump max runtime:    10 s
-Pump max auto runs:  2 per day
-Pump min interval:   6 h
-Pump startup lock:   10 min
-Display sleep:       60 s
-Fan idle:            25 %
-Fan min active:      35 %
-Fan max:             100 %
-Sensor fail fan:     60 %
-```
-
-Hardware details still to confirm:
-
-- exact ESP32 development board model
-- OLED I2C address
-- exact MOSFET module model/type
-- pump current draw and how 5 V is supplied from the 12 V system
-- grow light power/current rating
-- main power supply current rating
-
-## Safety Notes
-
-This is prototype firmware for a local grow cube, not production hardware.
-
-- The current prototype has no flyback diode, fuse, level shifting, or extra protection parts installed.
-- Verify MOSFET, pump, grow light, wire, connector, and power supply current ratings before unattended use.
-- A 5 V pump in a 12 V system needs a suitable 5 V supply path.
-- Revisit fan tachometer wiring and signal quality before enabling tacho-based behavior.
-- Add electrical protection and safer power distribution before any production or long-term unattended setup.
-
-## Configuration
-
-Local secrets live in:
-
-```text
-include/secrets.h
+include/board_config.h
 ```
 
 Create it from:
 
 ```text
-include/secrets.example.h
+include/board_config.example.h
 ```
 
-MQTT is optional. The cube can keep running locally through its display, encoder UI, schedules, and ESP web fallback even if MQTT is not connected.
+`include/board_config.h` is also ignored by Git. Most users should prefer the
+versioned PlatformIO profiles below.
+
+## Build
+
+Build the current deployed cube profiles:
+
+```bash
+pio run -e grova_cube_001_dht
+pio run -e grova_cube_002_bme
+```
+
+Build the local PCB test firmware without MQTT telemetry or commands:
+
+```bash
+pio run -e grova_core_v1_local
+```
+
+Legacy default build:
+
+```bash
+pio run -e esp32dev
+```
+
+## Upload
+
+USB upload:
+
+```bash
+pio run -e grova_cube_001_dht -t upload
+pio run -e grova_cube_002_bme -t upload
+```
+
+OTA upload:
+
+```bash
+pio run -e grova_cube_001_dht_ota -t upload
+pio run -e grova_cube_002_bme_ota -t upload
+```
+
+## Hardware Profiles
+
+The built-in defaults are selected with `GROVA_BOARD_PCB_V2`.
+
+Legacy default (`GROVA_BOARD_PCB_V2=0`):
+
+| Function | Default |
+| --- | --- |
+| Sensor | DHT22 on GPIO 4 |
+| OLED | SDA GPIO 19, SCL GPIO 18 |
+| Light MOSFET | GPIO 26 |
+| Pump MOSFET | GPIO 27 |
+| Fan PWM | GPIO 25 |
+| Fan tacho | GPIO 35, disabled by default |
+| Encoder | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
+
+GROVA PCB v1 default (`GROVA_BOARD_PCB_V2=1`):
+
+| Function | Default |
+| --- | --- |
+| Sensor primary | AHT20 on I2C |
+| Pressure | BME280/BMP280 on I2C |
+| I2C | SDA GPIO 21, SCL GPIO 22 |
+| OLED | SSD1306 at `0x3C` |
+| Light MOSFET | GPIO 26 |
+| Pump MOSFET | GPIO 13 |
+| Aux 12 V MOSFET | GPIO 27 |
+| Aux 5 V MOSFET | GPIO 14 |
+| Fan 1 | PWM GPIO 25, tacho GPIO 34 |
+| Fan 2 | PWM GPIO 23, tacho GPIO 35, disabled by default |
+| Encoder | CLK GPIO 33, DT GPIO 32, SW GPIO 2 |
+
+## Configuration
+
+Local credentials and cube identity live in:
+
+```text
+include/secrets.h
+```
+
+Each physical cube needs a unique `MQTT_CUBE_ID`. The provided PlatformIO cube
+profiles set this through `GROVA_CUBE_ID_OVERRIDE`.
 
 Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
 
@@ -133,26 +160,6 @@ Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
 - climate day/night targets
 - warning limits
 - fan curve
-
-## Build
-
-```bash
-pio run -e esp32dev
-```
-
-## USB Upload
-
-```bash
-pio run -e esp32dev -t upload
-```
-
-## OTA Upload
-
-The OTA environment currently targets the local prototype cube. Adjust `upload_port` in `platformio.ini` if needed.
-
-```bash
-pio run -e esp32dev_ota -t upload
-```
 
 ## Local APIs
 
@@ -183,7 +190,12 @@ Example control commands:
 {"cmd":"set_light_schedule","on_hour":8,"off_hour":20}
 ```
 
-MQTT is optional and uses the topic shape:
+## MQTT
+
+MQTT is optional. The cube can keep running locally through its display, encoder
+UI, schedules, and ESP web fallback even if MQTT is not connected.
+
+Topic shape:
 
 ```text
 grova/v1/cubes/{cube_id}/telemetry
@@ -191,28 +203,40 @@ grova/v1/cubes/{cube_id}/command
 grova/v1/cubes/{cube_id}/ack
 ```
 
-## Roadmap
+Telemetry includes `cube_id`, firmware build info, sensor source, fan RPMs,
+pressure data where available, warning state, and runtime settings.
 
-- Move from DHT22 to a BME sensor later for more robust climate sensing.
-- Add temperature and humidity calibration.
-- Store and expose daily min/max values directly on the cube.
-- Improve fan tachometer reliability before enabling tacho-based features.
-- Support easier runtime configuration for MQTT host, port, cube ID, and credentials.
-- Prepare TLS/certificates and provisioning for future app or cloud operation.
-- Add electrical protection and better power distribution before production use.
+## Safety Notes
+
+This is prototype firmware for local grow cube hardware, not production
+hardware.
+
+- Verify MOSFET, pump, grow light, wire, connector, and power supply current
+  ratings before unattended use.
+- Keep flyback protection, fusing, and power distribution under review for every
+  board revision.
+- A 5 V pump in a 12 V system needs a suitable 5 V supply path.
+- Revisit fan tachometer wiring and signal quality before relying on tacho-based
+  fault behavior.
+- Add electrical protection and safer power distribution before any production
+  or long-term unattended setup.
 
 ## Documentation
 
+- [Firmware profiles](docs/firmware-profiles.md)
 - [API reference](docs/api.md)
 - [Display and encoder UI](docs/display-ui.md)
 - [Pump safety](docs/pump-safety.md)
 - [Changelog](CHANGELOG.md)
 
-## License
+## Roadmap
 
-This firmware is currently proprietary prototype software. See [LICENSE](LICENSE).
-
-No permission is granted to use, copy, modify, distribute, sublicense, or sell this software without prior written permission.
+- Add calibration offsets for temperature and humidity.
+- Store and expose daily min/max values directly on the cube.
+- Improve runtime provisioning for MQTT host, port, cube ID, and credentials.
+- Prepare TLS/certificates and per-device credentials for future app or cloud
+  operation.
+- Continue hardening electrical protection and board-level power distribution.
 
 ## Repository Scope
 
@@ -224,11 +248,21 @@ Included:
 - `include/`
 - `lib/`
 - `test/`
+- `docs/`
 - `platformio.ini`
 - `include/secrets.example.h`
+- `include/board_config.example.h`
 
 Excluded:
 
 - real secrets in `include/secrets.h`
+- local hardware overrides in `include/board_config.h`
 - server, dashboard, Grafana, InfluxDB, Node-RED, and deployment files
 - local databases, logs, backups, and `.env` files
+
+## License
+
+This firmware is currently proprietary prototype software. See [LICENSE](LICENSE).
+
+No permission is granted to use, copy, modify, distribute, sublicense, or sell
+this software without prior written permission.
