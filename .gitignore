@@ -11,3 +11,4 @@ include/secrets.h
 *.bak
 .DS_Store
 Thumbs.db
+include/board_config.h

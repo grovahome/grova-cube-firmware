@@ -19,7 +19,6 @@
 
 #define SCREEN_WIDTH 128
 #define SCREEN_HEIGHT 64
-#define OLED_ADDR 0x3C
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
@@ -110,6 +109,10 @@ static void drawFanPage(int fanPercent) {
 
   drawLine(2, "RPM ");
   display.print(getFanRPM());
+#if FAN2_ENABLED
+  display.print("/");
+  display.print(getFan2RPM());
+#endif
   display.print(" Tach ");
   display.print(fan_getTachoStatusName());
 
@@ -222,11 +225,17 @@ static void drawSensorsPage(float temp, float hum) {
   drawLine(2, "Status ");
   display.print(sensors_getStatusName());
 
-  drawLine(3, "Fails ");
-  display.print(sensors_getFailCount());
+  drawLine(3, "Src ");
+  display.print(sensors_getSourceName());
 
-  drawLine(4, "Warn ");
-  display.print(alarms_getPrimaryWarning(temp, hum));
+  drawLine(4, "P ");
+  if (sensors_hasPressure()) {
+    display.print(sensors_getPressureHpa(), 0);
+    display.print(" ");
+    display.print(sensors_getPressureSourceName());
+  } else {
+    display.print("none");
+  }
 }
 
 static void drawDiagPage(float temp, float hum, bool lightOn) {

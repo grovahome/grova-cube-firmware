@@ -87,7 +87,7 @@ async function refresh(){
     const d=await r.json();
     const warn=d.warning==='OK'?`<span class="ok">${d.warning}</span>`:`<span class="warn">${d.warning}</span>`;
     document.getElementById('health').innerHTML=d.healthy?'<span class="ok">HEALTH OK</span>':'<span class="warn">WARN</span>';
-    document.getElementById('updated').textContent='IP '+d.ip+' | uptime '+d.uptime_s+'s';
+    document.getElementById('updated').textContent=d.cube_id+' | IP '+d.ip+' | uptime '+d.uptime_s+'s';
     setRows('climate',[
       ['Temp',d.temp_c.toFixed(1)+' C'],
       ['Active target temp',d.target_temp_c.toFixed(1)+' C'],
@@ -108,7 +108,8 @@ async function refresh(){
       ['Target',d.fan.target_pct+' %'],
       ['Reason',d.fan.reason],
       ['Tacho',d.fan.tacho],
-      ['RPM',d.fan.rpm]
+      ['RPM Fan 1',d.fan.rpm],
+      ['RPM Fan 2',d.fan.rpm2]
     ]);
     setRows('light',[
       ['State',d.light.on?'ON':'OFF'],
@@ -130,10 +131,15 @@ async function refresh(){
     ]);
     setRows('sensors',[
       ['Status',d.sensor.status],
+      ['Source',d.sensor.source],
+      ['Pressure',d.sensor.pressure_hpa===null?'-':d.sensor.pressure_hpa+' hPa'],
+      ['Pressure sensor',d.sensor.pressure_source],
       ['Fails',d.sensor.fail_count],
+      ['Consecutive fails',d.sensor.consecutive_fail_count],
       ['Fault',yn(d.sensor.fault)]
     ]);
     setRows('system',[
+      ['Cube ID',d.cube_id],
       ['Firmware',d.firmware_version],
       ['Build',d.firmware_build_date+' '+d.firmware_build_time],
       ['WiFi',d.wifi_connected?'OK':'FAIL'],
@@ -278,7 +284,11 @@ static void appendJsonFloat(String& json, const char* key, float value, int deci
   json += "\"";
   json += key;
   json += "\":";
-  json += String(value, decimals);
+  if (isnan(value)) {
+    json += "null";
+  } else {
+    json += String(value, decimals);
+  }
   if (comma) json += ",";
 }
 
@@ -300,6 +310,7 @@ static void handleStatus() {
   String json;
   json.reserve(2500);
   json += "{";
+  appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
   appendJsonFloat(json, "hum_pct", hum, 1);
   appendJsonFloat(json, "target_temp_c", getTargetTemp(), 1);
@@ -342,7 +353,8 @@ static void handleStatus() {
   appendJsonInt(json, "target_pct", getFanTargetPercent());
   appendJsonString(json, "reason", fan_getReasonName());
   appendJsonString(json, "tacho", fan_getTachoStatusName());
-  appendJsonInt(json, "rpm", getFanRPM(), false);
+  appendJsonInt(json, "rpm", getFanRPM());
+  appendJsonInt(json, "rpm2", getFan2RPM(), false);
   json += "},";
 
   json += "\"light\":{";
@@ -371,7 +383,12 @@ static void handleStatus() {
 
   json += "\"sensor\":{";
   appendJsonString(json, "status", sensors_getStatusName());
+  appendJsonString(json, "source", sensors_getSourceName());
+  appendJsonFloat(json, "pressure_hpa", sensors_getPressureHpa(), 0);
+  appendJsonString(json, "pressure_source", sensors_getPressureSourceName());
+  appendJsonFloat(json, "bosch_temp_c", sensors_getBoschTemp(), 1);
   appendJsonInt(json, "fail_count", sensors_getFailCount());
+  appendJsonInt(json, "consecutive_fail_count", sensors_getConsecutiveFailCount());
   appendJsonBool(json, "fault", sensors_hasFault(), false);
   json += "}";
 

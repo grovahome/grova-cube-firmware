@@ -8,8 +8,16 @@
   #define WIFI_PASS ""
 #endif
 
+// Optional local hardware profile. Copy board_config.example.h to
+// board_config.h and adjust it per physical cube. The file is ignored by Git.
+#if __has_include("board_config.h")
+  #include "board_config.h"
+#endif
+
 // ===== OTA =====
-#define OTA_HOSTNAME "growbox"
+#ifndef OTA_HOSTNAME
+  #define OTA_HOSTNAME "growbox"
+#endif
 
 // ===== MQTT =====
 #ifndef MQTT_HOST
@@ -24,23 +32,172 @@
 #ifndef MQTT_PASS
   #define MQTT_PASS ""
 #endif
+#ifdef GROVA_CUBE_ID_OVERRIDE
+  #undef MQTT_CUBE_ID
+  #define MQTT_CUBE_ID GROVA_CUBE_ID_OVERRIDE
+#endif
 #ifndef MQTT_CUBE_ID
   #define MQTT_CUBE_ID "grova-cube-001"
+#endif
+#ifndef GROVA_MQTT_ENABLED
+  #define GROVA_MQTT_ENABLED 1
 #endif
 constexpr unsigned long MQTT_TELEMETRY_INTERVAL_MS = 10000UL;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 
-// ===== DHT22 =====
-#define DHTPIN 4
+// ===== BOARD / SENSOR SELECTION =====
+#ifndef GROVA_BOARD_PCB_V2
+  #define GROVA_BOARD_PCB_V2 0
+#endif
 
-// ===== MOSFETS =====
-#define PIN_LIGHT 26
-#define PIN_PUMP 27
+#if GROVA_BOARD_PCB_V2
+  #ifndef GROVA_SENSOR_DHT
+    #define GROVA_SENSOR_DHT 0
+  #endif
+  #ifndef GROVA_SENSOR_AHT20
+    #define GROVA_SENSOR_AHT20 1
+  #endif
+  #ifndef GROVA_SENSOR_BOSCH
+    #define GROVA_SENSOR_BOSCH 1
+  #endif
+
+  #ifndef DHTPIN
+    #define DHTPIN 4
+  #endif
+
+  #ifndef PIN_LIGHT
+    #define PIN_LIGHT 26
+  #endif
+  #ifndef PIN_PUMP
+    #define PIN_PUMP 13
+  #endif
+  #ifndef PIN_AUX_12V
+    #define PIN_AUX_12V 27
+  #endif
+  #ifndef PIN_AUX_5V
+    #define PIN_AUX_5V 14
+  #endif
+
+  #ifndef FAN_PWM
+    #define FAN_PWM 25
+  #endif
+  #ifndef FAN_TACHO
+    #define FAN_TACHO 34
+  #endif
+  #ifndef FAN2_ENABLED
+    #define FAN2_ENABLED 0
+  #endif
+  #ifndef FAN2_PWM
+    #define FAN2_PWM 23
+  #endif
+  #ifndef FAN2_TACHO
+    #define FAN2_TACHO 35
+  #endif
+  #ifndef FAN_TACHO_ENABLED
+    #define FAN_TACHO_ENABLED 1
+  #endif
+
+  #ifndef ENCODER_CLK
+    #define ENCODER_CLK 33
+  #endif
+  #ifndef ENCODER_DT
+    #define ENCODER_DT 32
+  #endif
+  #ifndef ENCODER_SW
+    #define ENCODER_SW 2
+  #endif
+
+  #ifndef OLED_SDA
+    #define OLED_SDA 21
+  #endif
+  #ifndef OLED_SCL
+    #define OLED_SCL 22
+  #endif
+#else
+  #ifndef GROVA_SENSOR_DHT
+    #define GROVA_SENSOR_DHT 1
+  #endif
+  #ifndef GROVA_SENSOR_AHT20
+    #define GROVA_SENSOR_AHT20 0
+  #endif
+  #ifndef GROVA_SENSOR_BOSCH
+    #define GROVA_SENSOR_BOSCH 0
+  #endif
+
+  #ifndef DHTPIN
+    #define DHTPIN 4
+  #endif
+
+  #ifndef PIN_LIGHT
+    #define PIN_LIGHT 26
+  #endif
+  #ifndef PIN_PUMP
+    #define PIN_PUMP 27
+  #endif
+  #ifndef PIN_AUX_12V
+    #define PIN_AUX_12V -1
+  #endif
+  #ifndef PIN_AUX_5V
+    #define PIN_AUX_5V -1
+  #endif
+
+  #ifndef FAN_PWM
+    #define FAN_PWM 25
+  #endif
+  #ifndef FAN_TACHO
+    #define FAN_TACHO 35
+  #endif
+  #ifndef FAN2_ENABLED
+    #define FAN2_ENABLED 0
+  #endif
+  #ifndef FAN2_PWM
+    #define FAN2_PWM -1
+  #endif
+  #ifndef FAN2_TACHO
+    #define FAN2_TACHO -1
+  #endif
+  #ifndef FAN_TACHO_ENABLED
+    #define FAN_TACHO_ENABLED 0
+  #endif
+
+  #ifndef ENCODER_CLK
+    #define ENCODER_CLK 32
+  #endif
+  #ifndef ENCODER_DT
+    #define ENCODER_DT 33
+  #endif
+  #ifndef ENCODER_SW
+    #define ENCODER_SW 16
+  #endif
+
+  #ifndef OLED_SDA
+    #define OLED_SDA 19
+  #endif
+  #ifndef OLED_SCL
+    #define OLED_SCL 18
+  #endif
+#endif
+
+// ===== SENSORS =====
+#ifndef DHTTYPE
+  #define DHTTYPE DHT22
+#endif
+#ifndef BOSCH_PRIMARY_ADDR
+  #define BOSCH_PRIMARY_ADDR 0x76
+#endif
+#ifndef BOSCH_SECONDARY_ADDR
+  #define BOSCH_SECONDARY_ADDR 0x77
+#endif
+#ifndef OLED_ADDR
+  #define OLED_ADDR 0x3C
+#endif
+#ifndef SENSOR_READ_FAIL_WARN_AFTER
+  #define SENSOR_READ_FAIL_WARN_AFTER 3
+#endif
 
 // ===== FAN =====
-#define FAN_PWM 25
-#define FAN_TACHO 35
-constexpr bool FAN_TACHO_ENABLED = false;
+constexpr bool FAN_TACHO_IS_ENABLED = FAN_TACHO_ENABLED;
+constexpr bool FAN2_IS_ENABLED = FAN2_ENABLED;
 constexpr int FAN_IDLE_PERCENT = 25;
 constexpr int FAN_MIN_ACTIVE_PERCENT = 35;
 constexpr int FAN_MAX_PERCENT = 100;
@@ -66,19 +223,12 @@ constexpr float WARN_HUM_HIGH_MARGIN_PERCENT = 12.0;
 constexpr float WARN_HUM_LOW_MARGIN_PERCENT = 15.0;
 constexpr unsigned long WARN_TIME_SYNC_DELAY_MS = 5UL * 60UL * 1000UL;
 
-// ===== ENCODER =====
-#define ENCODER_CLK 32
-#define ENCODER_DT  33
-#define ENCODER_SW  16
-
 // ===== TIMEZONE =====
 #define TIMEZONE_TZ "CET-1CEST,M3.5.0/2,M10.5.0/3"
 
 #define LIGHT_ON_HOUR 8
 #define LIGHT_OFF_HOUR 20
 
-#define OLED_SDA 19
-#define OLED_SCL 18
 constexpr unsigned long DISPLAY_SLEEP_MS = 60UL * 1000UL;
 
 // ===== PUMP =====

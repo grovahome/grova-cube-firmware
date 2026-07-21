@@ -30,7 +30,7 @@ static char commandTopic[96];
 static char ackTopic[96];
 
 static bool mqttEnabled() {
-  return strlen(MQTT_HOST) > 0 && strlen(MQTT_CUBE_ID) > 0;
+  return GROVA_MQTT_ENABLED && strlen(MQTT_HOST) > 0 && strlen(MQTT_CUBE_ID) > 0;
 }
 
 static void appendJsonString(String& json, const char* key, const char* value, bool comma = true) {
@@ -62,7 +62,11 @@ static void appendJsonFloat(String& json, const char* key, float value, int deci
   json += "\"";
   json += key;
   json += "\":";
-  json += String(value, decimals);
+  if (isnan(value)) {
+    json += "null";
+  } else {
+    json += String(value, decimals);
+  }
   if (comma) json += ",";
 }
 
@@ -147,7 +151,8 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "target_pct", getFanTargetPercent());
   appendJsonString(json, "reason", fan_getReasonName());
   appendJsonString(json, "tacho", fan_getTachoStatusName());
-  appendJsonInt(json, "rpm", getFanRPM(), false);
+  appendJsonInt(json, "rpm", getFanRPM());
+  appendJsonInt(json, "rpm2", getFan2RPM(), false);
   json += "},";
 
   json += "\"light\":{";
@@ -176,7 +181,12 @@ static String buildTelemetryJson() {
 
   json += "\"sensor\":{";
   appendJsonString(json, "status", sensors_getStatusName());
+  appendJsonString(json, "source", sensors_getSourceName());
+  appendJsonFloat(json, "pressure_hpa", sensors_getPressureHpa(), 0);
+  appendJsonString(json, "pressure_source", sensors_getPressureSourceName());
+  appendJsonFloat(json, "bosch_temp_c", sensors_getBoschTemp(), 1);
   appendJsonInt(json, "fail_count", sensors_getFailCount());
+  appendJsonInt(json, "consecutive_fail_count", sensors_getConsecutiveFailCount());
   appendJsonBool(json, "fault", sensors_hasFault(), false);
   json += "}";
 
