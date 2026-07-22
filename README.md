@@ -3,7 +3,7 @@
 # GROVA CORE
 
 ## Professional Climate Control.
-### Built for Home Assistant.
+### Open by Design.
 
 An open-source environmental automation controller designed for Home Assistant and ESPHome.
 
@@ -28,8 +28,11 @@ Designed around a local-first philosophy, it keeps your infrastructure running i
 ### Key Benefits
 
 - ✅ Fully Local Operation
-- ✅ Native ESPHome Integration
-- ✅ Home Assistant Ready
+- ✅ ESP32 Based
+- ✅ MQTT Support
+- ✅ REST API Support
+- ✅ Designed For Local Automation
+- ✅ Home Assistant Integration Planned
 - ✅ Open Source Firmware
 - ✅ Open Hardware Architecture
 - ✅ Dual PWM Fan Control
