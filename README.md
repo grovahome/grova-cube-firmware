@@ -289,9 +289,8 @@ Excluded:
 - server, dashboard, Grafana, InfluxDB, Node-RED, and deployment files
 - local databases, logs, backups, and `.env` files
 
-## License
+## ⚖️ License
 
-This firmware is currently proprietary prototype software. See [LICENSE](LICENSE).
+This firmware is open-source software licensed under the terms of the **GNU General Public License v3 (GPLv3)**. 
 
-No permission is granted to use, copy, modify, distribute, sublicense, or sell
-this software without prior written permission.
+You are free to use, copy, modify, and distribute this software, provided that any modified versions or derivative works are also openly published under the exact same GPLv3 license terms. For the full legal text, please refer to the accompanying [LICENSE](LICENSE) file in the root directory.
