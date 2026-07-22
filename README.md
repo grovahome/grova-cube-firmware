@@ -7,6 +7,35 @@ grow modes, light/fan/pump automation, pump safety, HTTP fallback controls, and
 OTA updates on its own. MQTT telemetry and commands are optional and are used by
 the GROVA dashboard/server when enabled.
 
+---
+
+## 🎯 System Functionality & Core Purpose
+
+This firmware operates as a local-first automation system designed to monitor, regulate, and control small-scale indoor agricultural environments, such as microgreen trays and modular cultivation cabinets. The software operates entirely offline, managing real-time data collection from localized sensor arrays and handling automated power distribution to low-voltage peripherals.
+
+### Automated Climate & Irrigation Controls:
+* **Precision Interval Irrigation:** Manages low-voltage peristaltic dosing pumps through a configurable time-interval and duration-taktung matrix. It handles precise watering schedules (e.g., executing a 15-second pump cycle every 6 hours) to saturate root mediums uniformly via capillary action without causing water accumulation.
+* **Integrated Pump Safety Engine:** Features independent software watchdogs that actively monitor the execution times of irrigation cycles. If a pump continues running beyond a strict predefined threshold, the system triggers an emergency override and cuts power to the line, protecting the crop from flooding and the pump motor from running dry.
+* **Dual-Zone Climate & Ventilation:** Controls 2x separate N-Channel MOSFET power lines for 12V or 5V DC heating elements and high-power LED arrays. Additionally, it drives 2x independent, hardware-defined PWM fan outputs to maintain continuous air turnover, ensuring uniform temperature distribution across the growth area.
+* **State-Driven Grow Recipes:** Automates predefined growth schedules. The firmware transitions variables automatically based on the active state machine, shifting timers and climate parameters from the initial Dark/Blackout phase into active vegetative light schedules.
+* **Localized Sensor Integration:** Collects and processes environmental telemetry (including temperature, relative humidity, and barometric pressure from Bosch BME280 or compatible arrays) to drive local feedback loops for ventilation and heating adjustments.
+
+### Decentralized Multi-Device Architecture:
+* **Complete Offline Autarky:** Every controller operates as a self-sustaining master node. All automated cycles and hardware timers are tracked locally via an onboard DS3231 RTC (Real-Time Clock), ensuring uninterrupted operations and precise timekeeping even during a complete breakdown of the local Wi-Fi router or the central server.
+* **Parallel Swarm Telemetry:** The firmware separates system states, commands, acknowledgments (ACKs), and historical datasets via distinct hardware identifiers (`MQTT_CUBE_ID`). This structural separation allows a single centralized dashboard or local server instance to monitor, manage, and visualize multiple physical boxes simultaneously in real-time.
+
+## 🔌 Hardware Compatibility & Alpha DevKit
+While this unified firmware is abstracted to run on custom DIY breadboard setups via settings, it is fully optimized for the proprietary **GROVA Core Baseboard** (a compact 10x10cm application shield for standard 38-pin ESP32 NodeMCUs).
+
+**Key hardware features supported by this firmware:**
+* **Isolated Multi-Rail Power:** 4x software-defined N-Channel MOSFET outputs for silent, relay-free switching (2x 12V for high-efficiency LED dimming/heavy loads, 2x 5V for inductive peristaltic pumps/solenoid valves).
+* **Dedicated Fan Hubs:** 2x independent hardware PWM fan outputs for precise speed control, fully separated from the main MOSFET rails.
+* **Cascaded I2C Bus:** 4x independent, logic-buffered I2C channels with full bidirectional 3.3V/5V level-shifting for safe sensor and display integration.
+* **Offline Timekeeper:** Onboard DS3231 RTC (Real-Time Clock) port with hardware-decoupled bypass capacitors to secure automated schedules during total Wi-Fi or local router drops.
+
+👉 **[⚡ JOIN THE WAITLIST FOR BATCH #01 (AUGUST DROP) ON GROVAHOME.COM](https://grovahome.com)**
+*A small alpha test run of 50 fully assembled plug-and-play developer kits (including the matching 38-pin ESP32 microcontroller) will be released end of August if there is enough interest. Sign up on our landing page to secure priority notification.*
+
 ## Current Baseline
 
 - Board target: ESP32 DevKit compatible (`esp32dev`)
@@ -18,7 +47,7 @@ the GROVA dashboard/server when enabled.
 - Multi-cube support: cube state, topics, ACKs, history, and commands are
   separated by `MQTT_CUBE_ID`
 
-## Active Cube Profiles
+## Active Cube Profiles Examples
 
 | Cube ID | Hardware | Sensors | Fan | OTA target | OTA IP |
 | --- | --- | --- | --- | --- | --- |
