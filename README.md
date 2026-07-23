@@ -86,12 +86,6 @@ Drive fans, pumps, lighting, valves and heaters using dedicated MOSFET outputs.
 
 Create autonomous schedules and environmental control routines.
 
-## Native ESPHome Integration
-
-Deploy directly into ESPHome and Home Assistant.
-
-No custom software stack required.
-
 ## Fully Local Architecture
 
 All core functionality continues operating without internet access, cloud services or central servers.
@@ -109,7 +103,6 @@ Every Batch #01 kit includes:
 - GROVA CORE Baseboard
 - ESP32 Development Module
 - Open Source Firmware
-- Native ESPHome Support
 - Early Community Access
 - Priority Development Updates
 - STL Enclosure Files
