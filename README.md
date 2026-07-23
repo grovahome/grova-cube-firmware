@@ -11,7 +11,7 @@ Built for builders, makers and professionals who demand reliable climate control
 
 <br>
 
-🌐 [https://grovahome.com](https://grova.carrd.co)
+🌐 [GROVAHOME](https://grova.carrd.co)
 
 🚀 Batch #01 Waitlist Open
 
@@ -109,7 +109,7 @@ Every Batch #01 kit includes:
 
 ### Join The Waitlist
 
-👉 [https://grovahome.com](https://grova.carrd.co)
+👉 [GROVAHOME](https://grova.carrd.co)
 
 ---
 
