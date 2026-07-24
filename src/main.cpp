@@ -12,6 +12,7 @@
 #include "modules/fan.h"
 #include "modules/climate.h"
 #include "modules/pump_scheduler.h"
+#include "modules/outputs.h"
 #include "modules/stability.h"
 #include "modules/display.h"
 #include "modules/encoder.h"
@@ -41,6 +42,7 @@ void setup() {
 
   // System modules
   runtimeConfig_begin();
+  outputs_begin();
   growMode_begin();
   light_begin();
   sensors_begin();

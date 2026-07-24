@@ -3,8 +3,10 @@
 #include <string.h>
 #include "modules/climate.h"
 #include "modules/control.h"
+#include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
 #include "modules/runtime_config.h"
 #include "modules/ui.h"
@@ -90,6 +92,46 @@ static bool extractFloat(const String& body, const char* key, float& value) {
 
   value = body.substring(valueStart, valueEnd).toFloat();
   return true;
+}
+
+static bool extractBool(const String& body, const char* key, bool& value) {
+  String needle = "\"";
+  needle += key;
+  needle += "\"";
+
+  int keyPos = body.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = body.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  int valueStart = colonPos + 1;
+  while (valueStart < static_cast<int>(body.length()) && isspace(body[valueStart])) valueStart++;
+
+  if (body.startsWith("true", valueStart)) {
+    value = true;
+    return true;
+  }
+
+  if (body.startsWith("false", valueStart)) {
+    value = false;
+    return true;
+  }
+
+  char token[12];
+  if (extractString(body, key, token, sizeof(token))) {
+    normalizeToken(token);
+    if (strcmp(token, "ON") == 0 || strcmp(token, "TRUE") == 0 || strcmp(token, "1") == 0) {
+      value = true;
+      return true;
+    }
+    if (strcmp(token, "OFF") == 0 || strcmp(token, "FALSE") == 0 || strcmp(token, "0") == 0) {
+      value = false;
+      return true;
+    }
+  }
+
+  return false;
 }
 
 static void makeResponse(String& responseJson, bool ok, const char* message) {
@@ -187,7 +229,13 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
   }
 
   if (strcmp(command, "SET_FAN_AUTO") == 0) {
-    ui_setFanAuto();
+    int fan = 0;
+    extractInt(requestBody, "fan", fan);
+    if (!fan_setAuto(fan)) {
+      makeResponse(responseJson, false, "invalid fan");
+      return false;
+    }
+    if (fan == 0 || fan == 1) ui_setFanAuto();
     makeResponse(responseJson, true, "fan auto enabled");
     return true;
   }
@@ -204,8 +252,37 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
       return false;
     }
 
-    ui_setFanManual(percent);
+    int fan = 0;
+    extractInt(requestBody, "fan", fan);
+    if (!fan_setManual(fan, percent)) {
+      makeResponse(responseJson, false, "invalid fan");
+      return false;
+    }
+    if (fan == 0 || fan == 1) ui_setFanManual(percent);
     makeResponse(responseJson, true, "fan manual updated");
+    return true;
+  }
+
+  if (strcmp(command, "SET_OUTPUT") == 0) {
+    char output[20];
+    bool on = false;
+    if (!extractString(requestBody, "output", output, sizeof(output))) {
+      makeResponse(responseJson, false, "missing output");
+      return false;
+    }
+    normalizeToken(output);
+
+    if (!extractBool(requestBody, "state", on) && !extractBool(requestBody, "on", on)) {
+      makeResponse(responseJson, false, "missing state");
+      return false;
+    }
+
+    if (!outputs_setByName(output, on)) {
+      makeResponse(responseJson, false, "invalid output");
+      return false;
+    }
+
+    makeResponse(responseJson, true, "output updated");
     return true;
   }
 

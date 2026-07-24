@@ -9,7 +9,9 @@
 // ===== Board profile =====
 // 0 = legacy wiring defaults
 // 1 = GROVA PCB v1 wiring defaults
-#define GROVA_BOARD_PCB_V2 1
+#define GROVA_BOARD_PCB_V1 1
+// Older local configs may still use GROVA_BOARD_PCB_V2. The firmware accepts
+// that alias, but new configs should use GROVA_BOARD_PCB_V1.
 
 // ===== Sensors =====
 // Enable exactly the hardware that is fitted to this cube.
@@ -42,9 +44,10 @@
 #define FAN_TACHO 34
 #define FAN_TACHO_ENABLED 1
 
-#define FAN2_ENABLED 0
+#define FAN2_ENABLED 1
 #define FAN2_PWM 23
 #define FAN2_TACHO 35
+#define FAN2_TACHO_ENABLED 0
 
 // ===== Encoder =====
 #define ENCODER_CLK 33
@@ -54,7 +57,7 @@
 /*
 Legacy / DHT-only example:
 
-#define GROVA_BOARD_PCB_V2 0
+#define GROVA_BOARD_PCB_V1 0
 
 #define GROVA_SENSOR_DHT 1
 #define GROVA_SENSOR_AHT20 0
@@ -78,6 +81,7 @@ Legacy / DHT-only example:
 #define FAN2_ENABLED 0
 #define FAN2_PWM -1
 #define FAN2_TACHO -1
+#define FAN2_TACHO_ENABLED 0
 
 #define ENCODER_CLK 32
 #define ENCODER_DT 33

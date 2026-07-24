@@ -12,6 +12,7 @@
 #include "modules/grow_mode.h"
 #include "modules/light.h"
 #include "modules/mqtt_client.h"
+#include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
@@ -28,16 +29,37 @@ static unsigned long lastTelemetryPublish = 0;
 static char telemetryTopic[96];
 static char commandTopic[96];
 static char ackTopic[96];
+static char availabilityTopic[96];
+static char discoveryTopic[128];
+static char homeAssistantStatusTopic[96];
 
 static bool mqttEnabled() {
   return GROVA_MQTT_ENABLED && strlen(MQTT_HOST) > 0 && strlen(MQTT_CUBE_ID) > 0;
+}
+
+static void appendEscapedJsonValue(String& json, const char* value) {
+  for (const char* cursor = value; *cursor; cursor++) {
+    char c = *cursor;
+    if (c == '"' || c == '\\') {
+      json += '\\';
+      json += c;
+    } else if (c == '\n') {
+      json += "\\n";
+    } else if (c == '\r') {
+      json += "\\r";
+    } else if (c == '\t') {
+      json += "\\t";
+    } else {
+      json += c;
+    }
+  }
 }
 
 static void appendJsonString(String& json, const char* key, const char* value, bool comma = true) {
   json += "\"";
   json += key;
   json += "\":\"";
-  json += value;
+  appendEscapedJsonValue(json, value);
   json += "\"";
   if (comma) json += ",";
 }
@@ -107,7 +129,7 @@ static String buildTelemetryJson() {
     runtimeConfig_settingsReady();
 
   String json;
-  json.reserve(1700);
+  json.reserve(2500);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -146,13 +168,33 @@ static String buildTelemetryJson() {
   json += "},";
 
   json += "\"fan\":{";
-  appendJsonString(json, "mode", ui_getFanModeName());
+  appendJsonString(json, "mode", fan_getModeName(1));
   appendJsonInt(json, "current_pct", getFanPercent());
   appendJsonInt(json, "target_pct", getFanTargetPercent());
-  appendJsonString(json, "reason", fan_getReasonName());
+  appendJsonString(json, "reason", fan_getReasonName(1));
   appendJsonString(json, "tacho", fan_getTachoStatusName());
   appendJsonInt(json, "rpm", getFanRPM());
   appendJsonInt(json, "rpm2", getFan2RPM(), false);
+  json += "},";
+
+  json += "\"fan1\":{";
+  appendJsonBool(json, "enabled", fan_isEnabled(1));
+  appendJsonString(json, "mode", fan_getModeName(1));
+  appendJsonInt(json, "current_pct", getFanPercent());
+  appendJsonInt(json, "target_pct", getFanTargetPercent());
+  appendJsonString(json, "reason", fan_getReasonName(1));
+  appendJsonInt(json, "rpm", getFanRPM());
+  appendJsonBool(json, "tacho_fault", fan_getTachoFault(1), false);
+  json += "},";
+
+  json += "\"fan2\":{";
+  appendJsonBool(json, "enabled", fan_isEnabled(2));
+  appendJsonString(json, "mode", fan_getModeName(2));
+  appendJsonInt(json, "current_pct", getFan2Percent());
+  appendJsonInt(json, "target_pct", getFan2TargetPercent());
+  appendJsonString(json, "reason", fan_getReasonName(2));
+  appendJsonInt(json, "rpm", getFan2RPM());
+  appendJsonBool(json, "tacho_fault", fan_getTachoFault(2), false);
   json += "},";
 
   json += "\"light\":{";
@@ -177,6 +219,17 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "min_interval_h", pumpScheduler_getMinIntervalHours());
   appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked());
   appendJsonBool(json, "today_done", pumpScheduler_getRunsToday() >= pumpScheduler_getMaxRunsPerDay(), false);
+  json += "},";
+
+  json += "\"outputs\":{";
+  json += "\"aux_12v\":{";
+  appendJsonBool(json, "available", outputs_hasAux12v());
+  appendJsonBool(json, "on", outputs_isAux12vOn(), false);
+  json += "},";
+  json += "\"aux_5v\":{";
+  appendJsonBool(json, "available", outputs_hasAux5v());
+  appendJsonBool(json, "on", outputs_isAux5vOn(), false);
+  json += "}";
   json += "},";
 
   json += "\"sensor\":{";
@@ -209,6 +262,191 @@ static String buildAckJson(const char* cmdId, bool ok, const String& responseJso
   return json;
 }
 
+static String haUniqueId(const char* suffix) {
+  String id = "grova_";
+  id += MQTT_CUBE_ID;
+  id += "_";
+  id += suffix;
+  return id;
+}
+
+static void appendJsonStringValue(String& json, const char* value) {
+  json += "\"";
+  appendEscapedJsonValue(json, value);
+  json += "\"";
+}
+
+static void appendAvailability(String& json) {
+  appendJsonString(json, "availability_topic", availabilityTopic);
+  appendJsonString(json, "payload_available", "online");
+  appendJsonString(json, "payload_not_available", "offline");
+}
+
+static void appendComponentBase(String& json, const char* componentId, const char* platform, const char* uniqueSuffix, const char* name) {
+  appendJsonStringValue(json, componentId);
+  json += ":{";
+  appendJsonString(json, "p", platform);
+  appendJsonString(json, "unique_id", haUniqueId(uniqueSuffix).c_str());
+  appendJsonString(json, "name", name);
+  appendAvailability(json);
+}
+
+static void appendSensorComponent(String& json, const char* componentId, const char* uniqueSuffix, const char* name, const char* valueTemplate, const char* deviceClass, const char* unit, bool comma = true) {
+  appendComponentBase(json, componentId, "sensor", uniqueSuffix, name);
+  appendJsonString(json, "state_topic", telemetryTopic);
+  appendJsonString(json, "value_template", valueTemplate);
+  if (deviceClass && strlen(deviceClass) > 0) {
+    appendJsonString(json, "device_class", deviceClass);
+  }
+  if (unit && strlen(unit) > 0) {
+    appendJsonString(json, "unit_of_measurement", unit);
+  }
+  appendJsonString(json, "state_class", "measurement", false);
+  json += "}";
+  if (comma) json += ",";
+}
+
+static void appendBinarySensorComponent(String& json, const char* componentId, const char* uniqueSuffix, const char* name, const char* valueTemplate, bool comma = true) {
+  appendComponentBase(json, componentId, "binary_sensor", uniqueSuffix, name);
+  appendJsonString(json, "state_topic", telemetryTopic);
+  appendJsonString(json, "value_template", valueTemplate);
+  appendJsonString(json, "payload_on", "ON");
+  appendJsonString(json, "payload_off", "OFF", false);
+  json += "}";
+  if (comma) json += ",";
+}
+
+static void appendButtonComponent(String& json, const char* componentId, const char* uniqueSuffix, const char* name, const char* payloadPress, bool comma = true) {
+  appendComponentBase(json, componentId, "button", uniqueSuffix, name);
+  appendJsonString(json, "command_topic", commandTopic);
+  appendJsonString(json, "payload_press", payloadPress, false);
+  json += "}";
+  if (comma) json += ",";
+}
+
+static void appendNumberComponent(String& json, const char* componentId, const char* uniqueSuffix, const char* name, const char* valueTemplate, const char* commandTemplate, bool comma = true) {
+  appendComponentBase(json, componentId, "number", uniqueSuffix, name);
+  appendJsonString(json, "state_topic", telemetryTopic);
+  appendJsonString(json, "value_template", valueTemplate);
+  appendJsonString(json, "command_topic", commandTopic);
+  appendJsonString(json, "command_template", commandTemplate);
+  appendJsonInt(json, "min", 0);
+  appendJsonInt(json, "max", 100);
+  appendJsonInt(json, "step", 1);
+  appendJsonString(json, "unit_of_measurement", "%");
+  appendJsonString(json, "mode", "slider", false);
+  json += "}";
+  if (comma) json += ",";
+}
+
+static void appendSwitchComponent(String& json, const char* componentId, const char* uniqueSuffix, const char* name, const char* valueTemplate, const char* payloadOn, const char* payloadOff, bool comma = true) {
+  appendComponentBase(json, componentId, "switch", uniqueSuffix, name);
+  appendJsonString(json, "state_topic", telemetryTopic);
+  appendJsonString(json, "value_template", valueTemplate);
+  appendJsonString(json, "state_on", "ON");
+  appendJsonString(json, "state_off", "OFF");
+  appendJsonString(json, "command_topic", commandTopic);
+  appendJsonString(json, "payload_on", payloadOn);
+  appendJsonString(json, "payload_off", payloadOff, false);
+  json += "}";
+  if (comma) json += ",";
+}
+
+static String buildHomeAssistantDiscoveryJson() {
+  String ip = WiFi.localIP().toString();
+  String configurationUrl = "http://";
+  configurationUrl += ip;
+
+  String json;
+  json.reserve(7600);
+  json += "{";
+  appendJsonString(json, "state_topic", telemetryTopic);
+
+  json += "\"device\":{";
+  json += "\"identifiers\":[";
+  String identifier = "grova_";
+  identifier += MQTT_CUBE_ID;
+  appendJsonStringValue(json, identifier.c_str());
+  json += "],";
+  appendJsonString(json, "name", MQTT_DEVICE_NAME);
+  appendJsonString(json, "manufacturer", GROVA_DEVICE_MANUFACTURER);
+  appendJsonString(json, "model", GROVA_DEVICE_MODEL);
+  appendJsonString(json, "serial_number", MQTT_CUBE_ID);
+  appendJsonString(json, "hw_version", GROVA_HARDWARE_VERSION);
+  appendJsonString(json, "sw_version", GROVA_FIRMWARE_VERSION);
+  appendJsonString(json, "configuration_url", configurationUrl.c_str(), false);
+  json += "},";
+
+  json += "\"origin\":{";
+  appendJsonString(json, "name", "GROVA Core Firmware");
+  appendJsonString(json, "sw_version", GROVA_FIRMWARE_VERSION);
+  appendJsonString(json, "support_url", GROVA_SUPPORT_URL, false);
+  json += "},";
+
+  json += "\"components\":{";
+  appendSensorComponent(json, "temperature", "temperature", "Temperature", "{{ value_json.temp_c }}", "temperature", "\xC2\xB0" "C");
+  appendSensorComponent(json, "humidity", "humidity", "Humidity", "{{ value_json.hum_pct }}", "humidity", "%");
+  appendSensorComponent(json, "pressure", "pressure", "Pressure", "{{ value_json.sensor.pressure_hpa }}", "pressure", "hPa");
+  appendSensorComponent(json, "fan1_percent", "fan1_percent", "Fan 1 speed", "{{ value_json.fan1.current_pct }}", "", "%");
+  appendSensorComponent(json, "fan1_rpm", "fan1_rpm", "Fan 1 RPM", "{{ value_json.fan1.rpm }}", "", "rpm");
+#if FAN2_ENABLED
+  appendSensorComponent(json, "fan2_percent", "fan2_percent", "Fan 2 speed", "{{ value_json.fan2.current_pct }}", "", "%");
+  appendSensorComponent(json, "fan2_rpm", "fan2_rpm", "Fan 2 RPM", "{{ value_json.fan2.rpm }}", "", "rpm");
+#endif
+  appendSensorComponent(json, "pump_runs_today", "pump_runs_today", "Pump runs today", "{{ value_json.pump.runs_today }}", "", "");
+  appendBinarySensorComponent(json, "healthy", "healthy", "Healthy", "{{ 'ON' if value_json.healthy else 'OFF' }}");
+  appendBinarySensorComponent(json, "pump_running", "pump_running", "Pump running", "{{ 'ON' if value_json.pump.running else 'OFF' }}");
+#if PIN_AUX_12V >= 0
+  appendBinarySensorComponent(json, "aux_12v_on", "aux_12v_on", "12V output on", "{{ 'ON' if value_json.outputs.aux_12v.on else 'OFF' }}");
+#endif
+#if PIN_AUX_5V >= 0
+  appendBinarySensorComponent(json, "aux_5v_on", "aux_5v_on", "5V output on", "{{ 'ON' if value_json.outputs.aux_5v.on else 'OFF' }}");
+#endif
+
+  appendComponentBase(json, "light", "light", "light", "Light");
+  appendJsonString(json, "state_topic", telemetryTopic);
+  appendJsonString(json, "state_value_template", "{{ 'ON' if value_json.light.on else 'OFF' }}");
+  appendJsonString(json, "command_topic", commandTopic);
+  appendJsonString(json, "payload_on", "{\"cmd\":\"set_light_mode\",\"mode\":\"ON\"}");
+  appendJsonString(json, "payload_off", "{\"cmd\":\"set_light_mode\",\"mode\":\"OFF\"}", false);
+  json += "},";
+
+  appendNumberComponent(json, "fan1_speed", "fan1_speed", "Fan 1 speed", "{{ value_json.fan1.target_pct }}", "{\"cmd\":\"set_fan_manual\",\"fan\":1,\"percent\":{{ value | int }}}");
+#if FAN2_ENABLED
+  appendNumberComponent(json, "fan2_speed", "fan2_speed", "Fan 2 speed", "{{ value_json.fan2.target_pct }}", "{\"cmd\":\"set_fan_manual\",\"fan\":2,\"percent\":{{ value | int }}}");
+#endif
+
+  appendButtonComponent(json, "fan1_auto", "fan1_auto", "Fan 1 auto", "{\"cmd\":\"set_fan_auto\",\"fan\":1}");
+#if FAN2_ENABLED
+  appendButtonComponent(json, "fan2_auto", "fan2_auto", "Fan 2 auto", "{\"cmd\":\"set_fan_auto\",\"fan\":2}");
+#endif
+#if PIN_AUX_12V >= 0
+  appendSwitchComponent(json, "aux_12v", "aux_12v", "12V output", "{{ 'ON' if value_json.outputs.aux_12v.on else 'OFF' }}", "{\"cmd\":\"set_output\",\"output\":\"aux_12v\",\"state\":true}", "{\"cmd\":\"set_output\",\"output\":\"aux_12v\",\"state\":false}");
+#endif
+#if PIN_AUX_5V >= 0
+  appendSwitchComponent(json, "aux_5v", "aux_5v", "5V output", "{{ 'ON' if value_json.outputs.aux_5v.on else 'OFF' }}", "{\"cmd\":\"set_output\",\"output\":\"aux_5v\",\"state\":true}", "{\"cmd\":\"set_output\",\"output\":\"aux_5v\",\"state\":false}");
+#endif
+  appendButtonComponent(json, "pump_test", "pump_test", "Pump test", "{\"cmd\":\"pump_test\",\"action\":\"start\"}");
+  appendButtonComponent(json, "pump_stop", "pump_stop", "Stop pump", "{\"cmd\":\"pump_test\",\"action\":\"stop\"}", false);
+  json += "}}";
+  return json;
+}
+
+static void publishAvailability(const char* state) {
+  if (!mqtt.connected()) return;
+  mqtt.publish(availabilityTopic, state, true);
+}
+
+static void publishHomeAssistantDiscovery() {
+  if (!GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED || !mqtt.connected()) return;
+  String payload = buildHomeAssistantDiscoveryJson();
+  if (!mqtt.publish(discoveryTopic, payload.c_str(), true)) {
+    Serial.println("MQTT Home Assistant discovery publish failed");
+    return;
+  }
+  Serial.println("MQTT Home Assistant discovery published");
+}
+
 static void publishTelemetry() {
   String payload = buildTelemetryJson();
   if (!mqtt.publish(telemetryTopic, payload.c_str())) {
@@ -217,13 +455,23 @@ static void publishTelemetry() {
 }
 
 static void handleCommand(char* topic, byte* payload, unsigned int length) {
-  (void)topic;
-
   String body;
   body.reserve(length + 1);
   for (unsigned int i = 0; i < length; i++) {
     body += static_cast<char>(payload[i]);
   }
+
+  if (strcmp(topic, homeAssistantStatusTopic) == 0) {
+    body.trim();
+    if (body == "online") {
+      publishHomeAssistantDiscovery();
+      publishAvailability("online");
+      publishTelemetry();
+    }
+    return;
+  }
+
+  if (strcmp(topic, commandTopic) != 0) return;
 
   char cmdId[48];
   extractString(body, "cmd_id", cmdId, sizeof(cmdId));
@@ -245,9 +493,9 @@ static bool connectMqtt() {
 
   bool connected;
   if (strlen(MQTT_USER) > 0) {
-    connected = mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS);
+    connected = mqtt.connect(clientId.c_str(), MQTT_USER, MQTT_PASS, availabilityTopic, 0, true, "offline");
   } else {
-    connected = mqtt.connect(clientId.c_str());
+    connected = mqtt.connect(clientId.c_str(), availabilityTopic, 0, true, "offline");
   }
 
   if (!connected) {
@@ -257,7 +505,12 @@ static bool connectMqtt() {
   }
 
   mqtt.subscribe(commandTopic);
+  if (GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED) {
+    mqtt.subscribe(homeAssistantStatusTopic);
+  }
   Serial.println("MQTT connected");
+  publishAvailability("online");
+  publishHomeAssistantDiscovery();
   publishTelemetry();
   return true;
 }
@@ -271,10 +524,13 @@ void mqttClient_begin() {
   snprintf(telemetryTopic, sizeof(telemetryTopic), "grova/v1/cubes/%s/telemetry", MQTT_CUBE_ID);
   snprintf(commandTopic, sizeof(commandTopic), "grova/v1/cubes/%s/command", MQTT_CUBE_ID);
   snprintf(ackTopic, sizeof(ackTopic), "grova/v1/cubes/%s/ack", MQTT_CUBE_ID);
+  snprintf(availabilityTopic, sizeof(availabilityTopic), "grova/v1/cubes/%s/availability", MQTT_CUBE_ID);
+  snprintf(discoveryTopic, sizeof(discoveryTopic), "%s/device/%s/config", MQTT_DISCOVERY_PREFIX, MQTT_CUBE_ID);
+  snprintf(homeAssistantStatusTopic, sizeof(homeAssistantStatusTopic), "%s/status", MQTT_DISCOVERY_PREFIX);
 
   mqtt.setServer(MQTT_HOST, MQTT_PORT);
   mqtt.setCallback(handleCommand);
-  mqtt.setBufferSize(2200);
+  mqtt.setBufferSize(8192);
   Serial.println("MQTT ready");
 }
 

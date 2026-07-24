@@ -42,15 +42,44 @@
 #ifndef GROVA_MQTT_ENABLED
   #define GROVA_MQTT_ENABLED 1
 #endif
+#ifndef MQTT_DEVICE_NAME
+  #define MQTT_DEVICE_NAME MQTT_CUBE_ID
+#endif
+#ifndef GROVA_DEVICE_MANUFACTURER
+  #define GROVA_DEVICE_MANUFACTURER "GROVA"
+#endif
+#ifndef GROVA_DEVICE_MODEL
+  #define GROVA_DEVICE_MODEL "GROVA Core Founder Edition"
+#endif
+#ifndef GROVA_SUPPORT_URL
+  #define GROVA_SUPPORT_URL "https://github.com/grovahome/grova-cube-firmware"
+#endif
+#ifndef GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED
+  #define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
+#endif
+#ifndef MQTT_DISCOVERY_PREFIX
+  #define MQTT_DISCOVERY_PREFIX "homeassistant"
+#endif
 constexpr unsigned long MQTT_TELEMETRY_INTERVAL_MS = 10000UL;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 
 // ===== BOARD / SENSOR SELECTION =====
-#ifndef GROVA_BOARD_PCB_V2
-  #define GROVA_BOARD_PCB_V2 0
+// One firmware supports both the legacy hand-wired cube and the GROVA PCB v1.
+// GROVA_BOARD_PCB_V2 is kept as a backwards-compatible alias for older local
+// board_config.h files that used the temporary name.
+#ifndef GROVA_BOARD_PCB_V1
+  #ifdef GROVA_BOARD_PCB_V2
+    #define GROVA_BOARD_PCB_V1 GROVA_BOARD_PCB_V2
+  #else
+    #define GROVA_BOARD_PCB_V1 0
+  #endif
 #endif
 
-#if GROVA_BOARD_PCB_V2
+#ifndef GROVA_BOARD_PCB_V2
+  #define GROVA_BOARD_PCB_V2 GROVA_BOARD_PCB_V1
+#endif
+
+#if GROVA_BOARD_PCB_V1
   #ifndef GROVA_SENSOR_DHT
     #define GROVA_SENSOR_DHT 0
   #endif
@@ -85,7 +114,7 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
     #define FAN_TACHO 34
   #endif
   #ifndef FAN2_ENABLED
-    #define FAN2_ENABLED 0
+    #define FAN2_ENABLED 1
   #endif
   #ifndef FAN2_PWM
     #define FAN2_PWM 23
@@ -95,6 +124,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #endif
   #ifndef FAN_TACHO_ENABLED
     #define FAN_TACHO_ENABLED 1
+  #endif
+  #ifndef FAN2_TACHO_ENABLED
+    #define FAN2_TACHO_ENABLED 0
   #endif
 
   #ifndef ENCODER_CLK
@@ -159,6 +191,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #ifndef FAN_TACHO_ENABLED
     #define FAN_TACHO_ENABLED 0
   #endif
+  #ifndef FAN2_TACHO_ENABLED
+    #define FAN2_TACHO_ENABLED 0
+  #endif
 
   #ifndef ENCODER_CLK
     #define ENCODER_CLK 32
@@ -175,6 +210,14 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #endif
   #ifndef OLED_SCL
     #define OLED_SCL 18
+  #endif
+#endif
+
+#ifndef GROVA_HARDWARE_VERSION
+  #if GROVA_BOARD_PCB_V1
+    #define GROVA_HARDWARE_VERSION "GROVA PCB v1"
+  #else
+    #define GROVA_HARDWARE_VERSION "Legacy wiring"
   #endif
 #endif
 
@@ -198,6 +241,7 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 // ===== FAN =====
 constexpr bool FAN_TACHO_IS_ENABLED = FAN_TACHO_ENABLED;
 constexpr bool FAN2_IS_ENABLED = FAN2_ENABLED;
+constexpr bool FAN2_TACHO_IS_ENABLED = FAN2_TACHO_ENABLED;
 constexpr int FAN_IDLE_PERCENT = 25;
 constexpr int FAN_MIN_ACTIVE_PERCENT = 35;
 constexpr int FAN_MAX_PERCENT = 100;

@@ -2,9 +2,14 @@
 
 Status date: 2026-07-21
 
-The firmware now supports multiple cube hardware profiles from one codebase.
-Credentials stay local in `include/secrets.h`. Hardware differences are selected
-through PlatformIO build flags or an optional local `include/board_config.h`.
+The firmware uses one software line for all active cubes. The legacy DHT cube
+and the GROVA PCB v1 cube are built from the same source code; only the
+hardware profile changes through PlatformIO build flags or an optional local
+`include/board_config.h`.
+
+Credentials stay local in `include/secrets.h`. Each cube must set its own
+`MQTT_CUBE_ID`/device name, but no separate firmware version or branch is
+needed for the old PCB/wiring.
 
 ## Active Cubes
 
@@ -20,7 +25,8 @@ grova-cube-001
 grova-cube-002
   Hardware: GROVA PCB v1
   Sensor:   AHT20 for temperature/humidity, Bosch BME/BMP for pressure
-  Fan:      one fan
+  Fan:      two independent PWM fan outputs, Fan 2 tacho optional
+  Outputs:  LED, pump, aux 12V, aux 5V MOSFETs
   OTA IP:   192.168.1.97
   Build:    grova_cube_002_bme
   OTA:      grova_cube_002_bme_ota
@@ -78,10 +84,14 @@ include/board_config.h
   Optional local hardware profile override. Ignored by Git.
 
 include/board_config.example.h
-  Versioned example for PCB and legacy wiring profiles.
+  Versioned example for PCB v1 and legacy wiring profiles.
 ```
 
 Do not commit real Wi-Fi or MQTT credentials.
+
+Use `GROVA_BOARD_PCB_V1=1` for the GROVA PCB v1 defaults and
+`GROVA_BOARD_PCB_V1=0` for the legacy DHT wiring defaults. Older local configs
+that still define `GROVA_BOARD_PCB_V2` continue to work as an alias.
 
 ## MQTT Topics
 
@@ -89,7 +99,143 @@ Do not commit real Wi-Fi or MQTT credentials.
 grova/v1/cubes/{cube_id}/telemetry
 grova/v1/cubes/{cube_id}/command
 grova/v1/cubes/{cube_id}/ack
+grova/v1/cubes/{cube_id}/availability
 ```
 
 The dashboard subscribes to all cubes and sends commands only to the selected
 cube ID.
+
+## Home Assistant MQTT Discovery
+
+Home Assistant discovery is enabled by default when MQTT is enabled. The cube
+publishes one retained device discovery payload and groups all entities under
+one Home Assistant device.
+
+Discovery topic:
+
+```text
+homeassistant/device/{cube_id}/config
+```
+
+Availability topic:
+
+```text
+grova/v1/cubes/{cube_id}/availability
+```
+
+The availability payload is retained:
+
+```text
+online
+offline
+```
+
+The MQTT Last Will is set to `offline`. On connect, the cube publishes
+`online`, republishes the retained discovery payload, and sends telemetry. The
+cube also subscribes to:
+
+```text
+homeassistant/status
+```
+
+When Home Assistant publishes `online`, the cube republishes discovery and
+telemetry so entities become available after a Home Assistant restart.
+
+Discovery payload root fields:
+
+```json
+{
+  "device": {
+    "identifiers": ["grova_<cube_id>"],
+    "name": "<MQTT_DEVICE_NAME>",
+    "manufacturer": "GROVA",
+    "model": "GROVA Core Founder Edition",
+    "serial_number": "<cube_id>",
+    "hw_version": "<GROVA_HARDWARE_VERSION>",
+    "sw_version": "<GROVA_FIRMWARE_VERSION>",
+    "configuration_url": "http://<cube-ip>"
+  },
+  "origin": {
+    "name": "GROVA Core Firmware",
+    "sw_version": "<GROVA_FIRMWARE_VERSION>",
+    "support_url": "https://github.com/grovahome/grova-cube-firmware"
+  },
+  "components": {}
+}
+```
+
+Initial discovered components:
+
+```text
+Sensors:
+  Temperature
+  Humidity
+  Pressure
+  Fan speed
+  Fan RPM
+  Pump runs today
+
+Binary sensors:
+  Healthy
+  Pump running
+
+Controls:
+  Light
+  Fan 1 speed number slider
+  Fan 1 auto button
+  Fan 2 speed number slider, when FAN2_ENABLED is set
+  Fan 2 auto button, when FAN2_ENABLED is set
+  12V output switch, when PIN_AUX_12V is available
+  5V output switch, when PIN_AUX_5V is available
+  Pump test button
+  Stop pump button
+```
+
+MQTT commands for independent fan control:
+
+```json
+{"cmd":"set_fan_manual","fan":1,"percent":40}
+```
+
+```json
+{"cmd":"set_fan_manual","fan":2,"percent":70}
+```
+
+```json
+{"cmd":"set_fan_auto","fan":1}
+```
+
+```json
+{"cmd":"set_fan_auto","fan":2}
+```
+
+If `fan` is omitted or set to `0`, the command applies to all enabled fan
+channels for backward compatibility with the existing dashboard.
+
+MQTT commands for auxiliary MOSFET outputs:
+
+```json
+{"cmd":"set_output","output":"aux_12v","state":true}
+```
+
+```json
+{"cmd":"set_output","output":"aux_5v","state":false}
+```
+
+Optional local overrides in `include/secrets.h`:
+
+```cpp
+#define MQTT_DEVICE_NAME "GROVA Cube 1"
+#define MQTT_DISCOVERY_PREFIX "homeassistant"
+#define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
+#define GROVA_SUPPORT_URL "https://github.com/grovahome/grova-cube-firmware"
+```
+
+`GROVA_HARDWARE_VERSION` defaults to `Legacy wiring` for the DHT profile and
+`GROVA PCB v1` for the PCB profile. It can be overridden in
+`include/board_config.h` if needed.
+
+For PCB v1, `FAN2_ENABLED` defaults to `1` so GPIO 23 is available as a second
+independent PWM output. `FAN2_TACHO_ENABLED` defaults to `0` to avoid warnings
+when no second RPM wire is connected yet. Enable it locally only when Fan 2 RPM
+is wired and should be monitored.

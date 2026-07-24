@@ -9,6 +9,16 @@ An open-source environmental automation controller designed for Home Assistant a
 
 Built for builders, makers and professionals who demand reliable climate control without cloud dependency, subscriptions or vendor lock-in.
 
+`grova-core-v1` is the single firmware line for both active hardware setups:
+the legacy DHT cube and the GROVA PCB v1 cube use the same source code. Board
+differences are selected only through PlatformIO profiles or local
+`include/board_config.h` overrides.
+
+The firmware is local-first: each cube can run its sensors, OLED/encoder UI,
+grow modes, light/fan/pump automation, pump safety, HTTP fallback controls and
+OTA updates on its own. MQTT telemetry, Home Assistant discovery and commands
+are optional.
+
 <br>
 
 🌐 [GROVAHOME](https://grova.carrd.co)
@@ -278,34 +288,114 @@ pio run -e grova_cube_001_dht_ota -t upload
 
 ---
 
-# Local APIs
+# Active Cube Profiles
 
-Status
+| Cube ID | Hardware | Sensors | Fan | OTA target | OTA IP |
+| --- | --- | --- | --- | --- | --- |
+| `grova-cube-001` | Legacy cube | DHT22 temperature/humidity | 1 fan | `grova_cube_001_dht_ota` | `192.168.1.70` |
+| `grova-cube-002` | GROVA PCB v1 | AHT20 temperature/humidity, Bosch BME/BMP pressure | 2 independent PWM fan outputs | `grova_cube_002_bme_ota` | `192.168.1.97` |
 
-```http
-GET /api/v1/status
+---
+
+# Hardware Profiles
+
+The built-in defaults are selected with `GROVA_BOARD_PCB_V1`.
+
+Legacy default (`GROVA_BOARD_PCB_V1=0`):
+
+| Function | Default |
+| --- | --- |
+| Sensor | DHT22 on GPIO 4 |
+| OLED | SDA GPIO 19, SCL GPIO 18 |
+| Light MOSFET | GPIO 26 |
+| Pump MOSFET | GPIO 27 |
+| Fan PWM | GPIO 25 |
+| Fan tacho | GPIO 35, disabled by default |
+| Encoder | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
+
+GROVA PCB v1 default (`GROVA_BOARD_PCB_V1=1`):
+
+| Function | Default |
+| --- | --- |
+| Sensor primary | AHT20 on I2C |
+| Pressure | BME280/BMP280 on I2C |
+| I2C | SDA GPIO 21, SCL GPIO 22 |
+| OLED | SSD1306 at `0x3C` |
+| Light MOSFET | GPIO 26 |
+| Pump MOSFET | GPIO 13 |
+| Aux 12 V MOSFET | GPIO 27 |
+| Aux 5 V MOSFET | GPIO 14 |
+| Fan 1 | PWM GPIO 25, tacho GPIO 34 |
+| Fan 2 | PWM GPIO 23 enabled by default, tacho GPIO 35 optional |
+| Encoder | CLK GPIO 33, DT GPIO 32, SW GPIO 2 |
+
+Older local `board_config.h` files that still define `GROVA_BOARD_PCB_V2` are
+accepted as a backwards-compatible alias, but new configs should use
+`GROVA_BOARD_PCB_V1`.
+
+---
+
+# Configuration
+
+Local credentials and cube identity live in:
+
+```text
+include/secrets.h
 ```
 
-Configuration
+Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
 
-```http
-GET /api/v1/config
+- grow mode
+- light schedule and mode
+- pump schedule and duration
+- climate day/night targets
+- warning limits
+- fan curve
+
+Optional MQTT/Home Assistant settings in `include/secrets.h`:
+
+```cpp
+#define MQTT_DEVICE_NAME "GROVA Cube 1"
+#define MQTT_DISCOVERY_PREFIX "homeassistant"
+#define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
+```
+
+---
+
+# Local APIs
+
+The cube exposes versioned local HTTP APIs when connected to Wi-Fi:
+
+```text
+GET  /api/v1/status
+POST /api/v1/control
+GET  /api/v1/config
 POST /api/v1/config
 ```
 
-Control
-
-```http
-POST /api/v1/control
-```
-
-Example
+Example control commands:
 
 ```json
-{
-  "cmd":"set_fan_manual",
-  "percent":50
-}
+{"cmd":"set_fan_manual","percent":50}
+```
+
+```json
+{"cmd":"set_fan_manual","fan":2,"percent":70}
+```
+
+```json
+{"cmd":"set_output","output":"aux_12v","state":true}
+```
+
+```json
+{"cmd":"set_output","output":"aux_5v","state":false}
+```
+
+If `fan` is omitted, fan commands apply to all enabled fan channels for backward
+compatibility.
+
+```json
+{"cmd":"set_fan_auto"}
 ```
 
 ---

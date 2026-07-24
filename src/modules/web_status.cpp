@@ -11,6 +11,7 @@
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
@@ -348,13 +349,33 @@ static void handleStatus() {
   json += "},";
 
   json += "\"fan\":{";
-  appendJsonString(json, "mode", ui_getFanModeName());
+  appendJsonString(json, "mode", fan_getModeName(1));
   appendJsonInt(json, "current_pct", getFanPercent());
   appendJsonInt(json, "target_pct", getFanTargetPercent());
-  appendJsonString(json, "reason", fan_getReasonName());
+  appendJsonString(json, "reason", fan_getReasonName(1));
   appendJsonString(json, "tacho", fan_getTachoStatusName());
   appendJsonInt(json, "rpm", getFanRPM());
   appendJsonInt(json, "rpm2", getFan2RPM(), false);
+  json += "},";
+
+  json += "\"fan1\":{";
+  appendJsonBool(json, "enabled", fan_isEnabled(1));
+  appendJsonString(json, "mode", fan_getModeName(1));
+  appendJsonInt(json, "current_pct", getFanPercent());
+  appendJsonInt(json, "target_pct", getFanTargetPercent());
+  appendJsonString(json, "reason", fan_getReasonName(1));
+  appendJsonInt(json, "rpm", getFanRPM());
+  appendJsonBool(json, "tacho_fault", fan_getTachoFault(1), false);
+  json += "},";
+
+  json += "\"fan2\":{";
+  appendJsonBool(json, "enabled", fan_isEnabled(2));
+  appendJsonString(json, "mode", fan_getModeName(2));
+  appendJsonInt(json, "current_pct", getFan2Percent());
+  appendJsonInt(json, "target_pct", getFan2TargetPercent());
+  appendJsonString(json, "reason", fan_getReasonName(2));
+  appendJsonInt(json, "rpm", getFan2RPM());
+  appendJsonBool(json, "tacho_fault", fan_getTachoFault(2), false);
   json += "},";
 
   json += "\"light\":{";
@@ -379,6 +400,17 @@ static void handleStatus() {
   appendJsonInt(json, "min_interval_h", pumpScheduler_getMinIntervalHours());
   appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked());
   appendJsonBool(json, "today_done", pumpScheduler_getRunsToday() >= pumpScheduler_getMaxRunsPerDay(), false);
+  json += "},";
+
+  json += "\"outputs\":{";
+  json += "\"aux_12v\":{";
+  appendJsonBool(json, "available", outputs_hasAux12v());
+  appendJsonBool(json, "on", outputs_isAux12vOn(), false);
+  json += "},";
+  json += "\"aux_5v\":{";
+  appendJsonBool(json, "available", outputs_hasAux5v());
+  appendJsonBool(json, "on", outputs_isAux5vOn(), false);
+  json += "}";
   json += "},";
 
   json += "\"sensor\":{";

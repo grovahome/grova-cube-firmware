@@ -11,14 +11,20 @@ const int pwmChannel2 = 1;
 const int pwmFreq = 25000;
 const int pwmResolution = 8;
 
-static int currentPWM = 0;
-static int targetFanPercent = 0;
-static int fanRPM = 0;
-static int fan2RPM = 0;
-static bool tachoFault = false;
-static bool fan2TachoFault = false;
+struct FanChannel {
+  int pwm = 0;
+  int targetPercent = 0;
+  int manualPercent = 50;
+  int rpm = 0;
+  bool manual = false;
+  bool tachoFault = false;
+  unsigned long demandSince = 0;
+  const char* reason = "START";
+};
+
+static FanChannel fan1;
+static FanChannel fan2;
 static unsigned long lastTachoSample = 0;
-static unsigned long fanDemandSince = 0;
 static unsigned long lastFanLog = 0;
 static unsigned long lastRampUpdate = 0;
 static volatile unsigned long tachoPulseCount = 0;
@@ -33,10 +39,35 @@ static void IRAM_ATTR onFan2TachoPulse() {
   tacho2PulseCount++;
 }
 
+static int clamp(int v, int minValue, int maxValue) {
+  if (v < minValue) return minValue;
+  if (v > maxValue) return maxValue;
+  return v;
+}
+
+static int percentToPwm(int percent) {
+  percent = clamp(percent, 0, 100);
+  return map(percent, 0, 100, 0, 255);
+}
+
+static int pwmToPercent(int pwm) {
+  return (clamp(pwm, 0, 255) * 100) / 255;
+}
+
+static bool isFanIndexEnabled(int fan) {
+  if (fan == 1) return true;
+  if (fan == 2) return FAN2_ENABLED;
+  return false;
+}
+
+static FanChannel& channelForFan(int fan) {
+  return fan == 2 ? fan2 : fan1;
+}
+
 static void writeFanPwm() {
-  ledcWrite(pwmChannel, currentPWM);
+  ledcWrite(pwmChannel, fan1.pwm);
 #if FAN2_ENABLED
-  ledcWrite(pwmChannel2, currentPWM);
+  ledcWrite(pwmChannel2, fan2.pwm);
 #endif
 }
 
@@ -47,7 +78,8 @@ void fan_preinit() {
   pinMode(FAN2_PWM, OUTPUT);
   digitalWrite(FAN2_PWM, LOW);
 #endif
-  currentPWM = 0;
+  fan1.pwm = 0;
+  fan2.pwm = 0;
 }
 
 void fan_begin() {
@@ -63,80 +95,156 @@ void fan_begin() {
 #if FAN_TACHO_ENABLED
   pinMode(FAN_TACHO, INPUT);
   attachInterrupt(digitalPinToInterrupt(FAN_TACHO), onFanTachoPulse, FALLING);
-#if FAN2_ENABLED
+#endif
+#if FAN2_ENABLED && FAN2_TACHO_ENABLED
   pinMode(FAN2_TACHO, INPUT);
   attachInterrupt(digitalPinToInterrupt(FAN2_TACHO), onFan2TachoPulse, FALLING);
 #endif
+#if FAN_TACHO_ENABLED || (FAN2_ENABLED && FAN2_TACHO_ENABLED)
   lastTachoSample = millis();
 #endif
 }
 
 int getFanPercent() {
-  return (currentPWM * 100) / 255;
+  return pwmToPercent(fan1.pwm);
 }
 
 int getFanTargetPercent() {
-  return targetFanPercent;
+  return fan1.targetPercent;
 }
 
 int getFanRPM() {
-  return fanRPM;
+  return fan1.rpm;
 }
 
 int getFan2RPM() {
-  return fan2RPM;
+  return fan2.rpm;
+}
+
+int getFan2Percent() {
+  return pwmToPercent(fan2.pwm);
+}
+
+int getFan2TargetPercent() {
+  return fan2.targetPercent;
+}
+
+bool fan_isEnabled(int fan) {
+  return isFanIndexEnabled(fan);
+}
+
+bool fan_isManual(int fan) {
+  if (!isFanIndexEnabled(fan)) return false;
+  return channelForFan(fan).manual;
+}
+
+bool fan_setAuto(int fan) {
+  if (fan == 0) {
+    fan1.manual = false;
+#if FAN2_ENABLED
+    fan2.manual = false;
+#endif
+    return true;
+  }
+
+  if (!isFanIndexEnabled(fan)) return false;
+  channelForFan(fan).manual = false;
+  return true;
+}
+
+bool fan_setManual(int fan, int percent) {
+  percent = clamp(percent, 0, 100);
+
+  if (fan == 0) {
+    fan1.manual = true;
+    fan1.manualPercent = percent;
+#if FAN2_ENABLED
+    fan2.manual = true;
+    fan2.manualPercent = percent;
+#endif
+    return true;
+  }
+
+  if (!isFanIndexEnabled(fan)) return false;
+  FanChannel& channel = channelForFan(fan);
+  channel.manual = true;
+  channel.manualPercent = percent;
+  return true;
+}
+
+bool fan_getTachoFault(int fan) {
+  if (!isFanIndexEnabled(fan)) return false;
+  return channelForFan(fan).tachoFault;
 }
 
 bool fan_hasTachoFault() {
-  return tachoFault || fan2TachoFault;
+  return fan1.tachoFault || fan2.tachoFault;
 }
 
 const char* fan_getTachoStatusName() {
-#if !FAN_TACHO_ENABLED
+  if (fan1.tachoFault) return "F1 FAULT";
+  if (fan2.tachoFault) return "F2 FAULT";
+#if !FAN_TACHO_ENABLED && !(FAN2_ENABLED && FAN2_TACHO_ENABLED)
   return "OFF";
 #else
-  if (tachoFault) return "F1 FAULT";
-  if (fan2TachoFault) return "F2 FAULT";
   return "OK";
 #endif
+}
+
+const char* fan_getModeName(int fan) {
+  if (!isFanIndexEnabled(fan)) return "OFF";
+  if (channelForFan(fan).manual) return "MANUAL";
+  if (fan == 1 && ui_isFanManual()) return "MANUAL";
+  return "AUTO";
 }
 
 const char* fan_getReasonName() {
   return fanReasonName;
 }
 
-static int clamp(int v, int minValue, int maxValue) {
-  if (v < minValue) return minValue;
-  if (v > maxValue) return maxValue;
-  return v;
+const char* fan_getReasonName(int fan) {
+  if (!isFanIndexEnabled(fan)) return "OFF";
+  return channelForFan(fan).reason;
 }
 
-static int percentToPwm(int percent) {
-  percent = clamp(percent, 0, 100);
-  return map(percent, 0, 100, 0, 255);
+static void rampFanToTarget(FanChannel& channel, int targetPWM) {
+  if (channel.pwm < targetPWM) channel.pwm += FAN_RAMP_UP_PWM_STEP;
+  if (channel.pwm > targetPWM) channel.pwm -= FAN_RAMP_DOWN_PWM_STEP;
+  channel.pwm = clamp(channel.pwm, 0, 255);
 }
 
-static void rampFanToTarget(int targetPWM) {
-  unsigned long now = millis();
+static const char* autoReason(float activeErrorT, float activeErrorH) {
+  if (activeErrorT > 0 && activeErrorH > 0) return "TEMP+HUM";
+  if (activeErrorT > 0) return "TEMP";
+  if (activeErrorH > 0) return "HUM";
+  return "IDLE";
+}
 
-  if (now - lastRampUpdate < FAN_RAMP_INTERVAL_MS) return;
-  lastRampUpdate = now;
+static void applyFanChannel(FanChannel& channel, int fan, int autoPercent, const char* autoReasonName, bool sensorFault) {
+  if (sensorFault) {
+    channel.reason = "SENSOR SAFE";
+    channel.targetPercent = FAN_SENSOR_FAIL_PERCENT;
+  } else if (channel.manual || (fan == 1 && ui_isFanManual())) {
+    channel.reason = "MANUAL";
+    channel.targetPercent = channel.manual ? channel.manualPercent : ui_getFanManualValue();
+  } else {
+    channel.reason = autoReasonName;
+    channel.targetPercent = autoPercent;
+  }
 
-  if (currentPWM < targetPWM) currentPWM += FAN_RAMP_UP_PWM_STEP;
-  if (currentPWM > targetPWM) currentPWM -= FAN_RAMP_DOWN_PWM_STEP;
-
-  currentPWM = clamp(currentPWM, 0, 255);
+  channel.targetPercent = clamp(channel.targetPercent, 0, FAN_MAX_PERCENT);
 }
 
 static void updateFanTacho() {
-#if !FAN_TACHO_ENABLED
-  fanRPM = 0;
-  fan2RPM = 0;
-  tachoFault = false;
-  fan2TachoFault = false;
+  unsigned long now = millis();
+
+#if !FAN_TACHO_ENABLED && !(FAN2_ENABLED && FAN2_TACHO_ENABLED)
+  fan1.rpm = 0;
+  fan2.rpm = 0;
+  fan1.tachoFault = false;
+  fan2.tachoFault = false;
   return;
 #else
-  unsigned long now = millis();
   unsigned long elapsed = now - lastTachoSample;
 
   if (elapsed >= FAN_TACHO_SAMPLE_MS) {
@@ -148,131 +256,104 @@ static void updateFanTacho() {
     interrupts();
 
     if (FAN_TACHO_PULSES_PER_REV > 0 && elapsed > 0) {
-      fanRPM = (pulses * 60000UL) / elapsed / FAN_TACHO_PULSES_PER_REV;
-#if FAN2_ENABLED
-      fan2RPM = (pulses2 * 60000UL) / elapsed / FAN_TACHO_PULSES_PER_REV;
+#if FAN_TACHO_ENABLED
+      fan1.rpm = (pulses * 60000UL) / elapsed / FAN_TACHO_PULSES_PER_REV;
 #else
-      fan2RPM = 0;
+      fan1.rpm = 0;
+#endif
+#if FAN2_ENABLED && FAN2_TACHO_ENABLED
+      fan2.rpm = (pulses2 * 60000UL) / elapsed / FAN_TACHO_PULSES_PER_REV;
+#else
+      fan2.rpm = 0;
 #endif
     } else {
-      fanRPM = 0;
-      fan2RPM = 0;
+      fan1.rpm = 0;
+      fan2.rpm = 0;
     }
 
     lastTachoSample = now;
   }
 
-  bool shouldSpin = targetFanPercent >= FAN_TACHO_MIN_CHECK_PERCENT;
+  FanChannel* channels[] = {&fan1, &fan2};
+  for (int i = 0; i < 2; i++) {
+    bool tachoEnabled = (i == 0 && FAN_TACHO_ENABLED) || (i == 1 && FAN2_ENABLED && FAN2_TACHO_ENABLED);
+    bool shouldSpin = tachoEnabled && channels[i]->targetPercent >= FAN_TACHO_MIN_CHECK_PERCENT;
 
-  if (!shouldSpin) {
-    fanDemandSince = 0;
-    tachoFault = false;
-    fan2TachoFault = false;
-    return;
-  }
+    if (!shouldSpin) {
+      channels[i]->demandSince = 0;
+      channels[i]->tachoFault = false;
+      continue;
+    }
 
-  if (fanDemandSince == 0) {
-    fanDemandSince = now;
-    tachoFault = false;
-    fan2TachoFault = false;
-    return;
-  }
+    if (channels[i]->demandSince == 0) {
+      channels[i]->demandSince = now;
+      channels[i]->tachoFault = false;
+      continue;
+    }
 
-  if (now - fanDemandSince >= FAN_TACHO_FAULT_DELAY_MS) {
-    tachoFault = fanRPM < FAN_TACHO_MIN_RPM;
-#if FAN2_ENABLED
-    fan2TachoFault = fan2RPM < FAN_TACHO_MIN_RPM;
-#else
-    fan2TachoFault = false;
-#endif
+    if (now - channels[i]->demandSince >= FAN_TACHO_FAULT_DELAY_MS) {
+      channels[i]->tachoFault = channels[i]->rpm < FAN_TACHO_MIN_RPM;
+    }
   }
 #endif
 }
 
 void fan_loop(float t, float h) {
-
   t = safeTemp(t);
   h = safeHum(h);
 
-  if (sensors_hasFault()) {
-    fanReasonName = "SENSOR SAFE";
-    targetFanPercent = FAN_SENSOR_FAIL_PERCENT;
-    int targetPWM = percentToPwm(targetFanPercent);
-
-    rampFanToTarget(targetPWM);
-    writeFanPwm();
-    updateFanTacho();
-
-    if (millis() - lastFanLog >= FAN_LOG_INTERVAL_MS) {
-      lastFanLog = millis();
-      Serial.print("Fan SAFE | sensor ");
-      Serial.print(sensors_getStatusName());
-      Serial.print(" | target ");
-      Serial.print(targetFanPercent);
-      Serial.print("% | current ");
-      Serial.print(getFanPercent());
-      Serial.print("% | rpm ");
-      Serial.print(getFanRPM());
-#if FAN2_ENABLED
-      Serial.print("/");
-      Serial.print(getFan2RPM());
-#endif
-      Serial.print(" | tach ");
-      Serial.println(fan_getTachoStatusName());
-    }
-    return;
-  }
-
-  if (ui_isFanManual()) {
-    int value = ui_getFanManualValue();
-    fanReasonName = "MANUAL";
-    targetFanPercent = value;
-    currentPWM = percentToPwm(value);
-
-    writeFanPwm();
-    updateFanTacho();
-    return;
-  }
-
+  bool sensorFault = sensors_hasFault();
   float activeErrorT = t - getTargetTemp();
   float activeErrorH = h - getTargetHum();
   if (activeErrorT < 0) activeErrorT = 0;
   if (activeErrorH < 0) activeErrorH = 0;
 
-  targetFanPercent = runtimeConfig_evaluateFanPercent(activeErrorT, activeErrorH);
+  int autoPercent = sensorFault
+    ? FAN_SENSOR_FAIL_PERCENT
+    : runtimeConfig_evaluateFanPercent(activeErrorT, activeErrorH);
+  autoPercent = clamp(autoPercent, 0, FAN_MAX_PERCENT);
 
-  if (activeErrorT > 0 && activeErrorH > 0) {
-    fanReasonName = "TEMP+HUM";
-  } else if (activeErrorT > 0) {
-    fanReasonName = "TEMP";
-  } else if (activeErrorH > 0) {
-    fanReasonName = "HUM";
-  } else {
-    fanReasonName = "IDLE";
+  const char* reason = sensorFault ? "SENSOR SAFE" : autoReason(activeErrorT, activeErrorH);
+  fanReasonName = reason;
+
+  applyFanChannel(fan1, 1, autoPercent, reason, sensorFault);
+#if FAN2_ENABLED
+  applyFanChannel(fan2, 2, autoPercent, reason, sensorFault);
+#else
+  fan2.targetPercent = 0;
+  fan2.pwm = 0;
+  fan2.reason = "OFF";
+#endif
+
+  unsigned long now = millis();
+  if (now - lastRampUpdate >= FAN_RAMP_INTERVAL_MS) {
+    lastRampUpdate = now;
+    rampFanToTarget(fan1, percentToPwm(fan1.targetPercent));
+#if FAN2_ENABLED
+    rampFanToTarget(fan2, percentToPwm(fan2.targetPercent));
+#endif
   }
 
-  targetFanPercent = clamp(targetFanPercent, 0, FAN_MAX_PERCENT);
-  int targetPWM = percentToPwm(targetFanPercent);
-
-  rampFanToTarget(targetPWM);
   writeFanPwm();
   updateFanTacho();
 
   if (millis() - lastFanLog >= FAN_LOG_INTERVAL_MS) {
     lastFanLog = millis();
-    Serial.print("Fan AUTO | T ");
-    Serial.print(t, 1);
-    Serial.print("/");
-    Serial.print(getTargetTemp(), 1);
-    Serial.print("C | H ");
-    Serial.print(h, 0);
-    Serial.print("/");
-    Serial.print(getTargetHum(), 0);
-    Serial.print("% | target ");
-    Serial.print(targetFanPercent);
-    Serial.print("% | current ");
+    Serial.print("Fan ");
+    Serial.print(sensorFault ? "SAFE" : "AUTO");
+    Serial.print(" | F1 ");
     Serial.print(getFanPercent());
-    Serial.print("% | rpm ");
+    Serial.print("/");
+    Serial.print(getFanTargetPercent());
+    Serial.print("%");
+#if FAN2_ENABLED
+    Serial.print(" | F2 ");
+    Serial.print(getFan2Percent());
+    Serial.print("/");
+    Serial.print(getFan2TargetPercent());
+    Serial.print("%");
+#endif
+    Serial.print(" | rpm ");
     Serial.print(getFanRPM());
 #if FAN2_ENABLED
     Serial.print("/");

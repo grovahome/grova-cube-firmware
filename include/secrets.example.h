@@ -14,3 +14,6 @@
 // Use a unique ID for every physical cube. MQTT topics, backend storage,
 // history, dashboard selection, and commands are separated by this value.
 #define MQTT_CUBE_ID "grova-cube-001"
+
+// Optional Home Assistant / dashboard display name published through MQTT discovery.
+#define MQTT_DEVICE_NAME "GROVA Cube 1"
