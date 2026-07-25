@@ -38,6 +38,52 @@ grova-cube-002
 The cube ID is part of MQTT topics, payloads, ACK matching, dashboard state,
 history, and per-cube commands. Each physical cube must use a unique ID.
 
+## Planned PCB v1 Expansion Headers
+
+The old DHT cube is expected to be replaced by a second GROVA PCB v1 build.
+After that transition, the legacy DHT wiring profile can be treated as
+deprecated and the PCB v1 expansion map can become the normal hardware target.
+
+Planned additional headers for GROVA Core PCB v1:
+
+```text
+J1 - ANALOG INPUT 1
+  3.3V | GND | GPIO36
+
+J2 - ANALOG INPUT 2
+  3.3V | GND | GPIO39
+
+J3 - ONE-WIRE / DIGITAL
+  3.3V | GND | GPIO4
+
+J4 - UART / EXPANSION
+  5V | 3.3V | GND | TX17 | RX16
+
+J5 - PULSE / FLOW
+  5V | 3.3V | GND | GPIO18
+
+J6 - DIGITAL SAFETY INPUT
+  3.3V | GND | GPIO19
+```
+
+Reserved pins:
+
+```text
+GPIO0  -> BOOT/Recovery
+GPIO5  -> internal reserve
+GPIO12 -> do not use
+GPIO15 -> internal reserve
+```
+
+Hardware notes:
+
+```text
+ESP32 GPIOs are not 5V tolerant; 5V headers are power only, signal inputs must stay at 3.3V.
+GPIO36 and GPIO39 are ADC1 input-only pins and have no internal pullups/pulldowns.
+Pulse/flow sensors that output 5V need level shifting or open-collector wiring with a 3.3V pullup.
+The safety input should use external pullup/pulldown and fail-safe wiring so cable faults can be detected later.
+```
+
 ## Optional RTC
 
 The firmware supports an optional DS3231/DS1307-compatible RTC on the existing

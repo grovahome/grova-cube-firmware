@@ -19,6 +19,11 @@ grow modes, light/fan/pump automation, pump safety, HTTP fallback controls and
 OTA updates on its own. MQTT telemetry, Home Assistant discovery and commands
 are optional.
 
+Planned hardware direction: the legacy DHT cube remains supported until Cube 001
+is replaced by a second GROVA PCB v1 build. The next PCB v1 revision should add
+dedicated expansion headers for analog inputs, One-Wire/digital I/O, UART,
+pulse/flow counting and a digital safety input.
+
 <br>
 
 🌐 [GROVAHOME](https://grova.carrd.co)
@@ -150,6 +155,23 @@ The current alpha revision is based on the GROVA CORE Baseboard.
 - Rotary Encoder Support
 - Local Web Interface
 - OTA Updates
+
+### Planned PCB v1 Expansion Headers
+
+| Header | Purpose | Pins |
+| --- | --- | --- |
+| J1 | Analog input 1 | 3.3V, GND, GPIO36 |
+| J2 | Analog input 2 | 3.3V, GND, GPIO39 |
+| J3 | One-Wire / digital | 3.3V, GND, GPIO4 |
+| J4 | UART / expansion | 5V, 3.3V, GND, TX17, RX16 |
+| J5 | Pulse / flow | 5V, 3.3V, GND, GPIO18 |
+| J6 | Digital safety input | 3.3V, GND, GPIO19 |
+
+Reserved pins: GPIO0 for BOOT/recovery, GPIO5 and GPIO15 as internal reserve,
+and GPIO12 unused. ESP32 signal pins are not 5V tolerant; 5V header pins are
+power rails only. GPIO36/GPIO39 are ADC1 input-only pins without internal
+pullups/pulldowns. 5V pulse outputs need level shifting or open-collector
+wiring with a 3.3V pullup.
 
 ### Control Hardware
 
@@ -334,6 +356,20 @@ GROVA PCB v1 default (`GROVA_BOARD_PCB_V1=1`):
 | Encoder | CLK GPIO 33, DT GPIO 32, SW GPIO 2 |
 | Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
 
+Planned PCB v1 expansion map:
+
+| Header | Purpose | Pins |
+| --- | --- | --- |
+| J1 | Analog input 1 | 3.3V, GND, GPIO36 |
+| J2 | Analog input 2 | 3.3V, GND, GPIO39 |
+| J3 | One-Wire / digital | 3.3V, GND, GPIO4 |
+| J4 | UART / expansion | 5V, 3.3V, GND, TX17, RX16 |
+| J5 | Pulse / flow | 5V, 3.3V, GND, GPIO18 |
+| J6 | Digital safety input | 3.3V, GND, GPIO19 |
+
+Reserved: GPIO0 BOOT/recovery, GPIO5 internal reserve, GPIO12 do not use,
+GPIO15 internal reserve.
+
 Older local `board_config.h` files that still define `GROVA_BOARD_PCB_V2` are
 accepted as a backwards-compatible alias, but new configs should use
 `GROVA_BOARD_PCB_V1`.
@@ -447,6 +483,8 @@ All critical functionality runs locally even without connectivity.
 - Community Validation
 - First Developer Batch
 - Firmware Stabilization
+- Planned expansion headers for analog inputs, One-Wire/digital, UART, pulse/flow and safety input
+- Keep legacy DHT profile only until Cube 001 is replaced by a second PCB v1 build
 
 ## GROVA CORE v2
 
