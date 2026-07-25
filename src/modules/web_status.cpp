@@ -13,6 +13,7 @@
 #include "modules/light.h"
 #include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
 #include "modules/stability.h"
@@ -87,7 +88,7 @@ async function refresh(){
     const r=await fetch('/api/v1/status',{cache:'no-store'});
     const d=await r.json();
     const warn=d.warning==='OK'?`<span class="ok">${d.warning}</span>`:`<span class="warn">${d.warning}</span>`;
-    document.getElementById('health').innerHTML=d.healthy?'<span class="ok">HEALTH OK</span>':'<span class="warn">WARN</span>';
+    document.getElementById('health').innerHTML=d.rest_mode.enabled?'<span class="warn">REST MODE</span>':(d.healthy?'<span class="ok">HEALTH OK</span>':'<span class="warn">WARN</span>');
     document.getElementById('updated').textContent=d.cube_id+' | IP '+d.ip+' | uptime '+d.uptime_s+'s';
     setRows('climate',[
       ['Temp',d.temp_c.toFixed(1)+' C'],
@@ -98,6 +99,7 @@ async function refresh(){
     ]);
     renderClimateTargets(d.climate_targets);
     setRows('grow',[
+      ['Rest Mode',d.rest_mode.enabled?'<span class="warn">ACTIVE</span>':'OFF'],
       ['Mode',d.grow.mode],
       ['Effect',d.grow.effect],
       ['Germination',yn(d.grow.germination)],
@@ -147,6 +149,7 @@ async function refresh(){
       ['Time',d.time_synced?'OK':'SYNC'],
       ['Time source',d.time_source],
       ['Clock',String(d.hour).padStart(2,'0')+':'+String(d.minute).padStart(2,'0')],
+      ['Rest Mode',d.rest_mode.enabled?'ACTIVE':'OFF'],
       ['RTC',d.rtc.enabled?(d.rtc.present?(d.rtc.valid?'OK':'INVALID'):'MISSING'):'OFF'],
       ['Settings',d.settings_ok?'OK':'FAIL'],
       ['Free heap',d.free_heap]
@@ -248,6 +251,8 @@ function drawControls(){
       <button onclick="sendControl({cmd:'set_grow_mode',mode:'GERM'})">Germ</button>
       <button onclick="sendControl({cmd:'set_grow_mode',mode:'GROWTH'})">Growth</button>
       <button onclick="sendControl({cmd:'set_grow_mode',mode:'HARVEST'})">Harvest</button>
+      <button onclick="sendControl({cmd:'set_rest_mode',enabled:true})">Rest On</button>
+      <button onclick="sendControl({cmd:'set_rest_mode',enabled:false})">Rest Off</button>
       <button onclick="sendControl({cmd:'set_light_mode',mode:'AUTO'})">Light Auto</button>
       <button onclick="sendControl({cmd:'set_light_mode',mode:'ON'})">Light On</button>
       <button onclick="sendControl({cmd:'set_light_mode',mode:'OFF'})">Light Off</button>
@@ -316,11 +321,12 @@ static void handleStatus() {
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
+    restMode_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
 
   String json;
-  json.reserve(2500);
+  json.reserve(2700);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -345,6 +351,12 @@ static void handleStatus() {
   appendJsonString(json, "firmware_build_env", GROVA_BUILD_ENV);
   runtimeConfig_appendJson(json);
   json += ",";
+
+  json += "\"rest_mode\":{";
+  appendJsonBool(json, "enabled", restMode_isEnabled());
+  appendJsonString(json, "mode", restMode_getName());
+  appendJsonString(json, "reason", restMode_getReasonName(), false);
+  json += "},";
 
   json += "\"rtc\":{";
   appendJsonBool(json, "enabled", rtc_isEnabled());

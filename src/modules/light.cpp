@@ -2,6 +2,7 @@
 #include <Preferences.h>
 #include "config.h"
 #include "modules/grow_mode.h"
+#include "modules/rest_mode.h"
 #include "modules/time_sync.h"
 #include "modules/ui.h"
 #include "modules/light.h"
@@ -52,6 +53,11 @@ void light_begin() {
 }
 
 void light_loop() {
+  if (restMode_isEnabled()) {
+    digitalWrite(PIN_LIGHT, LOW);
+    return;
+  }
+
   if (growMode_isGermination()) {
     digitalWrite(PIN_LIGHT, LOW);
     return;
@@ -71,6 +77,7 @@ void light_loop() {
 }
 
 bool isLightOn() {
+  if (restMode_isEnabled()) return false;
   if (growMode_isGermination()) return false;
 
   if (ui_isLightManualOn()) return true;
@@ -88,6 +95,7 @@ int light_getOffHour() {
 }
 
 const char* light_getReasonName() {
+  if (restMode_isEnabled()) return "REST OFF";
   if (growMode_isGermination()) return "GERM OFF";
   if (ui_isLightManualOn()) return "MAN ON";
   if (ui_isLightManualOff()) return "MAN OFF";

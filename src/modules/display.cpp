@@ -10,6 +10,7 @@
 #include "modules/grow_mode.h"
 #include "modules/light.h"
 #include "modules/pump_scheduler.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
 #include "modules/stability.h"
@@ -42,6 +43,9 @@ static void drawHeader(const char* title, float temp, float hum) {
   if (ui_isEditing()) {
     display.setCursor(66, 1);
     display.print("EDIT");
+  } else if (restMode_isEnabled()) {
+    display.setCursor(66, 1);
+    display.print("REST");
   } else if (alarms_hasWarning(temp, hum)) {
     display.setCursor(62, 1);
     display.print("WARN");
@@ -70,6 +74,7 @@ static void drawStatusPage(float temp, float hum, int fanPercent, bool lightOn) 
 
   drawLine(2, "Grow ");
   display.print(growMode_getName());
+  if (restMode_isEnabled()) display.print(" REST");
 
   drawLine(3, "Fan ");
   display.print(fanPercent);
@@ -78,12 +83,13 @@ static void drawStatusPage(float temp, float hum, int fanPercent, bool lightOn) 
 
   drawLine(4, "Light ");
   display.print(lightOn ? "ON " : "OFF ");
-  display.print(ui_getLightModeName());
+  display.print(restMode_isEnabled() ? "REST" : ui_getLightModeName());
 }
 
 static void drawGrowPage() {
   drawLine(0, "Mode ");
   display.print(growMode_getName());
+  if (restMode_isEnabled()) display.print(" + REST");
 
   drawLine(1, "Effect ");
   display.print(growMode_getEffectName());
@@ -119,7 +125,9 @@ static void drawFanPage(int fanPercent) {
   drawLine(3, "Reason ");
   display.print(fan_getReasonName());
 
-  if (sensors_hasFault()) {
+  if (restMode_isEnabled()) {
+    drawLine(4, "Rest mode off");
+  } else if (sensors_hasFault()) {
     drawLine(4, "Sensor fault safe");
   } else if (fan_hasTachoFault()) {
     drawLine(4, "Fan RPM warning");
@@ -204,7 +212,9 @@ static void drawPumpPage() {
   display.print(pumpScheduler_getMaxRunsPerDay());
 
   drawLine(4, "State ");
-  if (!isTimeSynced()) {
+  if (restMode_isEnabled()) {
+    display.print("REST OFF");
+  } else if (!isTimeSynced()) {
     display.print("sync...");
   } else if (pumpScheduler_isStartupLocked()) {
     display.print("boot lock");
@@ -257,6 +267,7 @@ static void drawDiagPage(float temp, float hum, bool lightOn) {
 
   drawLine(4, "Mode ");
   display.print(growMode_getName());
+  if (restMode_isEnabled()) display.print(" REST");
 }
 
 static void drawSystemPage() {
@@ -289,6 +300,7 @@ static void drawSystemPage() {
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
+    restMode_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
   display.print(cfgOk ? "OK" : "FAIL");

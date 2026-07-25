@@ -124,6 +124,44 @@ rtc.last_read_ok
 rtc.last_write_ok
 ```
 
+## Native Rest Mode
+
+Rest Mode is a persistent firmware state for parking a cube between grows
+without overwriting the stored grow mode or manual settings.
+
+Runtime control through HTTP or MQTT:
+
+```json
+{"cmd":"set_rest_mode","enabled":true}
+```
+
+```json
+{"cmd":"set_rest_mode","enabled":false}
+```
+
+When enabled:
+
+```text
+Light output is forced off.
+Fan 1 and Fan 2 targets/PWM are forced to 0%.
+Automatic pump runs and pump tests are blocked.
+Any running pump is stopped.
+Temperature and humidity warning limits are suspended.
+The current grow mode and manual settings remain stored.
+```
+
+The enabled flag is stored in ESP32 Preferences/NVS and is loaded on boot. A
+restart only re-enters Rest Mode when Rest Mode was explicitly enabled before
+the restart.
+
+Status and MQTT telemetry expose:
+
+```text
+rest_mode.enabled
+rest_mode.mode
+rest_mode.reason
+```
+
 ## Build Commands
 
 ```powershell
@@ -143,6 +181,13 @@ Latest verified RTC-support OTA uploads:
 ```text
 2026-07-25 grova_cube_001_dht_ota -> 192.168.1.70: success, warning OK, rtc.enabled false
 2026-07-25 grova_cube_002_bme_ota -> 192.168.1.97: success, warning OK, rtc.enabled false
+```
+
+Latest verified native Rest Mode OTA uploads:
+
+```text
+2026-07-25 grova_cube_001_dht_ota -> 192.168.1.70: success, healthy true, warning OK, rest_mode.enabled true after server enforcement
+2026-07-25 grova_cube_002_bme_ota -> 192.168.1.97: success, healthy true, warning OK, rest_mode.enabled true after server enforcement
 ```
 
 Local test build for the new PCB, without MQTT telemetry or commands:

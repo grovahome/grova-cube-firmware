@@ -196,6 +196,7 @@ wiring with a 3.3V pullup.
 - Versioned HTTP APIs
 - Persistent Runtime Storage
 - Optional RTC Time Fallback
+- Persistent Native Rest Mode
 
 ---
 
@@ -440,6 +441,22 @@ compatibility.
 {"cmd":"set_fan_auto"}
 ```
 
+
+---
+
+# Native Rest Mode
+
+Rest Mode is a persistent firmware state for parking a cube between grows without overwriting the stored grow mode or manual settings.
+
+```json
+{"cmd":"set_rest_mode","enabled":true}
+```
+
+```json
+{"cmd":"set_rest_mode","enabled":false}
+```
+
+When enabled, the firmware forces the light output off, forces all fan PWM outputs to 0%, stops and blocks pump runs, and suspends temperature/humidity warning limits. The enabled flag is stored in ESP32 Preferences/NVS and is restored after reboot only when Rest Mode was explicitly enabled before restart. Status and MQTT telemetry expose `rest_mode.enabled`, `rest_mode.mode`, and `rest_mode.reason`.
 
 ---
 

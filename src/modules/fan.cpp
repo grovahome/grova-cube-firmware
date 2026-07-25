@@ -3,6 +3,7 @@
 #include "modules/ui.h"
 #include "modules/stability.h"
 #include "modules/climate.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
 
@@ -193,6 +194,7 @@ const char* fan_getTachoStatusName() {
 
 const char* fan_getModeName(int fan) {
   if (!isFanIndexEnabled(fan)) return "OFF";
+  if (restMode_isEnabled()) return "REST";
   if (channelForFan(fan).manual) return "MANUAL";
   if (fan == 1 && ui_isFanManual()) return "MANUAL";
   return "AUTO";
@@ -204,7 +206,31 @@ const char* fan_getReasonName() {
 
 const char* fan_getReasonName(int fan) {
   if (!isFanIndexEnabled(fan)) return "OFF";
+  if (restMode_isEnabled()) return "REST OFF";
   return channelForFan(fan).reason;
+}
+
+void fan_forceOff() {
+  fanReasonName = "REST OFF";
+  fan1.targetPercent = 0;
+  fan1.pwm = 0;
+  fan1.reason = "REST OFF";
+  fan1.demandSince = 0;
+  fan1.tachoFault = false;
+#if FAN2_ENABLED
+  fan2.targetPercent = 0;
+  fan2.pwm = 0;
+  fan2.reason = "REST OFF";
+  fan2.demandSince = 0;
+  fan2.tachoFault = false;
+#else
+  fan2.targetPercent = 0;
+  fan2.pwm = 0;
+  fan2.reason = "OFF";
+  fan2.demandSince = 0;
+  fan2.tachoFault = false;
+#endif
+  writeFanPwm();
 }
 
 static void rampFanToTarget(FanChannel& channel, int targetPWM) {
@@ -299,6 +325,12 @@ static void updateFanTacho() {
 }
 
 void fan_loop(float t, float h) {
+  if (restMode_isEnabled()) {
+    fan_forceOff();
+    updateFanTacho();
+    return;
+  }
+
   t = safeTemp(t);
   h = safeHum(h);
 

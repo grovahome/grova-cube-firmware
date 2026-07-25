@@ -14,6 +14,7 @@
 #include "modules/mqtt_client.h"
 #include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
 #include "modules/stability.h"
@@ -126,11 +127,12 @@ static String buildTelemetryJson() {
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
+    restMode_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
 
   String json;
-  json.reserve(2500);
+  json.reserve(2700);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -154,6 +156,12 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "minute", getMinute());
   runtimeConfig_appendJson(json);
   json += ",";
+
+  json += "\"rest_mode\":{";
+  appendJsonBool(json, "enabled", restMode_isEnabled());
+  appendJsonString(json, "mode", restMode_getName());
+  appendJsonString(json, "reason", restMode_getReasonName(), false);
+  json += "},";
 
   json += "\"rtc\":{";
   appendJsonBool(json, "enabled", rtc_isEnabled());
@@ -406,6 +414,7 @@ static String buildHomeAssistantDiscoveryJson() {
 #endif
   appendSensorComponent(json, "pump_runs_today", "pump_runs_today", "Pump runs today", "{{ value_json.pump.runs_today }}", "", "");
   appendBinarySensorComponent(json, "healthy", "healthy", "Healthy", "{{ 'ON' if value_json.healthy else 'OFF' }}");
+  appendBinarySensorComponent(json, "rest_mode_active", "rest_mode_active", "Rest mode active", "{{ 'ON' if value_json.rest_mode.enabled else 'OFF' }}");
   appendBinarySensorComponent(json, "pump_running", "pump_running", "Pump running", "{{ 'ON' if value_json.pump.running else 'OFF' }}");
 #if PIN_AUX_12V >= 0
   appendBinarySensorComponent(json, "aux_12v_on", "aux_12v_on", "12V output on", "{{ 'ON' if value_json.outputs.aux_12v.on else 'OFF' }}");
@@ -438,7 +447,8 @@ static String buildHomeAssistantDiscoveryJson() {
   appendSwitchComponent(json, "aux_5v", "aux_5v", "5V output", "{{ 'ON' if value_json.outputs.aux_5v.on else 'OFF' }}", "{\"cmd\":\"set_output\",\"output\":\"aux_5v\",\"state\":true}", "{\"cmd\":\"set_output\",\"output\":\"aux_5v\",\"state\":false}");
 #endif
   appendButtonComponent(json, "pump_test", "pump_test", "Pump test", "{\"cmd\":\"pump_test\",\"action\":\"start\"}");
-  appendButtonComponent(json, "pump_stop", "pump_stop", "Stop pump", "{\"cmd\":\"pump_test\",\"action\":\"stop\"}", false);
+  appendButtonComponent(json, "pump_stop", "pump_stop", "Stop pump", "{\"cmd\":\"pump_test\",\"action\":\"stop\"}");
+  appendSwitchComponent(json, "rest_mode", "rest_mode", "Rest mode", "{{ 'ON' if value_json.rest_mode.enabled else 'OFF' }}", "{\"cmd\":\"set_rest_mode\",\"enabled\":true}", "{\"cmd\":\"set_rest_mode\",\"enabled\":false}", false);
   json += "}}";
   return json;
 }

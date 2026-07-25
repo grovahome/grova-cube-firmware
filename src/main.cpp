@@ -19,6 +19,7 @@
 #include "modules/ui.h"
 #include "modules/web_status.h"
 #include "modules/mqtt_client.h"
+#include "modules/rest_mode.h"
 // =========================
 // SETUP
 // =========================
@@ -41,6 +42,7 @@ void setup() {
   stability_begin();
 
   // System modules
+  restMode_begin();
   runtimeConfig_begin();
   outputs_begin();
   growMode_begin();
@@ -55,6 +57,12 @@ void setup() {
   mqttClient_begin();
   // Pump scheduler
   pumpScheduler_begin();
+
+  if (restMode_isEnabled()) {
+    light_loop();
+    fan_forceOff();
+    pumpScheduler_manualStop();
+  }
 
   Serial.println("System bereit.");
 }

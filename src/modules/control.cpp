@@ -8,6 +8,7 @@
 #include "modules/light.h"
 #include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/time_sync.h"
 #include "modules/ui.h"
@@ -264,6 +265,28 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
     return true;
   }
 
+  if (strcmp(command, "SET_REST_MODE") == 0 || strcmp(command, "SET_REST") == 0 || strcmp(command, "REST_MODE") == 0) {
+    bool enabled = false;
+    if (!extractBool(requestBody, "enabled", enabled) && !extractBool(requestBody, "state", enabled)) {
+      makeResponse(responseJson, false, "missing enabled");
+      return false;
+    }
+
+    if (!restMode_setEnabled(enabled, true)) {
+      makeResponse(responseJson, false, "rest mode settings unavailable");
+      return false;
+    }
+
+    if (enabled) {
+      light_loop();
+      fan_forceOff();
+      pumpScheduler_manualStop();
+    }
+
+    makeResponse(responseJson, true, enabled ? "rest mode enabled" : "rest mode disabled");
+    return true;
+  }
+
   if (strcmp(command, "SET_OUTPUT") == 0) {
     char output[20];
     bool on = false;
@@ -336,6 +359,10 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
     normalizeToken(action);
 
     if (strcmp(action, "START") == 0) {
+      if (restMode_isEnabled()) {
+        makeResponse(responseJson, false, "rest mode active");
+        return false;
+      }
       pumpScheduler_manualStart();
       makeResponse(responseJson, true, "pump test started");
       return true;

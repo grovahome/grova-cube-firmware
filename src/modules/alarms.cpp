@@ -4,6 +4,7 @@
 #include "modules/alarms.h"
 #include "modules/climate.h"
 #include "modules/fan.h"
+#include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
 #include "modules/time_sync.h"
@@ -16,6 +17,8 @@ const char* alarms_getPrimaryWarning(float temp, float hum) {
   if (sensors_hasFault()) return sensors_getStatusName();
   if (fan_hasTachoFault()) return "FAN TACH";
   if (isTimeWarningActive()) return "TIME SYNC";
+
+  if (restMode_isEnabled()) return "OK";
 
   if (temp >= runtimeConfig_getTempMaxC()) return "TEMP HIGH";
   if (temp <= runtimeConfig_getTempMinC()) return "TEMP LOW";

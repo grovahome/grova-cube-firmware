@@ -4,6 +4,7 @@
 
 #include "config.h"
 #include "modules/grow_mode.h"
+#include "modules/rest_mode.h"
 #include "modules/time_sync.h"
 #include "modules/pump.h"
 #include "modules/pump_scheduler.h"
@@ -100,6 +101,7 @@ static void refreshAutoRunCount() {
 static bool canStartAutoPump() {
   refreshAutoRunCount();
 
+  if (restMode_isEnabled()) return false;
   if (!isTimeSynced()) return false;
   if (growMode_isHarvest()) return false;
   if (pumpScheduler_isStartupLocked()) return false;
@@ -179,6 +181,11 @@ void pumpScheduler_begin() {
 }
 
 void pumpScheduler_loop() {
+  if (restMode_isEnabled()) {
+    pumpScheduler_stop();
+    return;
+  }
+
   int currentDateKey = getDateKey();
 
   bool isTime =
@@ -198,6 +205,7 @@ void pumpScheduler_loop() {
 }
 
 void pumpScheduler_manualStart() {
+  if (restMode_isEnabled()) return;
   pumpScheduler_start(PUMP_MODE_TEST, PUMP_TEST_RUNTIME_MS);
 }
 
@@ -236,6 +244,7 @@ const char* pumpScheduler_getModeName() {
 }
 
 const char* pumpScheduler_getReasonName() {
+  if (restMode_isEnabled()) return "REST OFF";
   if (pumpRunning && pumpMode == PUMP_MODE_AUTO) return "RUN AUTO";
   if (pumpRunning && pumpMode == PUMP_MODE_TEST) return "RUN TEST";
   if (growMode_isHarvest()) return "HARVEST OFF";
