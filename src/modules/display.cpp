@@ -273,15 +273,24 @@ static void drawSystemPage() {
   display.print(GROVA_BUILD_TIME);
 
   drawLine(4, "Time ");
-  display.print(isTimeSynced() ? "OK " : "SYNC ");
-  display.print("Cfg ");
+  display.print(isTimeSynced() ? "OK " : "-- ");
+  display.print("RTC ");
+  if (!rtc_isEnabled()) {
+    display.print("OFF ");
+  } else if (!rtc_isPresent()) {
+    display.print("MISS ");
+  } else {
+    display.print(rtc_hasValidTime() ? "OK " : "BAD ");
+  }
+  display.print("C ");
   bool cfgOk =
     ui_settingsReady() &&
     growMode_settingsReady() &&
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
-    runtimeConfig_settingsReady();
+    runtimeConfig_settingsReady() &&
+    time_settingsReady();
   display.print(cfgOk ? "OK" : "FAIL");
 }
 

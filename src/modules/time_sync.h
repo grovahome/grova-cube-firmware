@@ -8,3 +8,13 @@ int getMinute();
 int getYearDay();
 int getDateKey();
 bool isTimeSynced();
+bool time_settingsReady();
+
+bool rtc_isEnabled();
+bool rtc_isPresent();
+bool rtc_hasValidTime();
+bool rtc_wasUsedForBoot();
+bool rtc_lastReadOk();
+bool rtc_lastWriteOk();
+const char* time_getSourceName();
+bool rtc_setEnabled(bool enabled);

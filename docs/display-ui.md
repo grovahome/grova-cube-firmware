@@ -55,6 +55,11 @@ Long press:  start editing or switch mode, depending on page
 - Long press on hour/minute/duration starts editing.
 - Automatic pump duration is clamped to `1..10` seconds.
 
+### System
+
+- Shows Wi-Fi, IP, firmware version, build time, time sync, RTC state, and config state.
+- RTC state is shown as `OFF`, `MISS`, `BAD`, or `OK`.
+
 ## Display Sleep
 
 The display sleeps after 60 seconds. The first encoder action wakes the display and does not change a value.

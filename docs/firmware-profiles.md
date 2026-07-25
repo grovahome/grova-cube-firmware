@@ -1,6 +1,6 @@
 # GROVA Firmware Profiles
 
-Status date: 2026-07-21
+Status date: 2026-07-25
 
 The firmware uses one software line for all active cubes. The legacy DHT cube
 and the GROVA PCB v1 cube are built from the same source code; only the
@@ -10,6 +10,9 @@ hardware profile changes through PlatformIO build flags or an optional local
 Credentials stay local in `include/secrets.h`. Each cube must set its own
 `MQTT_CUBE_ID`/device name, but no separate firmware version or branch is
 needed for the old PCB/wiring.
+
+RTC support is included in the shared firmware line, but it is disabled by
+default because the current active cubes do not have RTC modules fitted yet.
 
 ## Active Cubes
 
@@ -35,6 +38,46 @@ grova-cube-002
 The cube ID is part of MQTT topics, payloads, ACK matching, dashboard state,
 history, and per-cube commands. Each physical cube must use a unique ID.
 
+## Optional RTC
+
+The firmware supports an optional DS3231/DS1307-compatible RTC on the existing
+I2C bus.
+
+```text
+I2C address: 0x68
+Default: disabled
+Compile-time default: GROVA_RTC_DEFAULT_ENABLED=0
+Persistent runtime setting: ESP32 Preferences/NVS key rtc_enabled
+Current Cube 001: no RTC fitted, rtc.enabled false
+Current Cube 002: no RTC fitted, rtc.enabled false
+```
+
+When enabled and a valid RTC is present, the cube can seed ESP system time from
+RTC at boot. NTP remains active and is still the primary online time source; it
+refreshes the RTC after the system has a valid network time.
+
+Runtime control through HTTP or MQTT:
+
+```json
+{"cmd":"set_rtc_config","enabled":true}
+```
+
+```json
+{"cmd":"set_rtc_config","enabled":false}
+```
+
+Status and MQTT telemetry expose:
+
+```text
+time_source
+rtc.enabled
+rtc.present
+rtc.valid
+rtc.used_for_boot
+rtc.last_read_ok
+rtc.last_write_ok
+```
+
 ## Build Commands
 
 ```powershell
@@ -47,6 +90,13 @@ OTA upload:
 ```powershell
 C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_001_dht_ota -t upload
 C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_002_bme_ota -t upload
+```
+
+Latest verified RTC-support OTA uploads:
+
+```text
+2026-07-25 grova_cube_001_dht_ota -> 192.168.1.70: success, warning OK, rtc.enabled false
+2026-07-25 grova_cube_002_bme_ota -> 192.168.1.97: success, warning OK, rtc.enabled false
 ```
 
 Local test build for the new PCB, without MQTT telemetry or commands:
@@ -85,6 +135,7 @@ include/board_config.h
 
 include/board_config.example.h
   Versioned example for PCB v1 and legacy wiring profiles.
+  Includes optional RTC defaults: RTC_I2C_ADDR 0x68 and GROVA_RTC_DEFAULT_ENABLED 0.
 ```
 
 Do not commit real Wi-Fi or MQTT credentials.

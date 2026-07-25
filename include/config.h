@@ -234,9 +234,18 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 #ifndef OLED_ADDR
   #define OLED_ADDR 0x3C
 #endif
+#ifndef RTC_I2C_ADDR
+  #define RTC_I2C_ADDR 0x68
+#endif
+#ifndef GROVA_RTC_DEFAULT_ENABLED
+  #define GROVA_RTC_DEFAULT_ENABLED 0
+#endif
 #ifndef SENSOR_READ_FAIL_WARN_AFTER
   #define SENSOR_READ_FAIL_WARN_AFTER 3
 #endif
+
+constexpr unsigned long RTC_PROBE_INTERVAL_MS = 30000UL;
+constexpr unsigned long RTC_WRITE_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 
 // ===== FAN =====
 constexpr bool FAN_TACHO_IS_ENABLED = FAN_TACHO_ENABLED;

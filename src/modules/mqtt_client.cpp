@@ -126,7 +126,8 @@ static String buildTelemetryJson() {
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
-    runtimeConfig_settingsReady();
+    runtimeConfig_settingsReady() &&
+    time_settingsReady();
 
   String json;
   json.reserve(2500);
@@ -148,10 +149,20 @@ static String buildTelemetryJson() {
   appendJsonString(json, "firmware_build_env", GROVA_BUILD_ENV);
   appendJsonBool(json, "wifi_connected", wifiOTA_isConnected());
   appendJsonBool(json, "time_synced", isTimeSynced());
+  appendJsonString(json, "time_source", time_getSourceName());
   appendJsonInt(json, "hour", getHour());
   appendJsonInt(json, "minute", getMinute());
   runtimeConfig_appendJson(json);
   json += ",";
+
+  json += "\"rtc\":{";
+  appendJsonBool(json, "enabled", rtc_isEnabled());
+  appendJsonBool(json, "present", rtc_isPresent());
+  appendJsonBool(json, "valid", rtc_hasValidTime());
+  appendJsonBool(json, "used_for_boot", rtc_wasUsedForBoot());
+  appendJsonBool(json, "last_read_ok", rtc_lastReadOk());
+  appendJsonBool(json, "last_write_ok", rtc_lastWriteOk(), false);
+  json += "},";
 
   json += "\"climate_targets\":{";
   appendJsonFloat(json, "day_temp_c", climate_getDayTemp(), 1);

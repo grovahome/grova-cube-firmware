@@ -26,6 +26,7 @@ Returns the current cube state as JSON, including:
 - active climate targets
 - warning and health state
 - Wi-Fi/time status
+- optional RTC status when present
 - grow mode
 - fan state
 - light state
@@ -150,6 +151,18 @@ Climate targets are the fan automation setpoints.
 ```
 
 The firmware supports five fan curve points using suffixes `_0` through `_4`.
+
+### RTC Config
+
+```json
+{"cmd":"set_rtc_config","enabled":true}
+```
+
+```json
+{"cmd":"set_rtc_config","enabled":false}
+```
+
+RTC support is optional and disabled by default. It is intended for DS3231/DS1307-compatible modules at I2C address `0x68`. When enabled and valid, the RTC can seed ESP system time at boot while NTP remains the primary online time source. Status and MQTT telemetry include `time_source` and an `rtc` object with `enabled`, `present`, `valid`, `used_for_boot`, `last_read_ok`, and `last_write_ok`.
 
 ## MQTT
 

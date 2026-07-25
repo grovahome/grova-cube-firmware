@@ -154,7 +154,7 @@ The current alpha revision is based on the GROVA CORE Baseboard.
 ### Control Hardware
 
 - ESP32 Compatible
-- DS3231 RTC Support
+- Optional DS3231/DS1307-compatible RTC Support
 
 ---
 
@@ -173,6 +173,7 @@ The current alpha revision is based on the GROVA CORE Baseboard.
 - MQTT Telemetry
 - Versioned HTTP APIs
 - Persistent Runtime Storage
+- Optional RTC Time Fallback
 
 ---
 
@@ -201,6 +202,7 @@ Current firmware supports:
 - DHT22
 - BME280
 - BMP280
+- Optional DS3231/DS1307-compatible RTC at `0x68`
 
 Additional I2C-based sensors can be added through the expansion architecture.
 
@@ -238,6 +240,7 @@ Additional I2C-based sensors can be added through the expansion architecture.
 | Build System | PlatformIO |
 | Firmware Branch | grova-core-v1 |
 | Operation | Local First |
+| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
 
 ---
 
@@ -312,6 +315,7 @@ Legacy default (`GROVA_BOARD_PCB_V1=0`):
 | Fan PWM | GPIO 25 |
 | Fan tacho | GPIO 35, disabled by default |
 | Encoder | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
+| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
 
 GROVA PCB v1 default (`GROVA_BOARD_PCB_V1=1`):
 
@@ -328,6 +332,7 @@ GROVA PCB v1 default (`GROVA_BOARD_PCB_V1=1`):
 | Fan 1 | PWM GPIO 25, tacho GPIO 34 |
 | Fan 2 | PWM GPIO 23 enabled by default, tacho GPIO 35 optional |
 | Encoder | CLK GPIO 33, DT GPIO 32, SW GPIO 2 |
+| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
 
 Older local `board_config.h` files that still define `GROVA_BOARD_PCB_V2` are
 accepted as a backwards-compatible alias, but new configs should use
@@ -351,6 +356,7 @@ Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
 - climate day/night targets
 - warning limits
 - fan curve
+- optional RTC enablement
 
 Optional MQTT/Home Assistant settings in `include/secrets.h`:
 
@@ -398,6 +404,26 @@ compatibility.
 {"cmd":"set_fan_auto"}
 ```
 
+
+---
+
+# Optional RTC Support
+
+The firmware supports DS3231/DS1307-compatible RTC modules on the shared I2C bus at address `0x68`.
+
+RTC support is intentionally disabled by default so cubes without RTC hardware keep behaving exactly like NTP-only devices. Enable it only when an RTC module is fitted.
+
+```json
+{"cmd":"set_rtc_config","enabled":true}
+```
+
+```json
+{"cmd":"set_rtc_config","enabled":false}
+```
+
+When enabled and valid, the RTC can seed ESP system time during boot. NTP remains the primary online time source and refreshes the RTC later. Status and MQTT telemetry expose `time_source` plus `rtc.enabled`, `rtc.present`, `rtc.valid`, `rtc.used_for_boot`, `rtc.last_read_ok`, and `rtc.last_write_ok`.
+
+Current prototype note: Cube 001 and Cube 002 do not have RTC hardware fitted yet, so both are deployed with `rtc.enabled=false`.
 ---
 
 # MQTT Topics

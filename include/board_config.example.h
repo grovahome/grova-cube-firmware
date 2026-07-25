@@ -33,6 +33,11 @@
 #define OLED_SCL 22
 #define OLED_ADDR 0x3C
 
+// Optional DS3231/DS1307-compatible RTC on the same I2C bus.
+// Runtime default is off; enable it from the ESP web status page or API when fitted.
+#define RTC_I2C_ADDR 0x68
+#define GROVA_RTC_DEFAULT_ENABLED 0
+
 // ===== MOSFET outputs =====
 #define PIN_LIGHT 26
 #define PIN_PUMP 13

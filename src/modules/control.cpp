@@ -9,6 +9,7 @@
 #include "modules/outputs.h"
 #include "modules/pump_scheduler.h"
 #include "modules/runtime_config.h"
+#include "modules/time_sync.h"
 #include "modules/ui.h"
 
 static void normalizeToken(char* value) {
@@ -385,6 +386,18 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
 
   if (strcmp(command, "SET_CONFIG") == 0) {
     return runtimeConfig_applyJson(requestBody, responseJson);
+  }
+
+  if (strcmp(command, "SET_RTC_CONFIG") == 0 || strcmp(command, "SET_RTC") == 0) {
+    bool enabled = false;
+    if (!extractBool(requestBody, "enabled", enabled)) {
+      makeResponse(responseJson, false, "missing enabled");
+      return false;
+    }
+
+    rtc_setEnabled(enabled);
+    makeResponse(responseJson, true, enabled ? "rtc enabled" : "rtc disabled");
+    return true;
   }
 
   makeResponse(responseJson, false, "unknown cmd");

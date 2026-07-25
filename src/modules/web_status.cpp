@@ -145,10 +145,13 @@ async function refresh(){
       ['Build',d.firmware_build_date+' '+d.firmware_build_time],
       ['WiFi',d.wifi_connected?'OK':'FAIL'],
       ['Time',d.time_synced?'OK':'SYNC'],
+      ['Time source',d.time_source],
       ['Clock',String(d.hour).padStart(2,'0')+':'+String(d.minute).padStart(2,'0')],
+      ['RTC',d.rtc.enabled?(d.rtc.present?(d.rtc.valid?'OK':'INVALID'):'MISSING'):'OFF'],
       ['Settings',d.settings_ok?'OK':'FAIL'],
       ['Free heap',d.free_heap]
     ]);
+    renderRtc(d.rtc);
     renderConfig(d.config);
   }catch(e){
     document.getElementById('health').innerHTML='<span class="warn">OFFLINE</span>';
@@ -176,6 +179,13 @@ function renderClimateTargets(c){
   html+='<span>Night target</span>'+numberInput('clim_night_temp',c.night_temp_c.toFixed(1),'0.1')+numberInput('clim_night_hum',c.night_hum_pct,'1')+'<span>C / %</span>';
   html+='</div><div class="config-actions"><button onclick="saveClimateTargets()">Save Targets</button></div>';
   document.getElementById('climateTargets').innerHTML=html;
+}
+function renderRtc(rtc){
+  if(!rtc) return;
+  const button=rtc.enabled
+    ? `<button onclick="sendControl({cmd:'set_rtc_config',enabled:false})">Disable RTC</button>`
+    : `<button onclick="sendControl({cmd:'set_rtc_config',enabled:true})">Enable RTC</button>`;
+  document.getElementById('system').innerHTML+=`<div class="config-actions">${button}</div>`;
 }
 async function saveClimateTargets(){
   const payload={cmd:'set_climate_targets',
@@ -306,7 +316,8 @@ static void handleStatus() {
     climate_settingsReady() &&
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
-    runtimeConfig_settingsReady();
+    runtimeConfig_settingsReady() &&
+    time_settingsReady();
 
   String json;
   json.reserve(2500);
@@ -321,6 +332,7 @@ static void handleStatus() {
   appendJsonBool(json, "wifi_connected", wifiOTA_isConnected());
   appendJsonString(json, "ip", wifiOTA_getIP());
   appendJsonBool(json, "time_synced", isTimeSynced());
+  appendJsonString(json, "time_source", time_getSourceName());
   appendJsonInt(json, "hour", getHour());
   appendJsonInt(json, "minute", getMinute());
   appendJsonInt(json, "uptime_s", millis() / 1000UL);
@@ -333,6 +345,15 @@ static void handleStatus() {
   appendJsonString(json, "firmware_build_env", GROVA_BUILD_ENV);
   runtimeConfig_appendJson(json);
   json += ",";
+
+  json += "\"rtc\":{";
+  appendJsonBool(json, "enabled", rtc_isEnabled());
+  appendJsonBool(json, "present", rtc_isPresent());
+  appendJsonBool(json, "valid", rtc_hasValidTime());
+  appendJsonBool(json, "used_for_boot", rtc_wasUsedForBoot());
+  appendJsonBool(json, "last_read_ok", rtc_lastReadOk());
+  appendJsonBool(json, "last_write_ok", rtc_lastWriteOk(), false);
+  json += "},";
 
   json += "\"climate_targets\":{";
   appendJsonFloat(json, "day_temp_c", climate_getDayTemp(), 1);
