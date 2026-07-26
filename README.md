@@ -19,13 +19,7 @@ grow modes, light/fan/pump automation, pump safety, HTTP fallback controls and
 OTA updates on its own. MQTT telemetry, Home Assistant discovery and commands
 are optional.
 
-Offline grow mode is now supported through ESP-local preset storage: each cube
-can keep up to 5 local presets, with up to 10 phases per preset and up to 5 pump
-events per phase. After a run is started, the ESP can continue applying phase
-targets and pump events without the server being online.
-
-Planned hardware direction: the legacy DHT cube remains supported until Cube 001
-is replaced by a second GROVA PCB v1 build. The next PCB v1 revision should add
+The next PCB v1 revision should add
 dedicated expansion headers for analog inputs, One-Wire/digital I/O, UART,
 pulse/flow counting and a digital safety input.
 
@@ -132,6 +126,15 @@ Every Batch #01 kit includes:
 👉 [GROVAHOME](https://grova.carrd.co)
 
 ---
+# Recent Changes and Updates
+
+Offline grow mode is now supported through ESP-local preset storage: each board
+can keep up to 5 local presets, with up to 10 phases per preset and up to 5 pump
+events per phase. After a run is started, the ESP can continue applying phase
+targets and pump events without the server being online.
+
+Planned hardware direction: the legacy DHT cube remains supported until Cube 001
+is replaced by a second GROVA PCB v1 build. 
 
 # Hardware Overview
 
