@@ -22,6 +22,7 @@ static int autoRunCount = 0;
 static Preferences pumpSettings;
 static bool pumpSettingsReady = false;
 static bool pumpSettingsDirty = false;
+static bool autoScheduleEnabled = true;
 
 static int pumpRunHour = PUMP_RUN_HOUR;
 static int pumpRunMinute = PUMP_RUN_MINUTE;
@@ -189,7 +190,8 @@ void pumpScheduler_loop() {
   int currentDateKey = getDateKey();
 
   bool isTime =
-    (isTimeSynced() &&
+    (autoScheduleEnabled &&
+     isTimeSynced() &&
      !growMode_isHarvest() &&
      currentDateKey >= 0 &&
      getHour() == pumpRunHour &&
@@ -211,6 +213,17 @@ void pumpScheduler_manualStart() {
 
 void pumpScheduler_manualStop() {
   pumpScheduler_stop();
+}
+
+void pumpScheduler_setAutoScheduleEnabled(bool enabled) {
+  autoScheduleEnabled = enabled;
+}
+
+bool pumpScheduler_startAutoRunSeconds(int seconds) {
+  if (seconds < PUMP_RUNTIME_MIN_SECONDS || seconds > PUMP_RUNTIME_MAX_SECONDS) return false;
+  if (pumpRunning || !canStartAutoPump()) return false;
+  pumpScheduler_start(PUMP_MODE_AUTO, static_cast<unsigned long>(seconds) * 1000UL);
+  return true;
 }
 
 bool pumpScheduler_isRunning() {

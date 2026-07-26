@@ -16,9 +16,11 @@ enum PumpSetting {
 
 void pumpScheduler_begin();
 void pumpScheduler_loop();
+void pumpScheduler_setAutoScheduleEnabled(bool enabled);
 
 void pumpScheduler_manualStart();
 void pumpScheduler_manualStop();
+bool pumpScheduler_startAutoRunSeconds(int seconds);
 bool pumpScheduler_isRunning();
 int pumpScheduler_getLastRunDay();
 int pumpScheduler_getLastRunDateKey();

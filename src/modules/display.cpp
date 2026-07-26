@@ -9,6 +9,7 @@
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/local_run.h"
 #include "modules/pump_scheduler.h"
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
@@ -301,6 +302,7 @@ static void drawSystemPage() {
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
     restMode_settingsReady() &&
+    localRun_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
   display.print(cfgOk ? "OK" : "FAIL");

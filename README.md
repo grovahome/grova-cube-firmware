@@ -1,4 +1,4 @@
-<div align="center">
+﻿<div align="center">
 
 # GROVA CORE
 
@@ -18,6 +18,11 @@ The firmware is local-first: each cube can run its sensors, OLED/encoder UI,
 grow modes, light/fan/pump automation, pump safety, HTTP fallback controls and
 OTA updates on its own. MQTT telemetry, Home Assistant discovery and commands
 are optional.
+
+Offline grow mode is now supported through ESP-local preset storage: each cube
+can keep up to 5 local presets, with up to 10 phases per preset and up to 5 pump
+events per phase. After a run is started, the ESP can continue applying phase
+targets and pump events without the server being online.
 
 Planned hardware direction: the legacy DHT cube remains supported until Cube 001
 is replaced by a second GROVA PCB v1 build. The next PCB v1 revision should add
@@ -197,6 +202,8 @@ wiring with a 3.3V pullup.
 - Persistent Runtime Storage
 - Optional RTC Time Fallback
 - Persistent Native Rest Mode
+- Local Offline Preset Mode, up to 5 ESP presets
+- Offline Grow Run Engine
 
 ---
 
@@ -394,6 +401,7 @@ Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
 - warning limits
 - fan curve
 - optional RTC enablement
+- local preset slots and active local run state
 
 Optional MQTT/Home Assistant settings in `include/secrets.h`:
 
@@ -414,6 +422,7 @@ GET  /api/v1/status
 POST /api/v1/control
 GET  /api/v1/config
 POST /api/v1/config
+GET  /api/v1/local-presets
 ```
 
 Example control commands:
@@ -460,6 +469,38 @@ When enabled, the firmware forces the light output off, forces all fan PWM outpu
 
 ---
 
+# Local Offline Preset Mode
+
+The firmware can store grow presets directly on the ESP32 and execute one active grow locally. This lets the cube keep running a started grow even if the server, MQTT bridge or dashboard is offline.
+
+Limits:
+
+```text
+Local ESP preset slots: 5
+Maximum phases per preset: 10
+Maximum pump events per phase: 5
+Active local run: 1
+```
+
+The server/dashboard can store more profiles, but only selected profiles are synced into the ESP's five local slots for offline execution.
+
+Example control commands:
+
+```json
+{"cmd":"set_local_preset","slot":0,"payload_hex":"..."}
+```
+
+```json
+{"cmd":"start_local_run","slot":0,"start_at_ms":1780000000000,"run_id":"run-...","revision":123456}
+```
+
+```json
+{"cmd":"stop_local_run"}
+```
+
+During a local run, the ESP applies phase grow mode, climate targets, light schedule and due pump events itself. Server-side stop commands and active-preset resyncs can still intervene when the cube is online. Existing pump safety remains active, including the daily run limit, minimum interval, maximum runtime, startup lock, harvest block and Rest Mode block.
+
+---
 # Optional RTC Support
 
 The firmware supports DS3231/DS1307-compatible RTC modules on the shared I2C bus at address `0x68`.

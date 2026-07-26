@@ -63,6 +63,17 @@
 constexpr unsigned long MQTT_TELEMETRY_INTERVAL_MS = 10000UL;
 constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 
+// ===== LOCAL PRESET STORAGE =====
+#ifndef GROVA_LOCAL_PRESET_SLOTS
+  #define GROVA_LOCAL_PRESET_SLOTS 5
+#endif
+#ifndef GROVA_LOCAL_PRESET_MAX_PHASES
+  #define GROVA_LOCAL_PRESET_MAX_PHASES 10
+#endif
+#ifndef GROVA_LOCAL_PRESET_MAX_PUMP_EVENTS
+  #define GROVA_LOCAL_PRESET_MAX_PUMP_EVENTS 5
+#endif
+
 // ===== BOARD / SENSOR SELECTION =====
 // One firmware supports both the legacy hand-wired cube and the GROVA PCB v1.
 // GROVA_BOARD_PCB_V2 is kept as a backwards-compatible alias for older local

@@ -20,6 +20,8 @@
 #include "modules/web_status.h"
 #include "modules/mqtt_client.h"
 #include "modules/rest_mode.h"
+#include "modules/preset_store.h"
+#include "modules/local_run.h"
 // =========================
 // SETUP
 // =========================
@@ -43,6 +45,7 @@ void setup() {
 
   // System modules
   restMode_begin();
+  presetStore_begin();
   runtimeConfig_begin();
   outputs_begin();
   growMode_begin();
@@ -57,6 +60,7 @@ void setup() {
   mqttClient_begin();
   // Pump scheduler
   pumpScheduler_begin();
+  localRun_begin();
 
   if (restMode_isEnabled()) {
     light_loop();
@@ -82,6 +86,9 @@ void loop() {
 
   // Stability check
   stability_loop();
+
+  // Local offline grow automation
+  localRun_loop();
 
   // Target values based on light phase
   climate_loop();

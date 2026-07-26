@@ -217,6 +217,17 @@ int getDateKey() {
   if (!timeSynced || lastYear <= 0 || lastYearDay < 0) return -1;
   return (lastYear * 1000) + lastYearDay;
 }
+unsigned long getEpochSeconds() {
+  if (!timeSynced) return 0;
+  time_t now = time(nullptr);
+  if (now <= 1704067200) return 0;
+  return static_cast<unsigned long>(now);
+}
+unsigned long long getEpochMillis() {
+  unsigned long seconds = getEpochSeconds();
+  if (seconds == 0) return 0;
+  return static_cast<unsigned long long>(seconds) * 1000ULL;
+}
 bool isTimeSynced() { return timeSynced; }
 bool time_settingsReady() { return settingsReady; }
 bool rtc_isEnabled() { return rtcEnabled; }

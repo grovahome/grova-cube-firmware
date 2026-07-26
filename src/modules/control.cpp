@@ -6,7 +6,9 @@
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/local_run.h"
 #include "modules/outputs.h"
+#include "modules/preset_store.h"
 #include "modules/pump_scheduler.h"
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
@@ -45,6 +47,27 @@ static bool extractString(const String& body, const char* key, char* output, siz
   return true;
 }
 
+static bool extractStringValue(const String& body, const char* key, String& output) {
+  String needle = "\"";
+  needle += key;
+  needle += "\"";
+
+  int keyPos = body.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = body.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  int valueStart = body.indexOf('"', colonPos + 1);
+  if (valueStart < 0) return false;
+
+  int valueEnd = body.indexOf('"', valueStart + 1);
+  if (valueEnd < 0) return false;
+
+  output = body.substring(valueStart + 1, valueEnd);
+  return true;
+}
+
 static bool extractInt(const String& body, const char* key, int& value) {
   String needle = "\"";
   needle += key;
@@ -65,6 +88,52 @@ static bool extractInt(const String& body, const char* key, int& value) {
   if (valueEnd == valueStart) return false;
 
   value = body.substring(valueStart, valueEnd).toInt();
+  return true;
+}
+
+static bool extractUnsignedLong(const String& body, const char* key, unsigned long& value) {
+  String needle = "\"";
+  needle += key;
+  needle += "\"";
+
+  int keyPos = body.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = body.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  int valueStart = colonPos + 1;
+  while (valueStart < static_cast<int>(body.length()) && isspace(body[valueStart])) valueStart++;
+
+  int valueEnd = valueStart;
+  while (valueEnd < static_cast<int>(body.length()) && isdigit(body[valueEnd])) valueEnd++;
+
+  if (valueEnd == valueStart) return false;
+
+  value = strtoul(body.substring(valueStart, valueEnd).c_str(), nullptr, 10);
+  return true;
+}
+
+static bool extractUnsignedLongLong(const String& body, const char* key, unsigned long long& value) {
+  String needle = "\"";
+  needle += key;
+  needle += "\"";
+
+  int keyPos = body.indexOf(needle);
+  if (keyPos < 0) return false;
+
+  int colonPos = body.indexOf(':', keyPos + needle.length());
+  if (colonPos < 0) return false;
+
+  int valueStart = colonPos + 1;
+  while (valueStart < static_cast<int>(body.length()) && isspace(body[valueStart])) valueStart++;
+
+  int valueEnd = valueStart;
+  while (valueEnd < static_cast<int>(body.length()) && isdigit(body[valueEnd])) valueEnd++;
+
+  if (valueEnd == valueStart) return false;
+
+  value = strtoull(body.substring(valueStart, valueEnd).c_str(), nullptr, 10);
   return true;
 }
 
@@ -413,6 +482,105 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
 
   if (strcmp(command, "SET_CONFIG") == 0) {
     return runtimeConfig_applyJson(requestBody, responseJson);
+  }
+
+  if (strcmp(command, "SET_LOCAL_PRESET") == 0 || strcmp(command, "SAVE_LOCAL_PRESET") == 0) {
+    int slot = -1;
+    String payloadHex;
+    if (!extractInt(requestBody, "slot", slot)) {
+      makeResponse(responseJson, false, "missing slot");
+      return false;
+    }
+    if (!extractStringValue(requestBody, "payload_hex", payloadHex)) {
+      makeResponse(responseJson, false, "missing payload");
+      return false;
+    }
+    if (!presetStore_saveHexPayload(slot, payloadHex)) {
+      makeResponse(responseJson, false, "invalid local preset");
+      return false;
+    }
+    makeResponse(responseJson, true, "local preset saved");
+    return true;
+  }
+
+  if (strcmp(command, "CLEAR_LOCAL_PRESET") == 0 || strcmp(command, "DELETE_LOCAL_PRESET") == 0) {
+    int slot = -1;
+    if (!extractInt(requestBody, "slot", slot)) {
+      makeResponse(responseJson, false, "missing slot");
+      return false;
+    }
+    if (!presetStore_clearSlot(slot)) {
+      makeResponse(responseJson, false, "invalid local preset slot");
+      return false;
+    }
+    makeResponse(responseJson, true, "local preset cleared");
+    return true;
+  }
+
+  if (strcmp(command, "SET_ACTIVE_LOCAL_PRESET") == 0) {
+    int slot = -1;
+    if (!extractInt(requestBody, "slot", slot)) {
+      makeResponse(responseJson, false, "missing slot");
+      return false;
+    }
+    if (!presetStore_setActiveSlot(slot)) {
+      makeResponse(responseJson, false, "local preset slot is empty");
+      return false;
+    }
+    makeResponse(responseJson, true, "active local preset updated");
+    return true;
+  }
+
+  if (strcmp(command, "START_LOCAL_RUN") == 0) {
+    int slot = -1;
+    unsigned long startAtS = 0;
+    unsigned long long startAtMs = 0;
+    unsigned long revisionValue = 0;
+    char runId[40] = "";
+    if (!extractInt(requestBody, "slot", slot)) {
+      makeResponse(responseJson, false, "missing slot");
+      return false;
+    }
+    if (extractUnsignedLongLong(requestBody, "start_at_ms", startAtMs) && startAtMs > 0) {
+      startAtS = static_cast<unsigned long>(startAtMs / 1000ULL);
+    } else {
+      extractUnsignedLong(requestBody, "start_at_s", startAtS);
+    }
+    extractUnsignedLong(requestBody, "revision", revisionValue);
+    extractString(requestBody, "run_id", runId, sizeof(runId));
+    if (!localRun_start(slot, startAtS, runId, static_cast<uint32_t>(revisionValue))) {
+      makeResponse(responseJson, false, "local run start failed");
+      return false;
+    }
+    makeResponse(responseJson, true, "local run started");
+    return true;
+  }
+
+  if (strcmp(command, "STOP_LOCAL_RUN") == 0) {
+    if (!localRun_stop()) {
+      makeResponse(responseJson, false, "local run stop failed");
+      return false;
+    }
+    makeResponse(responseJson, true, "local run stopped");
+    return true;
+  }
+
+  if (strcmp(command, "PAUSE_LOCAL_RUN") == 0) {
+    if (!localRun_pause(true)) {
+      makeResponse(responseJson, false, "local run pause failed");
+      return false;
+    }
+    makeResponse(responseJson, true, "local run paused");
+    return true;
+  }
+
+  if (strcmp(command, "RESUME_LOCAL_RUN") == 0) {
+    if (!localRun_pause(false)) {
+      makeResponse(responseJson, false, "local run resume failed");
+      return false;
+    }
+    makeResponse(responseJson, true, "local run resumed");
+    return true;
   }
 
   if (strcmp(command, "SET_RTC_CONFIG") == 0 || strcmp(command, "SET_RTC") == 0) {

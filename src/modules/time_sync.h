@@ -7,6 +7,8 @@ int getHour();
 int getMinute();
 int getYearDay();
 int getDateKey();
+unsigned long getEpochSeconds();
+unsigned long long getEpochMillis();
 bool isTimeSynced();
 bool time_settingsReady();
 

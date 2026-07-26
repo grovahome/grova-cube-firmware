@@ -11,7 +11,9 @@
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/local_run.h"
 #include "modules/outputs.h"
+#include "modules/preset_store.h"
 #include "modules/pump_scheduler.h"
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
@@ -101,6 +103,9 @@ async function refresh(){
     setRows('grow',[
       ['Rest Mode',d.rest_mode.enabled?'<span class="warn">ACTIVE</span>':'OFF'],
       ['Mode',d.grow.mode],
+      ['Local Run',d.local_run.active?d.local_run.status:'OFF'],
+      ['Preset',d.local_run.preset_name||'-'],
+      ['Phase',d.local_run.phase_label||'-'],
       ['Effect',d.grow.effect],
       ['Germination',yn(d.grow.germination)],
       ['Harvest',yn(d.grow.harvest)]
@@ -150,6 +155,7 @@ async function refresh(){
       ['Time source',d.time_source],
       ['Clock',String(d.hour).padStart(2,'0')+':'+String(d.minute).padStart(2,'0')],
       ['Rest Mode',d.rest_mode.enabled?'ACTIVE':'OFF'],
+      ['Local presets',d.local_presets.active_slot>=0?'Slot '+d.local_presets.active_slot:'none'],
       ['RTC',d.rtc.enabled?(d.rtc.present?(d.rtc.valid?'OK':'INVALID'):'MISSING'):'OFF'],
       ['Settings',d.settings_ok?'OK':'FAIL'],
       ['Free heap',d.free_heap]
@@ -322,11 +328,13 @@ static void handleStatus() {
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
     restMode_settingsReady() &&
+    presetStore_settingsReady() &&
+    localRun_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
 
   String json;
-  json.reserve(2700);
+  json.reserve(3600);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -350,6 +358,10 @@ static void handleStatus() {
   appendJsonString(json, "firmware_build_time", GROVA_BUILD_TIME);
   appendJsonString(json, "firmware_build_env", GROVA_BUILD_ENV);
   runtimeConfig_appendJson(json);
+  json += ",";
+  presetStore_appendSummaryJson(json);
+  json += ",";
+  localRun_appendJson(json);
   json += ",";
 
   json += "\"rest_mode\":{";
@@ -485,6 +497,13 @@ static void handleConfigPost() {
   server.send(ok ? 200 : 400, "application/json", response);
 }
 
+static void handleLocalPresets() {
+  String json;
+  json.reserve(6200);
+  presetStore_appendFullJson(json);
+  server.send(200, "application/json", json);
+}
+
 void webStatus_begin() {
   if (strlen(WIFI_SSID) == 0) {
     Serial.println("Web status disabled");
@@ -495,6 +514,7 @@ void webStatus_begin() {
   server.on("/api/status", HTTP_GET, handleStatus);
   server.on("/api/v1/status", HTTP_GET, handleStatus);
   server.on("/api/v1/control", HTTP_POST, handleControl);
+  server.on("/api/v1/local-presets", HTTP_GET, handleLocalPresets);
   server.on("/api/v1/config", HTTP_GET, handleConfig);
   server.on("/api/v1/config", HTTP_POST, handleConfigPost);
   server.begin();

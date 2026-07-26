@@ -11,8 +11,10 @@
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
+#include "modules/local_run.h"
 #include "modules/mqtt_client.h"
 #include "modules/outputs.h"
+#include "modules/preset_store.h"
 #include "modules/pump_scheduler.h"
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
@@ -128,11 +130,13 @@ static String buildTelemetryJson() {
     light_settingsReady() &&
     pumpScheduler_settingsReady() &&
     restMode_settingsReady() &&
+    presetStore_settingsReady() &&
+    localRun_settingsReady() &&
     runtimeConfig_settingsReady() &&
     time_settingsReady();
 
   String json;
-  json.reserve(2700);
+  json.reserve(3600);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -155,6 +159,10 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "hour", getHour());
   appendJsonInt(json, "minute", getMinute());
   runtimeConfig_appendJson(json);
+  json += ",";
+  presetStore_appendSummaryJson(json);
+  json += ",";
+  localRun_appendJson(json);
   json += ",";
 
   json += "\"rest_mode\":{";
