@@ -9,20 +9,14 @@ An open-source environmental automation controller designed for Home Assistant a
 
 Built for builders, makers and professionals who demand reliable climate control without cloud dependency, subscriptions or vendor lock-in.
 
-`grova-core-v1` is the single firmware line for both active hardware setups:
-the legacy DHT cube and the GROVA PCB v1 cube use the same source code. Board
-differences are selected only through PlatformIO profiles or local
-`include/board_config.h` overrides.
 
-The firmware is local-first: each cube can run its sensors, OLED/encoder UI,
-grow modes, light/fan/pump automation, pump safety, HTTP fallback controls and
-OTA updates on its own. MQTT telemetry, Home Assistant discovery and commands
-are optional.
 
-The next PCB v1 revision should add
-dedicated expansion headers for analog inputs, One-Wire/digital I/O, UART,
-pulse/flow counting and a digital safety input.
+🚀 Local-First <br>
+🔄 OTA Updates <br>
+📡 MQTT Connectivity <br>
+⚡ Integrated Power Distribution <br>
 
+👉 Interested in the first 50 developer kits?
 <br>
 
 🌐 [GROVAHOME](https://grova.carrd.co)
