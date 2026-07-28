@@ -30,7 +30,7 @@ Returns the current cube state as JSON, including:
 - grow mode
 - fan state
 - light state
-- pump state and safety counters
+- pump state and event-lock safety status
 - sensor state
 
 ## Control
@@ -119,7 +119,7 @@ Automatic pump duration is limited to `1..10` seconds.
 {"cmd":"pump_test","action":"stop"}
 ```
 
-Pump tests do not count toward the automatic daily limit or interval, but still obey the hard runtime limit.
+Pump tests do not count as scheduled pump events. They are blocked by Rest Mode and still obey the hard runtime limit.
 
 ### Climate Targets
 

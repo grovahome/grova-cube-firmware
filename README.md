@@ -1,4 +1,4 @@
-﻿<div align="center">
+<div align="center">
 
 # GROVA CORE
 
@@ -19,9 +19,9 @@ Built for builders, makers and professionals who demand reliable climate control
 👉 Interested in the first 50 developer kits?
 <br>
 
-🌐 [GROVAHOME](https://grova.carrd.co)
+?? [GROVAHOME](https://grova.carrd.co)
 
-🚀 Batch #01 Waitlist Open
+?? Batch #01 Waitlist Open
 
 </div>
 
@@ -35,20 +35,20 @@ Designed around a local-first philosophy, it keeps your infrastructure running i
 
 ### Key Benefits
 
-- ✅ Fully Local Operation
-- ✅ ESP32 Based
-- ✅ MQTT Support
-- ✅ REST API Support
-- ✅ Designed For Local Automation
-- ✅ Home Assistant Integration Planned
-- ✅ Open Source Firmware
-- ✅ Open Hardware Architecture
-- ✅ Dual PWM Fan Control
-- ✅ High-Power MOSFET Outputs
-- ✅ Sensor Expansion Ready
-- ✅ No Recurring Fees
-- ✅ No Vendor Lock-In
-- ✅ Swiss Engineered
+- ? Fully Local Operation
+- ? ESP32 Based
+- ? MQTT Support
+- ? REST API Support
+- ? Designed For Local Automation
+- ? Home Assistant Integration Planned
+- ? Open Source Firmware
+- ? Open Hardware Architecture
+- ? Dual PWM Fan Control
+- ? High-Power MOSFET Outputs
+- ? Sensor Expansion Ready
+- ? No Recurring Fees
+- ? No Vendor Lock-In
+- ? Swiss Engineered
 
 ---
 
@@ -117,7 +117,7 @@ Every Batch #01 kit includes:
 
 ### Join The Waitlist
 
-👉 [GROVAHOME](https://grova.carrd.co)
+?? [GROVAHOME](https://grova.carrd.co)
 
 ---
 # Recent Changes and Updates
@@ -495,7 +495,15 @@ Example control commands:
 {"cmd":"stop_local_run"}
 ```
 
-During a local run, the ESP applies phase grow mode, climate targets, light schedule and due pump events itself. Server-side stop commands and active-preset resyncs can still intervene when the cube is online. Existing pump safety remains active, including the daily run limit, minimum interval, maximum runtime, startup lock, harvest block and Rest Mode block.
+```json
+{"cmd":"pause_local_run"}
+```
+
+```json
+{"cmd":"resume_local_run"}
+```
+
+During a local run, the ESP applies phase grow mode, climate targets, light schedule and due pump events itself. Server-side stop, pause/resume commands and active-preset resyncs can still intervene when the cube is online. Pump safety uses an event lock instead of a hard daily/interval throttle: the same scheduled date/minute event cannot retrigger, while the 10 s maximum runtime, startup lock, missing time sync, harvest block and Rest Mode block remain active.
 
 ---
 # Optional RTC Support
@@ -619,6 +627,6 @@ No recurring fees.
 
 Just reliable climate control.
 
-🌐 https://grovahome.com
+?? https://grovahome.com
 
 </div>

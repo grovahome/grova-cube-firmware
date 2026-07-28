@@ -51,7 +51,8 @@ static const char STATUS_PAGE[] PROGMEM = R"HTML(
     .pill{display:inline-block;border-radius:999px;padding:3px 8px;font-size:12px;background:#25303a;color:var(--text)}
     .buttons{display:flex;flex-wrap:wrap;gap:6px}
     button{border:1px solid var(--line);border-radius:7px;background:#26313b;color:var(--text);padding:7px 9px;font:inherit;font-size:13px}
-    input{width:70px;border:1px solid var(--line);border-radius:6px;background:#101820;color:var(--text);padding:6px;font:inherit;font-size:13px;text-align:right}
+    input,select{width:100%;border:1px solid var(--line);border-radius:6px;background:#101820;color:var(--text);padding:6px;font:inherit;font-size:13px}
+    input{width:70px;text-align:right}
     .config-grid{display:grid;grid-template-columns:1fr auto auto auto;gap:7px;align-items:center;font-size:13px}
     .config-grid span{color:var(--muted)}
     .config-actions{margin-top:10px}
@@ -79,6 +80,7 @@ static const char STATUS_PAGE[] PROGMEM = R"HTML(
     <div class="card"><h2>Pump</h2><div id="pump"></div></div>
     <div class="card"><h2>Sensors</h2><div id="sensors"></div></div>
     <div class="card"><h2>System</h2><div id="system"></div></div>
+    <div class="card"><h2>Local Presets</h2><div id="localPresets"></div><div class="sub" id="localPresetStatus"></div></div>
   </section>
 </main>
 <script>
@@ -133,8 +135,8 @@ async function refresh(){
       ['Remaining',d.pump.remaining_s+' s'],
       ['Schedule',String(d.pump.hour).padStart(2,'0')+':'+String(d.pump.minute).padStart(2,'0')],
       ['Duration',d.pump.duration_s+' s'],
-      ['Runs Today',d.pump.runs_today+'/'+d.pump.max_runs_per_day],
-      ['Min Gap',d.pump.min_interval_h+' h'],
+      ['Events Today',d.pump.runs_today],
+      ['Safety',d.pump.safety_mode],
       ['Boot Lock',yn(d.pump.startup_locked)]
     ]);
     setRows('sensors',[
@@ -160,6 +162,7 @@ async function refresh(){
       ['Settings',d.settings_ok?'OK':'FAIL'],
       ['Free heap',d.free_heap]
     ]);
+    renderLocalPresets(d.local_presets,d.local_run);
     renderRtc(d.rtc);
     renderConfig(d.config);
   }catch(e){
@@ -195,6 +198,33 @@ function renderRtc(rtc){
     ? `<button onclick="sendControl({cmd:'set_rtc_config',enabled:false})">Disable RTC</button>`
     : `<button onclick="sendControl({cmd:'set_rtc_config',enabled:true})">Enable RTC</button>`;
   document.getElementById('system').innerHTML+=`<div class="config-actions">${button}</div>`;
+}
+function renderLocalPresets(presets,run){
+  const slots=(presets&&presets.slots)||[];
+  const options=slots.map(s=>`<option value="${s.slot}" ${run&&run.slot===s.slot?'selected':''}>Slot ${s.slot+1}: ${s.saved?(s.name||s.id):'empty'}</option>`).join('');
+  const rows=[
+    ['Status',run&&run.active?run.status:'idle'],
+    ['Active slot',run&&run.slot>=0?'Slot '+(run.slot+1):'-'],
+    ['Preset',run&&run.preset_name?run.preset_name:'-'],
+    ['Phase',run&&run.phase_label?run.phase_label:'-'],
+    ['Progress',run&&run.active?run.total_progress_pct.toFixed(1)+' %':'-']
+  ];
+  document.getElementById('localPresets').innerHTML=rows.map(x=>row(x[0],x[1])).join('')+
+    `<div class="config-actions"><select id="localRunSlot">${options}</select></div>
+    <div class="buttons">
+      <button onclick="startLocalRun()">Start Slot</button>
+      <button onclick="sendControl({cmd:'pause_local_run'})">Pause</button>
+      <button onclick="sendControl({cmd:'resume_local_run'})">Resume</button>
+      <button onclick="sendControl({cmd:'stop_local_run'})">Stop</button>
+    </div>`;
+}
+async function startLocalRun(){
+  const status=document.getElementById('localPresetStatus');
+  const slot=Number(document.getElementById('localRunSlot').value);
+  status.textContent='starting...';
+  await sendControl({cmd:'set_rest_mode',enabled:false});
+  await sendControl({cmd:'start_local_run',slot:slot,run_id:'esp-web-'+Date.now(),revision:(Date.now()>>>0)});
+  status.textContent='start requested';
 }
 async function saveClimateTargets(){
   const payload={cmd:'set_climate_targets',
@@ -443,8 +473,9 @@ static void handleStatus() {
   appendJsonInt(json, "runs_today", pumpScheduler_getRunsToday());
   appendJsonInt(json, "max_runs_per_day", pumpScheduler_getMaxRunsPerDay());
   appendJsonInt(json, "min_interval_h", pumpScheduler_getMinIntervalHours());
+  appendJsonString(json, "safety_mode", "event_lock");
   appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked());
-  appendJsonBool(json, "today_done", pumpScheduler_getRunsToday() >= pumpScheduler_getMaxRunsPerDay(), false);
+  appendJsonBool(json, "today_done", false, false);
   json += "},";
 
   json += "\"outputs\":{";

@@ -207,10 +207,8 @@ static void drawPumpPage() {
 
   drawLine(3, ui_getPumpSettingIndex() == PUMP_SETTING_DURATION ? "> Dur " : "  Dur ");
   display.print(pumpScheduler_getRunDurationSeconds());
-  display.print("s Runs ");
+  display.print("s Ev ");
   display.print(pumpScheduler_getRunsToday());
-  display.print("/");
-  display.print(pumpScheduler_getMaxRunsPerDay());
 
   drawLine(4, "State ");
   if (restMode_isEnabled()) {

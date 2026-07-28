@@ -245,7 +245,7 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "max_runs_per_day", pumpScheduler_getMaxRunsPerDay());
   appendJsonInt(json, "min_interval_h", pumpScheduler_getMinIntervalHours());
   appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked());
-  appendJsonBool(json, "today_done", pumpScheduler_getRunsToday() >= pumpScheduler_getMaxRunsPerDay(), false);
+  appendJsonBool(json, "today_done", false, false);
   json += "},";
 
   json += "\"outputs\":{";

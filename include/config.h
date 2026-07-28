@@ -302,6 +302,4 @@ constexpr unsigned long PUMP_RUNTIME_MS = 10UL * 1000UL;
 constexpr unsigned long PUMP_TEST_RUNTIME_MS = 5UL * 1000UL;
 constexpr int PUMP_RUNTIME_MIN_SECONDS = 1;
 constexpr int PUMP_RUNTIME_MAX_SECONDS = 10;
-constexpr int PUMP_MAX_AUTO_RUNS_PER_DAY = 2;
-constexpr unsigned long PUMP_MIN_AUTO_INTERVAL_MS = 6UL * 60UL * 60UL * 1000UL;
 constexpr unsigned long PUMP_STARTUP_LOCK_MS = 10UL * 60UL * 1000UL;

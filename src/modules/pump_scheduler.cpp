@@ -1,6 +1,5 @@
 #include <Arduino.h>
 #include <Preferences.h>
-#include <limits.h>
 
 #include "config.h"
 #include "modules/grow_mode.h"
@@ -56,47 +55,17 @@ static unsigned long clampPumpRuntime(unsigned long runtimeMs) {
   return runtimeMs;
 }
 
-static bool isConsecutiveDateKey(int previousDateKey, int currentDateKey) {
-  if (previousDateKey < 0 || currentDateKey < 0 || currentDateKey <= previousDateKey) return false;
-
-  int previousYear = previousDateKey / 1000;
-  int previousDay = previousDateKey % 1000;
-  int currentYear = currentDateKey / 1000;
-  int currentDay = currentDateKey % 1000;
-
-  if (currentYear == previousYear) return currentDay == previousDay + 1;
-  if (currentYear == previousYear + 1) return currentDay == 0 && previousDay >= 364;
-  return false;
-}
-
-static unsigned long getMinutesSinceLastAutoRun() {
-  int currentDateKey = getDateKey();
-  if (currentDateKey < 0 || lastRunDateKey < 0 || lastRunMinuteOfDay < 0) return ULONG_MAX;
-
-  int currentMinuteOfDay = getMinuteOfDay();
-  if (currentDateKey == lastRunDateKey) {
-    if (currentMinuteOfDay < lastRunMinuteOfDay) return 0;
-    return static_cast<unsigned long>(currentMinuteOfDay - lastRunMinuteOfDay);
-  }
-
-  if (isConsecutiveDateKey(lastRunDateKey, currentDateKey)) {
-    return static_cast<unsigned long>((24 * 60 - lastRunMinuteOfDay) + currentMinuteOfDay);
-  }
-
-  return ULONG_MAX;
-}
-
-static bool minIntervalPassed() {
-  unsigned long minIntervalMinutes = PUMP_MIN_AUTO_INTERVAL_MS / 60000UL;
-  return getMinutesSinceLastAutoRun() >= minIntervalMinutes;
-}
-
 static void refreshAutoRunCount() {
   int currentDateKey = getDateKey();
   if (currentDateKey < 0 || autoRunCountDateKey == currentDateKey) return;
 
   autoRunCountDateKey = currentDateKey;
   autoRunCount = 0;
+}
+
+static bool autoRunAlreadyStartedThisMinute() {
+  int currentDateKey = getDateKey();
+  return currentDateKey >= 0 && lastRunDateKey == currentDateKey && lastRunMinuteOfDay == getMinuteOfDay();
 }
 
 static bool canStartAutoPump() {
@@ -107,8 +76,8 @@ static bool canStartAutoPump() {
   if (growMode_isHarvest()) return false;
   if (pumpScheduler_isStartupLocked()) return false;
   if (getDateKey() < 0) return false;
-  if (autoRunCount >= PUMP_MAX_AUTO_RUNS_PER_DAY) return false;
-  return minIntervalPassed();
+  if (autoRunAlreadyStartedThisMinute()) return false;
+  return true;
 }
 
 static void saveLastAutoRun() {
@@ -136,7 +105,7 @@ static void loadLastAutoRun() {
   pumpRunMinute = wrapMinute5(pumpSettings.getInt("runM", PUMP_RUN_MINUTE));
   lastRunMinuteOfDay = pumpSettings.getInt("lastMin", lastRunDateKey >= 0 ? (pumpRunHour * 60 + pumpRunMinute) : -1);
   autoRunCountDateKey = pumpSettings.getInt("countDate", lastRunDateKey);
-  autoRunCount = pumpSettings.getInt("runCount", lastRunDateKey >= 0 ? 1 : 0);
+  autoRunCount = pumpSettings.getInt("runCount", lastRunDateKey == autoRunCountDateKey ? 1 : 0);
   pumpRunDurationSeconds = clampDurationSeconds(pumpSettings.getInt("durS", PUMP_RUNTIME_MS / 1000UL));
   Serial.println("Pump settings loaded");
 }
@@ -264,10 +233,8 @@ const char* pumpScheduler_getReasonName() {
   if (!isTimeSynced()) return "TIME WAIT";
   if (pumpScheduler_isStartupLocked()) return "BOOT LOCK";
   refreshAutoRunCount();
-  if (autoRunCount >= PUMP_MAX_AUTO_RUNS_PER_DAY) return "DAY LIMIT";
-  if (autoRunCount > 0 && !minIntervalPassed()) return "GAP WAIT";
-  if (autoRunCount > 0) return "TODAY PART";
-  return "WAIT SLOT";
+  if (autoRunAlreadyStartedThisMinute()) return "EVENT DONE";
+  return "WAIT EVENT";
 }
 
 unsigned long pumpScheduler_getRemainingSeconds() {
@@ -301,11 +268,11 @@ int pumpScheduler_getRunsToday() {
 }
 
 int pumpScheduler_getMaxRunsPerDay() {
-  return PUMP_MAX_AUTO_RUNS_PER_DAY;
+  return 0;
 }
 
 int pumpScheduler_getMinIntervalHours() {
-  return PUMP_MIN_AUTO_INTERVAL_MS / (60UL * 60UL * 1000UL);
+  return 0;
 }
 
 bool pumpScheduler_isStartupLocked() {

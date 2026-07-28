@@ -20,6 +20,7 @@ static int runSlot = -1;
 static int currentPhaseIndex = -1;
 static int runDay = 0;
 static unsigned long startedAtS = 0;
+static unsigned long pausedAtS = 0;
 static uint32_t runRevision = 0;
 static char runId[40] = "";
 static char presetName[32] = "";
@@ -142,6 +143,7 @@ static void saveState() {
   runSettings.putBool("paused", runPaused);
   runSettings.putChar("slot", static_cast<int8_t>(runSlot));
   runSettings.putULong("startS", startedAtS);
+  runSettings.putULong("pauseS", pausedAtS);
   runSettings.putUInt("rev", runRevision);
   runSettings.putString("runId", runId);
   runSettings.putInt("pumpDate", pumpEventDateKey);
@@ -159,6 +161,7 @@ static void loadState() {
   runPaused = runSettings.getBool("paused", false);
   runSlot = runSettings.getChar("slot", -1);
   startedAtS = runSettings.getULong("startS", 0);
+  pausedAtS = runSettings.getULong("pauseS", 0);
   runRevision = runSettings.getUInt("rev", 0);
   String storedRunId = runSettings.getString("runId", "");
   copyText(runId, sizeof(runId), storedRunId.c_str());
@@ -279,6 +282,7 @@ bool localRun_start(int slot, unsigned long startAtSeconds, const char* newRunId
   runPaused = false;
   runSlot = slot;
   startedAtS = startAtSeconds > 0 ? startAtSeconds : getEpochSeconds();
+  pausedAtS = 0;
   runRevision = revision > 0 ? revision : runRevision + 1;
   currentPhaseIndex = -1;
   appliedPresetChecksum = 0;
@@ -300,6 +304,7 @@ bool localRun_stop() {
   runPaused = false;
   runSlot = -1;
   startedAtS = 0;
+  pausedAtS = 0;
   currentPhaseIndex = -1;
   appliedPresetChecksum = 0;
   runDay = 0;
@@ -317,9 +322,19 @@ bool localRun_stop() {
 
 bool localRun_pause(bool paused) {
   if (!settingsReady || !runActive) return false;
+  unsigned long nowS = getEpochSeconds();
+  if (paused && !runPaused) {
+    pausedAtS = nowS;
+    pumpScheduler_manualStop();
+  } else if (!paused && runPaused) {
+    if (isTimeSynced() && pausedAtS > 0 && nowS > pausedAtS) {
+      startedAtS += nowS - pausedAtS;
+    }
+    pausedAtS = 0;
+  }
   runPaused = paused;
-  if (runPaused) pumpScheduler_manualStop();
   saveState();
+  if (!runPaused) localRun_loop();
   return true;
 }
 
@@ -336,6 +351,7 @@ void localRun_appendJson(String& json) {
   appendJsonInt(json, "phase_index", currentPhaseIndex);
   appendJsonInt(json, "day", runDay);
   appendJsonInt(json, "started_at_s", startedAtS);
+  appendJsonInt(json, "paused_at_s", pausedAtS);
   appendJsonInt(json, "age_s", localRun_getRunAgeSeconds());
   appendJsonFloat(json, "total_progress_pct", totalProgressPct, 1);
   appendJsonFloat(json, "phase_progress_pct", phaseProgressPct, 1);

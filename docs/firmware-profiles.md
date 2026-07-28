@@ -162,6 +162,43 @@ rest_mode.mode
 rest_mode.reason
 ```
 
+## Local Offline Presets
+
+The firmware stores compact grow presets in ESP32 Preferences/NVS and can run one active grow locally after the server starts it.
+
+Limits:
+
+```text
+Local ESP preset slots: 5
+Maximum phases per preset: 10
+Maximum pump events per phase: 5
+Active local run: 1
+```
+
+Runtime control through HTTP or MQTT:
+
+```json
+{"cmd":"set_local_preset","slot":0,"payload_hex":"..."}
+```
+
+```json
+{"cmd":"start_local_run","slot":0,"start_at_ms":1780000000000,"run_id":"run-...","revision":123456}
+```
+
+```json
+{"cmd":"pause_local_run"}
+```
+
+```json
+{"cmd":"resume_local_run"}
+```
+
+```json
+{"cmd":"stop_local_run"}
+```
+
+Status and MQTT telemetry expose `local_presets` and `local_run`, including `local_run.status`, `phase_label`, progress fields and `paused_at_s`. During local execution the ESP applies phase grow mode, climate targets, light schedule and due pump events without needing the server to stay online. Pause/resume is persisted locally and resume shifts the effective start time so phase progress does not advance while paused. Pump safety uses an event lock instead of a daily/interval throttle.
+
 ## Build Commands
 
 ```powershell
