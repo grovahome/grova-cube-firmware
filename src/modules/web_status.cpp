@@ -471,11 +471,8 @@ static void handleStatus() {
   appendJsonInt(json, "duration_s", pumpScheduler_getRunDurationSeconds());
   appendJsonInt(json, "max_duration_s", pumpScheduler_getMaxRunDurationSeconds());
   appendJsonInt(json, "runs_today", pumpScheduler_getRunsToday());
-  appendJsonInt(json, "max_runs_per_day", pumpScheduler_getMaxRunsPerDay());
-  appendJsonInt(json, "min_interval_h", pumpScheduler_getMinIntervalHours());
   appendJsonString(json, "safety_mode", "event_lock");
-  appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked());
-  appendJsonBool(json, "today_done", false, false);
+  appendJsonBool(json, "startup_locked", pumpScheduler_isStartupLocked(), false);
   json += "},";
 
   json += "\"outputs\":{";

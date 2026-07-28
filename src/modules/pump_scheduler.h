@@ -34,8 +34,6 @@ int pumpScheduler_getRunMinute();
 int pumpScheduler_getRunDurationSeconds();
 int pumpScheduler_getMaxRunDurationSeconds();
 int pumpScheduler_getRunsToday();
-int pumpScheduler_getMaxRunsPerDay();
-int pumpScheduler_getMinIntervalHours();
 bool pumpScheduler_isStartupLocked();
 const char* pumpScheduler_getSettingName(int index);
 bool pumpScheduler_settingsReady();

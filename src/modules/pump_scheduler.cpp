@@ -267,14 +267,6 @@ int pumpScheduler_getRunsToday() {
   return autoRunCount;
 }
 
-int pumpScheduler_getMaxRunsPerDay() {
-  return 0;
-}
-
-int pumpScheduler_getMinIntervalHours() {
-  return 0;
-}
-
 bool pumpScheduler_isStartupLocked() {
   return millis() < PUMP_STARTUP_LOCK_MS;
 }

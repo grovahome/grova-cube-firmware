@@ -1,7 +1,7 @@
 #pragma once
 
 #ifndef GROVA_FIRMWARE_VERSION
-  #define GROVA_FIRMWARE_VERSION "v1.0.1"
+  #define GROVA_FIRMWARE_VERSION "v1.1.0"
 #endif
 
 #ifndef GROVA_BUILD_ENV

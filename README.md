@@ -122,6 +122,8 @@ Every Batch #01 kit includes:
 ---
 # Recent Changes and Updates
 
+Current firmware release: v1.1.0 with ESP-local offline presets, event-locked pump safety, persistent Rest Mode and optional RTC support.
+
 Offline grow mode is now supported through ESP-local preset storage: each board
 can keep up to 5 local presets, with up to 10 phases per preset and up to 5 pump
 events per phase. After a run is started, the ESP can continue applying phase
