@@ -98,25 +98,30 @@ Create autonomous schedules and environmental control routines.
 All core functionality continues operating without internet access, cloud services or central servers.
 
 ---
+<div align="center">
 
-# Batch #01
+# 🚀 Founder Edition #01
 
-## First Community Release
+### Limited to only 50 units
 
-The first production run will consist of only **50 developer kits**.
+The first production batch of the GROVA ecosystem.
 
-Every Batch #01 kit includes:
+<br>
 
-- GROVA CORE Baseboard
-- ESP32 Development Module
-- Open Source Firmware
-- Early Community Access
-- Priority Development Updates
-- STL Enclosure Files
+✅ ESP32-S3-WROOM-1-N16R8  
+✅ OLED Display  
+✅ Rotary Encoder  
+✅ Pre-installed Firmware  
+✅ 3D Printed Enclosure  
+✅ Open Source Hardware & Firmware  
 
-### Join The Waitlist
+<br>
 
-## [GROVAHOME](https://grova.carrd.co)
+### Join the Founder Waitlist
+
+## 👉 [GROVAHOME.COM](https://grova.carrd.co)
+
+</div>
 
 ---
 # Recent Changes and Updates
