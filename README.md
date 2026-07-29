@@ -2,590 +2,336 @@
 
 # GROVA CORE
 
-## Professional Climate Control.
-### Open by Design.
+### Local-first climate automation for grow spaces, greenhouses and environmental control.
 
-An open-source environmental automation controller designed for Home Assistant and ESPHome.
+Built for makers, growers and automation builders who want to own their infrastructure,
+not rent it from a cloud platform.
 
-Built for builders, makers and professionals who demand reliable climate control without cloud dependency, subscriptions or vendor lock-in.
+The Founder Edition Batch #01 is the first chance to get early GROVA hardware,
+test it in real environments and help shape the product before wider release.
 
+<br>
 
-
-🚀 Local-First <br>
-🔄 OTA Updates <br>
-📡 MQTT Connectivity <br>
-⚡ Integrated Power Distribution <br>
-
-## 👉 Interested in the first 50 developer kits?
-
-## [GROVAHOME](https://grova.carrd.co)
-
-## Batch #01 Waitlist Open
+[![Join Founder Edition Batch #01](https://img.shields.io/badge/Join_Founder_Edition_Batch_%2301-0F766E?style=for-the-badge&labelColor=111827)](https://grova.carrd.co/)
 
 </div>
 
----
+<p align="center">
+  <img src="docs/hardware/reference/grova-v1-pcb-render.png" alt="GROVA Core PCB reference render" width="760">
+</p>
 
-# Why GROVA?
-
-GROVA CORE combines climate monitoring, ventilation control, sensor integration and automation into a single platform.
-
-Designed around a local-first philosophy, it keeps your infrastructure running independently of cloud services, external APIs or internet connectivity.
-
-### Key Benefits
-
-- ✅ Fully Local Operation
-- ✅ ESP32 Based
-- ✅ MQTT Support
-- ✅ REST API Support
-- ✅ Designed For Local Automation
-- ✅ Home Assistant Integration Planned
-- ✅ Open Source Firmware
-- ✅ Open Hardware Architecture
-- ✅ Dual PWM Fan Control
-- ✅ High-Power MOSFET Outputs
-- ✅ Sensor Expansion Ready
-- ✅ No Recurring Fees
-- ✅ No Vendor Lock-In
-- ✅ Swiss Engineered
-
----
-
-# Built For Real-World Environments
-
-## Smart Buildings
-
-Monitor and automate environmental conditions in server rooms, utility spaces, technical infrastructure and critical installations.
-
-## Greenhouse Automation
-
-Maintain stable climate conditions with automated ventilation, humidity management and environmental monitoring.
-
-## Terrariums & Habitats
-
-Control lighting, ventilation, misting systems and environmental sensors from a single controller.
-
-## Research & Development
-
-Reliable environmental monitoring and automation for experiments, prototypes and controlled environments.
-
-## Indoor Agriculture
-
-Flexible climate automation for controlled growing environments and precision cultivation systems.
-
----
-
-# Core Capabilities
-
-## Environmental Monitoring
-
-Connect temperature, humidity, pressure and environmental sensors through GROVA's modular sensor architecture.
-
-## Precision Ventilation Control
-
-Automatically regulate airflow based on environmental conditions or custom automation logic.
-
-## High-Power Load Control
-
-Drive fans, pumps, lighting, valves and heaters using dedicated MOSFET outputs.
-
-## Automation Profiles
-
-Create autonomous schedules and environmental control routines.
-
-## Fully Local Architecture
-
-All core functionality continues operating without internet access, cloud services or central servers.
-
----
 <div align="center">
 
-# 🚀 Founder Edition #01
-
-### Limited to only 50 units
-
-The first production batch of the GROVA ecosystem.
-
-<br>
-
-✅ ESP32-S3-WROOM-1-N16R8  
-✅ OLED Display  
-✅ Rotary Encoder  
-✅ Pre-installed Firmware  
-✅ 3D Printed Enclosure  
-✅ Open Source Hardware & Firmware  
-
-<br>
-
-### Join the Founder Waitlist
-
-## 👉 [GROVAHOME.COM](https://grova.carrd.co)
+[Visit GROVA Home](https://grova.carrd.co/)<br>
+[Setup Guide](docs/setup.md)<br>
+[Technical Documentation](docs/technical.md)<br>
+[Hardware Reference](docs/hardware/README.md)
 
 </div>
 
 ---
-# Recent Changes and Updates
 
-Current firmware release: v1.1.0 with ESP-local offline presets, event-locked pump safety, persistent Rest Mode and optional RTC support.
+## What Is GROVA CORE?
 
-Offline grow mode is now supported through ESP-local preset storage: each board
-can keep up to 5 local presets, with up to 10 phases per preset and up to 5 pump
-events per phase. After a run is started, the ESP can continue applying phase
-targets and pump events without the server being online.
+GROVA CORE is open firmware for a local-first environmental automation controller.
 
-Planned hardware direction: the legacy DHT cube remains supported until Cube 001
-is replaced by a second GROVA PCB v1 build. 
+It runs climate logic directly on the ESP32, controls real hardware outputs, reads local sensors and stays useful even when the internet, dashboard or cloud services are unavailable.
 
-# Hardware Overview
-
-The current alpha revision is based on the GROVA CORE Baseboard.
-
-## Supported Hardware Features
-
-### Power Outputs
-
-- 2x High-Power 12V MOSFET Outputs
-- 2x High-Power 5V MOSFET Outputs
-
-### Fan Control
-
-- 2x Independent PWM Fan Outputs
-- Fan Tachometer Support
-
-### Sensor Expansion
-
-- 4x Buffered I2C Channels
-- 3.3V / 5V Compatible
-
-### Interfaces
-
-- OLED Display Support
-- Rotary Encoder Support
-- Local Web Interface
-- OTA Updates
-
-### Planned PCB v1 Expansion Headers
-
-| Header | Purpose | Pins |
-| --- | --- | --- |
-| J1 | Analog input 1 | 3.3V, GND, GPIO36 |
-| J2 | Analog input 2 | 3.3V, GND, GPIO39 |
-| J3 | One-Wire / digital | 3.3V, GND, GPIO4 |
-| J4 | UART / expansion | 5V, 3.3V, GND, TX17, RX16 |
-| J5 | Pulse / flow | 5V, 3.3V, GND, GPIO18 |
-| J6 | Digital safety input | 3.3V, GND, GPIO19 |
-
-Reserved pins: GPIO0 for BOOT/recovery, GPIO5 and GPIO15 as internal reserve,
-and GPIO12 unused. ESP32 signal pins are not 5V tolerant; 5V header pins are
-power rails only. GPIO36/GPIO39 are ADC1 input-only pins without internal
-pullups/pulldowns. 5V pulse outputs need level shifting or open-collector
-wiring with a 3.3V pullup.
-
-### Control Hardware
-
-- ESP32 Compatible
-- Optional DS3231/DS1307-compatible RTC Support
+GROVA is designed for people who want practical automation hardware: inspectable, repairable, extendable and independent.
 
 ---
 
-# Firmware Features
+## Founder Edition Batch #01
 
-- Environmental Monitoring
-- Automated Fan Control
-- Manual Fan Control
-- Automated Light Control
-- Manual Light Control
-- Pump Scheduling
-- Pump Safety Protection
-- OLED Status Interface
-- Rotary Encoder Interface
-- OTA Firmware Updates
-- MQTT Telemetry
-- Versioned HTTP APIs
-- Persistent Runtime Storage
-- Optional RTC Time Fallback
-- Persistent Native Rest Mode
-- Local Offline Preset Mode, up to 5 ESP presets
-- Offline Grow Run Engine
+<div align="center">
 
----
+### First hardware. Real feedback. Early access.
 
-# Architecture
+Batch #01 is the first limited GROVA Core hardware run for early builders,
+hardware testers, automation enthusiasts and growers.
 
-GROVA CORE follows a local-first architecture.
+Join the waitlist if you want to test GROVA in real environments, follow the hardware journey
+and help shape the product before the next batch.
 
-All environmental monitoring, automation logic and hardware control run locally on the controller.
+[Join Founder Edition Batch #01](https://grova.carrd.co/)
 
-MQTT connectivity is optional and can be enabled for:
+</div>
 
-- Remote Monitoring
-- Historical Data Logging
-- Multi-Device Management
-- Centralized Dashboards
-
-The controller remains fully operational without MQTT or internet connectivity.
+<table>
+  <tr>
+    <td width="50%">
+      <h3>For Early Builders</h3>
+      <p>The Founder Edition is the first limited hardware batch of the GROVA ecosystem.</p>
+      <p>It is made for people who care about local control, open firmware and practical environmental automation.</p>
+    </td>
+    <td width="50%">
+      <h3>Batch #01 Focus</h3>
+      <ul>
+        <li>Validate the first dedicated GROVA Core hardware</li>
+        <li>Test real-world climate automation workflows</li>
+        <li>Improve documentation and setup experience</li>
+        <li>Collect feedback before broader production</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ---
 
-# Supported Sensors
+## Batch Roadmap
 
-Current firmware supports:
-
-- AHT20
-- DHT22
-- BME280
-- BMP280
-- Optional DS3231/DS1307-compatible RTC at `0x68`
-
-Additional I2C-based sensors can be added through the expansion architecture.
-
----
-
-# Supported Interfaces
-
-## Outputs
-
-- MOSFET Outputs
-- PWM Fan Outputs
-
-## Inputs
-
-- Environmental Sensors
-- Rotary Encoder
-- Fan Tachometers
-
-## Connectivity
-
-- Wi-Fi
-- MQTT
-- HTTP API
-- OTA Updates
+<table>
+  <tr>
+    <td width="33%">
+      <h3>Batch #01</h3>
+      <p><b>Founder Edition</b></p>
+      <p>Limited early hardware run for validation, feedback and hands-on testing.</p>
+    </td>
+    <td width="33%">
+      <h3>Batch #02</h3>
+      <p><b>Refined Developer Batch</b></p>
+      <p>Hardware and firmware refinements based on Founder Edition feedback.</p>
+    </td>
+    <td width="33%">
+      <h3>Batch #03</h3>
+      <p><b>Production Candidate</b></p>
+      <p>A more mature hardware revision prepared for wider availability.</p>
+    </td>
+  </tr>
+</table>
 
 ---
 
-# Current Baseline
+## Hardware Direction
 
-| Component | Value |
-|-----------|--------|
-| Board | GROVA CORE v1 |
-| MCU | ESP32 DevKit Compatible |
-| Framework | Arduino |
-| Build System | PlatformIO |
-| Firmware Branch | grova-core-v1 |
-| Operation | Local First |
-| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
-
----
-
-# Setup
-
-Copy the example secrets file:
-
-```bash
-cp include/secrets.example.h include/secrets.h
-```
-
-Fill in your credentials and configuration values.
-
-The file is excluded from version control.
-
----
-
-# Build
-
-Local development build:
-
-```bash
-pio run -e grova_core_v1_local
-```
-
-Example production builds:
-
-```bash
-pio run -e grova_cube_001_dht
-pio run -e grova_cube_002_bme
-```
+<table>
+  <tr>
+    <td width="50%">
+      <h3>Founder Edition Target</h3>
+      <ul>
+        <li>ESP32-S3-WROOM-1-N16R8</li>
+        <li>Native USB-C</li>
+        <li>Dual PWM fan headers with tacho support</li>
+        <li>12 V and 5 V MOSFET outputs</li>
+        <li>I2C sensor expansion</li>
+        <li>OneWire, analog, flow and safety inputs</li>
+        <li>OLED display, rotary encoder and status LED</li>
+      </ul>
+    </td>
+    <td width="50%">
+      <h3>Design Principles</h3>
+      <ul>
+        <li>Local-first operation</li>
+        <li>Open firmware foundation</li>
+        <li>Practical I/O for real environments</li>
+        <li>No forced cloud dependency</li>
+        <li>Expandable sensor and control architecture</li>
+      </ul>
+    </td>
+  </tr>
+</table>
 
 ---
 
-# Upload
+## Why GROVA?
 
-USB Upload
+Most climate controllers are either closed, cloud-dependent or too limited for serious prototyping.
 
-```bash
-pio run -e grova_cube_001_dht -t upload
-```
+GROVA CORE takes a different route.
 
-OTA Upload
-
-```bash
-pio run -e grova_cube_001_dht_ota -t upload
-```
-
----
-
-# Active Cube Profiles
-
-| Cube ID | Hardware | Sensors | Fan | OTA target | OTA IP |
-| --- | --- | --- | --- | --- | --- |
-| `grova-cube-001` | Legacy cube | DHT22 temperature/humidity | 1 fan | `grova_cube_001_dht_ota` | `192.168.1.70` |
-| `grova-cube-002` | GROVA PCB v1 | AHT20 temperature/humidity, Bosch BME/BMP pressure | 2 independent PWM fan outputs | `grova_cube_002_bme_ota` | `192.168.1.97` |
-
----
-
-# Hardware Profiles
-
-The built-in defaults are selected with `GROVA_BOARD_PCB_V1`.
-
-Legacy default (`GROVA_BOARD_PCB_V1=0`):
-
-| Function | Default |
-| --- | --- |
-| Sensor | DHT22 on GPIO 4 |
-| OLED | SDA GPIO 19, SCL GPIO 18 |
-| Light MOSFET | GPIO 26 |
-| Pump MOSFET | GPIO 27 |
-| Fan PWM | GPIO 25 |
-| Fan tacho | GPIO 35, disabled by default |
-| Encoder | CLK GPIO 32, DT GPIO 33, SW GPIO 16 |
-| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
-
-GROVA PCB v1 default (`GROVA_BOARD_PCB_V1=1`):
-
-| Function | Default |
-| --- | --- |
-| Sensor primary | AHT20 on I2C |
-| Pressure | BME280/BMP280 on I2C |
-| I2C | SDA GPIO 21, SCL GPIO 22 |
-| OLED | SSD1306 at `0x3C` |
-| Light MOSFET | GPIO 26 |
-| Pump MOSFET | GPIO 13 |
-| Aux 12 V MOSFET | GPIO 27 |
-| Aux 5 V MOSFET | GPIO 14 |
-| Fan 1 | PWM GPIO 25, tacho GPIO 34 |
-| Fan 2 | PWM GPIO 23 enabled by default, tacho GPIO 35 optional |
-| Encoder | CLK GPIO 33, DT GPIO 32, SW GPIO 2 |
-| Optional RTC | DS3231/DS1307-compatible I2C RTC at `0x68`, disabled by default |
-
-Planned PCB v1 expansion map:
-
-| Header | Purpose | Pins |
-| --- | --- | --- |
-| J1 | Analog input 1 | 3.3V, GND, GPIO36 |
-| J2 | Analog input 2 | 3.3V, GND, GPIO39 |
-| J3 | One-Wire / digital | 3.3V, GND, GPIO4 |
-| J4 | UART / expansion | 5V, 3.3V, GND, TX17, RX16 |
-| J5 | Pulse / flow | 5V, 3.3V, GND, GPIO18 |
-| J6 | Digital safety input | 3.3V, GND, GPIO19 |
-
-Reserved: GPIO0 BOOT/recovery, GPIO5 internal reserve, GPIO12 do not use,
-GPIO15 internal reserve.
-
-Older local `board_config.h` files that still define `GROVA_BOARD_PCB_V2` are
-accepted as a backwards-compatible alias, but new configs should use
-`GROVA_BOARD_PCB_V1`.
+<table>
+  <tr>
+    <td width="33%">
+      <h3>Local-first</h3>
+      <p>Core automation keeps running directly on the controller, even without internet access.</p>
+    </td>
+    <td width="33%">
+      <h3>Open Firmware</h3>
+      <p>Built with ESP32, PlatformIO and documented interfaces for extension.</p>
+    </td>
+    <td width="33%">
+      <h3>Automation-ready</h3>
+      <p>MQTT, HTTP APIs, OTA updates and persistent runtime settings are built in.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <h3>Hardware-focused</h3>
+      <p>Designed around real outputs, sensors and expansion points instead of cloud-only dashboards.</p>
+    </td>
+    <td width="33%">
+      <h3>Offline Capable</h3>
+      <p>ESP-local grow runs can continue applying phase targets and pump events without the server.</p>
+    </td>
+    <td width="33%">
+      <h3>No Lock-in</h3>
+      <p>No subscription, no forced cloud dependency and no vendor-controlled automation layer.</p>
+    </td>
+  </tr>
+</table>
 
 ---
 
-# Configuration
+## Built For Real-World Environments
 
-Local credentials and cube identity live in:
+<table>
+  <tr>
+    <td width="33%">
+      <h3>Smart Buildings</h3>
+      <p>Monitor and automate server rooms, utility spaces, technical infrastructure and critical installations.</p>
+    </td>
+    <td width="33%">
+      <h3>Greenhouse Automation</h3>
+      <p>Maintain stable climate conditions with automated ventilation, humidity management and environmental monitoring.</p>
+    </td>
+    <td width="33%">
+      <h3>Terrariums & Habitats</h3>
+      <p>Control lighting, ventilation, misting systems and environmental sensors from a single controller.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <h3>Research & Development</h3>
+      <p>Reliable environmental monitoring and automation for experiments, prototypes and controlled environments.</p>
+    </td>
+    <td width="33%">
+      <h3>Indoor Agriculture</h3>
+      <p>Flexible climate automation for controlled growing environments and precision cultivation systems.</p>
+    </td>
+    <td width="33%">
+      <h3>Local Prototyping</h3>
+      <p>Build and test climate-control workflows without cloud dependency, subscriptions or vendor lock-in.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Core Capabilities
+
+<table>
+  <tr>
+    <td width="33%">
+      <h3>Environmental Monitoring</h3>
+      <p>Connect temperature, humidity, pressure and environmental sensors through GROVA's modular sensor architecture.</p>
+    </td>
+    <td width="33%">
+      <h3>Precision Ventilation</h3>
+      <p>Automatically regulate airflow based on climate targets, sensor readings or custom automation logic.</p>
+    </td>
+    <td width="33%">
+      <h3>High-Power Load Control</h3>
+      <p>Drive fans, pumps, lighting, valves and auxiliary loads using dedicated MOSFET outputs.</p>
+    </td>
+  </tr>
+  <tr>
+    <td width="33%">
+      <h3>Automation Profiles</h3>
+      <p>Create autonomous schedules, grow phases and environmental control routines that can run locally on the ESP32.</p>
+    </td>
+    <td width="33%">
+      <h3>Local Architecture</h3>
+      <p>Core functionality continues operating without internet access, cloud services or a central server.</p>
+    </td>
+    <td width="33%">
+      <h3>Open Integration</h3>
+      <p>Use MQTT, HTTP APIs and Home Assistant-oriented discovery to connect GROVA with your own automation stack.</p>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Current Firmware Release
+
+Current release: `v1.1.0`
+
+<table>
+  <tr>
+    <td width="50%">
+      <h3>Release Highlights</h3>
+      <ul>
+        <li>ESP-local offline grow presets</li>
+        <li>Event-locked pump safety</li>
+        <li>Persistent native Rest Mode</li>
+        <li>Optional RTC support</li>
+        <li>MQTT telemetry and command ACKs</li>
+        <li>Versioned local HTTP APIs</li>
+      </ul>
+    </td>
+    <td width="50%">
+      <h3>Firmware Stack</h3>
+      <ul>
+        <li>ESP32 / ESP32-S3 target line</li>
+        <li>Arduino framework</li>
+        <li>PlatformIO build system</li>
+        <li>Wi-Fi, MQTT and OTA support</li>
+        <li>Persistent settings via ESP32 Preferences/NVS</li>
+        <li>OLED and rotary encoder local interface</li>
+      </ul>
+    </td>
+  </tr>
+</table>
+
+---
+
+## Local-First Architecture
 
 ```text
-include/secrets.h
+Sensors and Outputs
+        |
+        v
+GROVA Controller
+        |
+        v
+ESP32 Firmware
+        |
+        +-- Local display and rotary encoder
+        +-- Local HTTP API
+        +-- Optional MQTT telemetry and commands
+        +-- Optional dashboard, Home Assistant or Node-RED integration
 ```
 
-Persistent runtime settings are stored on the ESP32 through Preferences/NVS:
-
-- grow mode
-- light schedule and mode
-- pump schedule and duration
-- climate day/night targets
-- warning limits
-- fan curve
-- optional RTC enablement
-- local preset slots and active local run state
-
-Optional MQTT/Home Assistant settings in `include/secrets.h`:
-
-```cpp
-#define MQTT_DEVICE_NAME "GROVA Cube 1"
-#define MQTT_DISCOVERY_PREFIX "homeassistant"
-#define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
-```
+The controller remains useful without a cloud service. Network integrations are optional layers, not the foundation.
 
 ---
 
-# Local APIs
+## Quick Start
 
-The cube exposes versioned local HTTP APIs when connected to Wi-Fi:
+The full setup, configuration and flashing instructions are kept outside this README so the front page stays clean.
 
-```text
-GET  /api/v1/status
-POST /api/v1/control
-GET  /api/v1/config
-POST /api/v1/config
-GET  /api/v1/local-presets
-```
-
-Example control commands:
-
-```json
-{"cmd":"set_fan_manual","percent":50}
-```
-
-```json
-{"cmd":"set_fan_manual","fan":2,"percent":70}
-```
-
-```json
-{"cmd":"set_output","output":"aux_12v","state":true}
-```
-
-```json
-{"cmd":"set_output","output":"aux_5v","state":false}
-```
-
-If `fan` is omitted, fan commands apply to all enabled fan channels for backward
-compatibility.
-
-```json
-{"cmd":"set_fan_auto"}
-```
-
+- [Setup Guide](docs/setup.md)
+- [Technical Documentation](docs/technical.md)
+- [Firmware Profiles](docs/firmware-profiles.md)
 
 ---
 
-# Native Rest Mode
+## Documentation
 
-Rest Mode is a persistent firmware state for parking a cube between grows without overwriting the stored grow mode or manual settings.
-
-```json
-{"cmd":"set_rest_mode","enabled":true}
-```
-
-```json
-{"cmd":"set_rest_mode","enabled":false}
-```
-
-When enabled, the firmware forces the light output off, forces all fan PWM outputs to 0%, stops and blocks pump runs, and suspends temperature/humidity warning limits. The enabled flag is stored in ESP32 Preferences/NVS and is restored after reboot only when Rest Mode was explicitly enabled before restart. Status and MQTT telemetry expose `rest_mode.enabled`, `rest_mode.mode`, and `rest_mode.reason`.
-
----
-
-# Local Offline Preset Mode
-
-The firmware can store grow presets directly on the ESP32 and execute one active grow locally. This lets the cube keep running a started grow even if the server, MQTT bridge or dashboard is offline.
-
-Limits:
-
-```text
-Local ESP preset slots: 5
-Maximum phases per preset: 10
-Maximum pump events per phase: 5
-Active local run: 1
-```
-
-The server/dashboard can store more profiles, but only selected profiles are synced into the ESP's five local slots for offline execution.
-
-Example control commands:
-
-```json
-{"cmd":"set_local_preset","slot":0,"payload_hex":"..."}
-```
-
-```json
-{"cmd":"start_local_run","slot":0,"start_at_ms":1780000000000,"run_id":"run-...","revision":123456}
-```
-
-```json
-{"cmd":"stop_local_run"}
-```
-
-```json
-{"cmd":"pause_local_run"}
-```
-
-```json
-{"cmd":"resume_local_run"}
-```
-
-During a local run, the ESP applies phase grow mode, climate targets, light schedule and due pump events itself. Server-side stop, pause/resume commands and active-preset resyncs can still intervene when the cube is online. Pump safety uses an event lock instead of a hard daily/interval throttle: the same scheduled date/minute event cannot retrigger, while the 10 s maximum runtime, startup lock, missing time sync, harvest block and Rest Mode block remain active.
-
----
-# Optional RTC Support
-
-The firmware supports DS3231/DS1307-compatible RTC modules on the shared I2C bus at address `0x68`.
-
-RTC support is intentionally disabled by default so cubes without RTC hardware keep behaving exactly like NTP-only devices. Enable it only when an RTC module is fitted.
-
-```json
-{"cmd":"set_rtc_config","enabled":true}
-```
-
-```json
-{"cmd":"set_rtc_config","enabled":false}
-```
-
-When enabled and valid, the RTC can seed ESP system time during boot. NTP remains the primary online time source and refreshes the RTC later. Status and MQTT telemetry expose `time_source` plus `rtc.enabled`, `rtc.present`, `rtc.valid`, `rtc.used_for_boot`, `rtc.last_read_ok`, and `rtc.last_write_ok`.
-
-Current prototype note: Cube 001 and Cube 002 do not have RTC hardware fitted yet, so both are deployed with `rtc.enabled=false`.
----
-
-# MQTT Topics
-
-```text
-grova/v1/cubes/{cube_id}/telemetry
-grova/v1/cubes/{cube_id}/command
-grova/v1/cubes/{cube_id}/ack
-```
-
-MQTT remains optional.
-
-All critical functionality runs locally even without connectivity.
+<table>
+  <tr>
+    <td width="50%"><b>Setup and flashing</b><br><a href="docs/setup.md">docs/setup.md</a></td>
+    <td width="50%"><b>Technical documentation</b><br><a href="docs/technical.md">docs/technical.md</a></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>Firmware profiles</b><br><a href="docs/firmware-profiles.md">docs/firmware-profiles.md</a></td>
+    <td width="50%"><b>HTTP and MQTT API</b><br><a href="docs/api.md">docs/api.md</a></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>Display and encoder UI</b><br><a href="docs/display-ui.md">docs/display-ui.md</a></td>
+    <td width="50%"><b>Pump safety</b><br><a href="docs/pump-safety.md">docs/pump-safety.md</a></td>
+  </tr>
+  <tr>
+    <td width="50%"><b>Hardware reference</b><br><a href="docs/hardware/README.md">docs/hardware/README.md</a></td>
+    <td width="50%"><b>Changelog</b><br><a href="CHANGELOG.md">CHANGELOG.md</a></td>
+  </tr>
+</table>
 
 ---
 
-# Roadmap
+## Repository Scope
 
-## GROVA CORE v1
-
-- Community Validation
-- First Developer Batch
-- Firmware Stabilization
-- Planned expansion headers for analog inputs, One-Wire/digital, UART, pulse/flow and safety input
-- Keep legacy DHT profile only until Cube 001 is replaced by a second PCB v1 build
-
-## GROVA CORE v2
-
-- Integrated ESP32
-- Integrated RTC
-- Simplified Assembly
-- Optimized Power Distribution
-- Reduced BOM Complexity
-
-## Future Ecosystem
-
-- Environmental Sensor Modules
-- Air Quality Extensions
-- DIN Rail Variant
-- Additional Expansion Boards
-- Advanced Monitoring Accessories
-
----
-
-# Documentation
-
-Available inside the `/docs` directory:
-
-- Firmware Profiles
-- API Documentation
-- Display Interface
-- Pump Safety Documentation
-- Changelog
-
----
-
-# Repository Scope
+This repository contains the standalone GROVA cube firmware.
 
 Included:
 
@@ -598,41 +344,55 @@ docs/
 platformio.ini
 ```
 
-Excluded:
+Not included:
 
 ```text
-Secrets
-Local Overrides
-Deployment Files
-Databases
-Logs
-Backups
+secrets
+local deployment files
+dashboard backend
+server stack
+databases
+logs
+backups
 ```
 
 ---
 
-# License
+## Project Status
 
-GNU GPLv3
+GROVA CORE is in active prototype development.
 
-This project is released under the GNU General Public License Version 3.
+The firmware is already capable of local climate control, MQTT telemetry, OTA updates, local web APIs, persistent settings, Rest Mode and ESP-local grow runs.
 
-See the LICENSE file for further details.
+Founder Edition Batch #01 is being prepared now. The waitlist is open for people who want early access, development updates and a chance to influence the first hardware release.
+
+<div align="center">
+
+## Want to be part of Batch #01?
+
+Get early access updates and follow the first GROVA Core hardware release.
+
+[Join Founder Edition Batch #01](https://grova.carrd.co/)<br>
+[Visit GROVA Home](https://grova.carrd.co/)
+
+</div>
+
+---
+
+## License
+
+GROVA CORE firmware is released under the GNU General Public License v3.0.
+
+See [LICENSE](LICENSE).
 
 ---
 
 <div align="center">
 
-## Own Your Infrastructure.
+## Own your environment.
 
-No cloud dependency.
+Local-first climate automation. Open firmware. No forced cloud.
 
-No vendor lock-in.
-
-No recurring fees.
-
-Just reliable climate control.
-
-?? https://grovahome.com
+[Join Founder Edition Batch #01](https://grova.carrd.co/)
 
 </div>
