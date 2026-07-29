@@ -16,12 +16,11 @@ Built for builders, makers and professionals who demand reliable climate control
 📡 MQTT Connectivity <br>
 ⚡ Integrated Power Distribution <br>
 
-👉 Interested in the first 50 developer kits?
-<br>
+## 👉 Interested in the first 50 developer kits?
 
-?? [GROVAHOME](https://grova.carrd.co)
+## [GROVAHOME](https://grova.carrd.co)
 
-?? Batch #01 Waitlist Open
+## Batch #01 Waitlist Open
 
 </div>
 
@@ -35,20 +34,20 @@ Designed around a local-first philosophy, it keeps your infrastructure running i
 
 ### Key Benefits
 
-- ? Fully Local Operation
-- ? ESP32 Based
-- ? MQTT Support
-- ? REST API Support
-- ? Designed For Local Automation
-- ? Home Assistant Integration Planned
-- ? Open Source Firmware
-- ? Open Hardware Architecture
-- ? Dual PWM Fan Control
-- ? High-Power MOSFET Outputs
-- ? Sensor Expansion Ready
-- ? No Recurring Fees
-- ? No Vendor Lock-In
-- ? Swiss Engineered
+- ✅ Fully Local Operation
+- ✅ ESP32 Based
+- ✅ MQTT Support
+- ✅ REST API Support
+- ✅ Designed For Local Automation
+- ✅ Home Assistant Integration Planned
+- ✅ Open Source Firmware
+- ✅ Open Hardware Architecture
+- ✅ Dual PWM Fan Control
+- ✅ High-Power MOSFET Outputs
+- ✅ Sensor Expansion Ready
+- ✅ No Recurring Fees
+- ✅ No Vendor Lock-In
+- ✅ Swiss Engineered
 
 ---
 
@@ -117,7 +116,7 @@ Every Batch #01 kit includes:
 
 ### Join The Waitlist
 
-?? [GROVAHOME](https://grova.carrd.co)
+## [GROVAHOME](https://grova.carrd.co)
 
 ---
 # Recent Changes and Updates
