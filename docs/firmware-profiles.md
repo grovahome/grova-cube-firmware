@@ -1,6 +1,6 @@
 # GROVA Firmware Profiles
 
-Status date: 2026-07-25
+Status date: 2026-07-30
 
 The firmware uses one software line for all active cubes. The legacy DHT cube
 and the GROVA PCB v1 cube are built from the same source code; only the
@@ -13,6 +13,9 @@ needed for the old PCB/wiring.
 
 RTC support is included in the shared firmware line, but it is disabled by
 default because the current active cubes do not have RTC modules fitted yet.
+
+Optional SHT41/SHT4x temperature/humidity support is prepared in the shared
+firmware line and is disabled by default through `GROVA_SENSOR_SHT41=0`.
 
 ## Active Cubes
 
@@ -239,14 +242,16 @@ The sensor module reads the enabled primary temperature/humidity source in this
 order:
 
 ```text
-1. AHT20, when enabled and detected
-2. DHT, when enabled
-3. BME280 humidity/temperature fallback, when Bosch is enabled and no primary source exists
+1. SHT41/SHT4x, when enabled and detected
+2. AHT20, when enabled and detected
+3. DHT, when enabled
+4. BME280 humidity/temperature fallback, when Bosch is enabled and no primary source exists
 ```
 
-For the current PCB cube, AHT20 is the primary temperature/humidity sensor. The
-Bosch sensor is used for pressure. Its temperature reading is exposed only as
-diagnostic information.
+For the current PCB cube, AHT20 remains the default primary temperature/humidity
+sensor. To test a fitted SHT41/SHT4x sensor, set `GROVA_SENSOR_SHT41=1` in
+`include/board_config.h`. The Bosch sensor is used for pressure. Its temperature
+reading is exposed only as diagnostic information.
 
 Transient sensor read failures are debounced. A single missed read keeps the
 last valid measurement and does not immediately create a cube warning. A warning
@@ -263,7 +268,7 @@ include/board_config.h
 
 include/board_config.example.h
   Versioned example for PCB v1 and legacy wiring profiles.
-  Includes optional RTC defaults: RTC_I2C_ADDR 0x68 and GROVA_RTC_DEFAULT_ENABLED 0.
+  Includes optional RTC defaults and SHT41/SHT4x support disabled by default.
 ```
 
 Do not commit real Wi-Fi or MQTT credentials.

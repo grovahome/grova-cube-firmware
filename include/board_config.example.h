@@ -16,9 +16,11 @@
 // ===== Sensors =====
 // Enable exactly the hardware that is fitted to this cube.
 // AHT20 is the primary temperature/humidity sensor on the current PCB.
+// SHT41/SHT4x is prepared as an optional precision temperature/humidity sensor, disabled by default.
 // Bosch/BME/BMP is used for pressure and diagnostic temperature.
 #define GROVA_SENSOR_DHT 0
 #define GROVA_SENSOR_AHT20 1
+#define GROVA_SENSOR_SHT41 0
 #define GROVA_SENSOR_BOSCH 1
 
 #define DHTPIN 4
@@ -66,6 +68,7 @@ Legacy / DHT-only example:
 
 #define GROVA_SENSOR_DHT 1
 #define GROVA_SENSOR_AHT20 0
+#define GROVA_SENSOR_SHT41 0
 #define GROVA_SENSOR_BOSCH 0
 #define DHTPIN 4
 #define DHTTYPE DHT22

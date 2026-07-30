@@ -97,6 +97,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #ifndef GROVA_SENSOR_AHT20
     #define GROVA_SENSOR_AHT20 1
   #endif
+  #ifndef GROVA_SENSOR_SHT41
+    #define GROVA_SENSOR_SHT41 0
+  #endif
   #ifndef GROVA_SENSOR_BOSCH
     #define GROVA_SENSOR_BOSCH 1
   #endif
@@ -162,6 +165,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #endif
   #ifndef GROVA_SENSOR_AHT20
     #define GROVA_SENSOR_AHT20 0
+  #endif
+  #ifndef GROVA_SENSOR_SHT41
+    #define GROVA_SENSOR_SHT41 0
   #endif
   #ifndef GROVA_SENSOR_BOSCH
     #define GROVA_SENSOR_BOSCH 0

@@ -21,6 +21,7 @@ For setup and flashing, see [setup.md](setup.md). For lower-level endpoint detai
 Current firmware supports:
 
 - AHT20 temperature and humidity
+- Optional SHT41/SHT4x temperature and humidity, disabled by default
 - DHT22 temperature and humidity
 - BME280 pressure, temperature and humidity
 - BMP280 pressure and temperature
@@ -28,11 +29,12 @@ Current firmware supports:
 
 The sensor module reads the enabled primary temperature/humidity source in this order:
 
-1. AHT20, when enabled and detected
-2. DHT, when enabled
-3. BME280 humidity/temperature fallback, when Bosch support is enabled and no primary source exists
+1. SHT41/SHT4x, when enabled and detected
+2. AHT20, when enabled and detected
+3. DHT, when enabled
+4. BME280 humidity/temperature fallback, when Bosch support is enabled and no primary source exists
 
-For the current PCB cube, AHT20 is the primary temperature/humidity sensor. The Bosch sensor is used mainly for pressure.
+For the current PCB cube, AHT20 remains the default primary temperature/humidity sensor. SHT41 support is compiled only when `GROVA_SENSOR_SHT41=1` is set locally. The Bosch sensor is used mainly for pressure.
 
 ## Local HTTP API
 

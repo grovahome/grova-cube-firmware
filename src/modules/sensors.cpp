@@ -7,13 +7,19 @@
   DHT dht(DHTPIN, DHTTYPE);
 #endif
 
-#if GROVA_SENSOR_AHT20 || GROVA_SENSOR_BOSCH
+#if GROVA_SENSOR_AHT20 || GROVA_SENSOR_SHT41 || GROVA_SENSOR_BOSCH
   #include <Wire.h>
 #endif
 
 #if GROVA_SENSOR_AHT20
   #include <Adafruit_AHTX0.h>
   Adafruit_AHTX0 aht;
+#endif
+
+
+#if GROVA_SENSOR_SHT41
+  #include <Adafruit_SHT4x.h>
+  Adafruit_SHT4x sht4;
 #endif
 
 #if GROVA_SENSOR_BOSCH
@@ -43,6 +49,11 @@ static const char* pressureSourceName = "NONE";
 
 #if GROVA_SENSOR_AHT20
 static bool ahtReady = false;
+#endif
+
+
+#if GROVA_SENSOR_SHT41
+static bool sht4Ready = false;
 #endif
 
 #if GROVA_SENSOR_BOSCH
@@ -76,7 +87,7 @@ static bool isInRange(float t, float h) {
 }
 
 void sensors_begin() {
-#if GROVA_SENSOR_AHT20 || GROVA_SENSOR_BOSCH
+#if GROVA_SENSOR_AHT20 || GROVA_SENSOR_SHT41 || GROVA_SENSOR_BOSCH
   Wire.begin(OLED_SDA, OLED_SCL);
 #endif
 
@@ -89,6 +100,15 @@ void sensors_begin() {
 #if GROVA_SENSOR_AHT20
   ahtReady = aht.begin(&Wire);
   Serial.println(ahtReady ? "AHT20 ready" : "AHT20 not found");
+#endif
+
+#if GROVA_SENSOR_SHT41
+  sht4Ready = sht4.begin(&Wire);
+  if (sht4Ready) {
+    sht4.setPrecision(SHT4X_HIGH_PRECISION);
+    sht4.setHeater(SHT4X_NO_HEATER);
+  }
+  Serial.println(sht4Ready ? "SHT41 ready" : "SHT41 not found");
 #endif
 
 #if GROVA_SENSOR_BOSCH
@@ -122,8 +142,24 @@ void sensors_loop() {
   float primaryH = NAN;
   const char* primarySource = "NONE";
 
+#if GROVA_SENSOR_SHT41
+  if (sht4Ready) {
+    sensors_event_t hum;
+    sensors_event_t temp;
+
+    if (sht4.getEvent(&hum, &temp) &&
+        !isnan(temp.temperature) &&
+        !isnan(hum.relative_humidity)) {
+      primaryRead = true;
+      primaryT = temp.temperature;
+      primaryH = hum.relative_humidity;
+      primarySource = "SHT41";
+    }
+  }
+#endif
+
 #if GROVA_SENSOR_AHT20
-  if (ahtReady) {
+  if (!primaryRead && ahtReady) {
     sensors_event_t hum;
     sensors_event_t temp;
     aht.getEvent(&hum, &temp);

@@ -11,6 +11,7 @@ For the product overview, see the main [README](../README.md). For APIs, MQTT to
 - USB cable for first flashing
 - Wi-Fi credentials for network features
 - Optional MQTT broker for telemetry and remote commands
+- Optional SHT41/SHT4x sensor for precision temperature/humidity testing
 
 ## Repository Setup
 
@@ -44,6 +45,16 @@ Typical local overrides in `include/secrets.h`:
 #define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
 ```
 
+## Optional SHT41/SHT4x Sensor
+
+SHT41/SHT4x support is included but disabled by default. To test the sensor after fitting it to the I2C bus, copy `include/board_config.example.h` to `include/board_config.h` and set:
+
+```cpp
+#define GROVA_SENSOR_SHT41 1
+```
+
+If you want SHT41 to be the only temperature/humidity source during a test, also disable AHT20 and DHT in the same local file.
+
 ## Build Profiles
 
 Current example profiles:
@@ -51,6 +62,7 @@ Current example profiles:
 | Environment | Purpose |
 | --- | --- |
 | `grova_core_v1_local` | Local test build without production cube targeting |
+| `grova_core_v1_sht41_test` | Local compile test with SHT41 enabled and AHT20 disabled |
 | `grova_cube_001_dht` | Legacy DHT cube build |
 | `grova_cube_001_dht_ota` | Legacy DHT cube OTA upload |
 | `grova_cube_002_bme` | GROVA PCB v1 build with AHT20 and Bosch pressure sensor |
