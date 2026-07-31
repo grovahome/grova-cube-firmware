@@ -11,7 +11,7 @@ For the product overview, see the main [README](../README.md). For APIs, MQTT to
 - USB cable for first flashing
 - Wi-Fi credentials for network features
 - Optional MQTT broker for telemetry and remote commands
-- Optional SHT41/SHT4x sensor for precision temperature/humidity testing
+- Optional GROVA I2C sensor modules: SHT41/SHT4x, VEML7700, SCD41, BME/BMP, LTR390
 
 ## Repository Setup
 
@@ -45,28 +45,29 @@ Typical local overrides in `include/secrets.h`:
 #define GROVA_HOME_ASSISTANT_DISCOVERY_ENABLED 1
 ```
 
-## Optional SHT41/SHT4x Sensor
+## Optional I2C Sensors
 
-SHT41/SHT4x support is included but disabled by default. To test the sensor after fitting it to the I2C bus, copy `include/board_config.example.h` to `include/board_config.h` and set:
+The active firmware target is GROVA PCB v1 / Founder Edition. All planned I2C
+sensor families are compiled in by default and remain optional at runtime. If a
+known sensor is connected on the I2C bus and initializes successfully, the cube
+uses it without user code changes.
 
-```cpp
-#define GROVA_SENSOR_SHT41 1
+Temperature and humidity priority:
+
+```text
+SHT41/SHT4x -> SCD41 -> BME280
 ```
 
-If you want SHT41 to be the only temperature/humidity source during a test, also disable AHT20 and DHT in the same local file.
+Missing sensors are normal. Their telemetry channels are emitted as `null` and
+must not create firmware errors.
 
 ## Build Profiles
 
-Current example profiles:
+Current profile:
 
 | Environment | Purpose |
 | --- | --- |
-| `grova_core_v1_local` | Local test build without production cube targeting |
-| `grova_core_v1_sht41_test` | Local compile test with SHT41 enabled and AHT20 disabled |
-| `grova_cube_001_dht` | Legacy DHT cube build |
-| `grova_cube_001_dht_ota` | Legacy DHT cube OTA upload |
-| `grova_cube_002_bme` | GROVA PCB v1 build with AHT20 and Bosch pressure sensor |
-| `grova_cube_002_bme_ota` | GROVA PCB v1 OTA upload |
+| `grova_core_v1` | Current PCB v1 / Founder Edition build |
 
 See [firmware-profiles.md](firmware-profiles.md) for detailed hardware profile notes.
 
@@ -75,34 +76,31 @@ See [firmware-profiles.md](firmware-profiles.md) for detailed hardware profile n
 Local development build:
 
 ```bash
-pio run -e grova_core_v1_local
+pio run -e grova_core_v1
 ```
 
-Example cube builds:
+## USB First Flash
 
-```bash
-pio run -e grova_cube_001_dht
-pio run -e grova_cube_002_bme
-```
-
-## USB Upload
-
-Example USB upload:
-
-```bash
-pio run -e grova_cube_001_dht -t upload
-```
-
-Use the environment that matches your board and local configuration.
+The active profile is configured for OTA updates. For a first USB flash, use a
+local temporary PlatformIO setting or change `upload_protocol` to `esptool`
+locally, flash once, and then return to the committed OTA default.
 
 ## OTA Upload
 
-After the first USB flash and network setup, OTA upload can be used when the cube is reachable on the network.
+After the first USB flash and network setup, build the single profile and upload
+the resulting firmware binary with Espressif OTA:
 
-```bash
-pio run -e grova_cube_001_dht_ota -t upload
-pio run -e grova_cube_002_bme_ota -t upload
+```powershell
+C:\Users\Kai\.platformio\penv\Scripts\pio.exe run -e grova_core_v1
+C:\Users\Kai\.platformio\penv\Scripts\python.exe C:\Users\Kai\.platformio\packages\framework-arduinoespressif32\tools\espota.py -i <cube-ip> -p 3232 -f .pio\build\grova_core_v1\firmware.bin
 ```
+
+Before OTA, verify that the local ignored `include/secrets.h` exists and
+contains the correct Wi-Fi credentials. A build without local secrets will boot
+without Wi-Fi and cannot be recovered over OTA.
+
+Do not run firmware updates against the frozen legacy DHT cube from this source
+line.
 
 ## Local API Check
 

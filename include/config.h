@@ -32,10 +32,6 @@
 #ifndef MQTT_PASS
   #define MQTT_PASS ""
 #endif
-#ifdef GROVA_CUBE_ID_OVERRIDE
-  #undef MQTT_CUBE_ID
-  #define MQTT_CUBE_ID GROVA_CUBE_ID_OVERRIDE
-#endif
 #ifndef MQTT_CUBE_ID
   #define MQTT_CUBE_ID "grova-cube-001"
 #endif
@@ -75,178 +71,103 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 #endif
 
 // ===== BOARD / SENSOR SELECTION =====
-// One firmware supports both the legacy hand-wired cube and the GROVA PCB v1.
-// GROVA_BOARD_PCB_V2 is kept as a backwards-compatible alias for older local
-// board_config.h files that used the temporary name.
+// Active firmware target: GROVA PCB v1 / Founder Edition.
+// Legacy hand-wired DHT hardware is frozen and no longer updated from this
+// source line; see docs/firmware-profiles.md for the last compatible commit.
 #ifndef GROVA_BOARD_PCB_V1
-  #ifdef GROVA_BOARD_PCB_V2
-    #define GROVA_BOARD_PCB_V1 GROVA_BOARD_PCB_V2
-  #else
-    #define GROVA_BOARD_PCB_V1 0
-  #endif
+  #define GROVA_BOARD_PCB_V1 1
 #endif
 
-#ifndef GROVA_BOARD_PCB_V2
-  #define GROVA_BOARD_PCB_V2 GROVA_BOARD_PCB_V1
+#ifndef GROVA_SENSOR_SHT41
+  #define GROVA_SENSOR_SHT41 1
+#endif
+#ifndef GROVA_SENSOR_BOSCH
+  #define GROVA_SENSOR_BOSCH 1
+#endif
+#ifndef GROVA_SENSOR_VEML7700
+  #define GROVA_SENSOR_VEML7700 1
+#endif
+#ifndef GROVA_SENSOR_SCD41
+  #define GROVA_SENSOR_SCD41 1
+#endif
+#ifndef GROVA_SENSOR_LTR390
+  #define GROVA_SENSOR_LTR390 1
 #endif
 
-#if GROVA_BOARD_PCB_V1
-  #ifndef GROVA_SENSOR_DHT
-    #define GROVA_SENSOR_DHT 0
-  #endif
-  #ifndef GROVA_SENSOR_AHT20
-    #define GROVA_SENSOR_AHT20 1
-  #endif
-  #ifndef GROVA_SENSOR_SHT41
-    #define GROVA_SENSOR_SHT41 0
-  #endif
-  #ifndef GROVA_SENSOR_BOSCH
-    #define GROVA_SENSOR_BOSCH 1
-  #endif
+#ifndef PIN_LIGHT
+  #define PIN_LIGHT 26
+#endif
+#ifndef PIN_PUMP
+  #define PIN_PUMP 13
+#endif
+#ifndef PIN_AUX_12V
+  #define PIN_AUX_12V 27
+#endif
+#ifndef PIN_AUX_5V
+  #define PIN_AUX_5V 14
+#endif
 
-  #ifndef DHTPIN
-    #define DHTPIN 4
-  #endif
+#ifndef FAN_PWM
+  #define FAN_PWM 25
+#endif
+#ifndef FAN_TACHO
+  #define FAN_TACHO 34
+#endif
+#ifndef FAN2_ENABLED
+  #define FAN2_ENABLED 1
+#endif
+#ifndef FAN2_PWM
+  #define FAN2_PWM 23
+#endif
+#ifndef FAN2_TACHO
+  #define FAN2_TACHO 35
+#endif
+#ifndef FAN_TACHO_ENABLED
+  #define FAN_TACHO_ENABLED 1
+#endif
+#ifndef FAN2_TACHO_ENABLED
+  #define FAN2_TACHO_ENABLED 0
+#endif
 
-  #ifndef PIN_LIGHT
-    #define PIN_LIGHT 26
-  #endif
-  #ifndef PIN_PUMP
-    #define PIN_PUMP 13
-  #endif
-  #ifndef PIN_AUX_12V
-    #define PIN_AUX_12V 27
-  #endif
-  #ifndef PIN_AUX_5V
-    #define PIN_AUX_5V 14
-  #endif
+#ifndef ENCODER_CLK
+  #define ENCODER_CLK 33
+#endif
+#ifndef ENCODER_DT
+  #define ENCODER_DT 32
+#endif
+#ifndef ENCODER_SW
+  #define ENCODER_SW 2
+#endif
 
-  #ifndef FAN_PWM
-    #define FAN_PWM 25
-  #endif
-  #ifndef FAN_TACHO
-    #define FAN_TACHO 34
-  #endif
-  #ifndef FAN2_ENABLED
-    #define FAN2_ENABLED 1
-  #endif
-  #ifndef FAN2_PWM
-    #define FAN2_PWM 23
-  #endif
-  #ifndef FAN2_TACHO
-    #define FAN2_TACHO 35
-  #endif
-  #ifndef FAN_TACHO_ENABLED
-    #define FAN_TACHO_ENABLED 1
-  #endif
-  #ifndef FAN2_TACHO_ENABLED
-    #define FAN2_TACHO_ENABLED 0
-  #endif
-
-  #ifndef ENCODER_CLK
-    #define ENCODER_CLK 33
-  #endif
-  #ifndef ENCODER_DT
-    #define ENCODER_DT 32
-  #endif
-  #ifndef ENCODER_SW
-    #define ENCODER_SW 2
-  #endif
-
-  #ifndef OLED_SDA
-    #define OLED_SDA 21
-  #endif
-  #ifndef OLED_SCL
-    #define OLED_SCL 22
-  #endif
-#else
-  #ifndef GROVA_SENSOR_DHT
-    #define GROVA_SENSOR_DHT 1
-  #endif
-  #ifndef GROVA_SENSOR_AHT20
-    #define GROVA_SENSOR_AHT20 0
-  #endif
-  #ifndef GROVA_SENSOR_SHT41
-    #define GROVA_SENSOR_SHT41 0
-  #endif
-  #ifndef GROVA_SENSOR_BOSCH
-    #define GROVA_SENSOR_BOSCH 0
-  #endif
-
-  #ifndef DHTPIN
-    #define DHTPIN 4
-  #endif
-
-  #ifndef PIN_LIGHT
-    #define PIN_LIGHT 26
-  #endif
-  #ifndef PIN_PUMP
-    #define PIN_PUMP 27
-  #endif
-  #ifndef PIN_AUX_12V
-    #define PIN_AUX_12V -1
-  #endif
-  #ifndef PIN_AUX_5V
-    #define PIN_AUX_5V -1
-  #endif
-
-  #ifndef FAN_PWM
-    #define FAN_PWM 25
-  #endif
-  #ifndef FAN_TACHO
-    #define FAN_TACHO 35
-  #endif
-  #ifndef FAN2_ENABLED
-    #define FAN2_ENABLED 0
-  #endif
-  #ifndef FAN2_PWM
-    #define FAN2_PWM -1
-  #endif
-  #ifndef FAN2_TACHO
-    #define FAN2_TACHO -1
-  #endif
-  #ifndef FAN_TACHO_ENABLED
-    #define FAN_TACHO_ENABLED 0
-  #endif
-  #ifndef FAN2_TACHO_ENABLED
-    #define FAN2_TACHO_ENABLED 0
-  #endif
-
-  #ifndef ENCODER_CLK
-    #define ENCODER_CLK 32
-  #endif
-  #ifndef ENCODER_DT
-    #define ENCODER_DT 33
-  #endif
-  #ifndef ENCODER_SW
-    #define ENCODER_SW 16
-  #endif
-
-  #ifndef OLED_SDA
-    #define OLED_SDA 19
-  #endif
-  #ifndef OLED_SCL
-    #define OLED_SCL 18
-  #endif
+#ifndef OLED_SDA
+  #define OLED_SDA 21
+#endif
+#ifndef OLED_SCL
+  #define OLED_SCL 22
 #endif
 
 #ifndef GROVA_HARDWARE_VERSION
-  #if GROVA_BOARD_PCB_V1
-    #define GROVA_HARDWARE_VERSION "GROVA PCB v1"
-  #else
-    #define GROVA_HARDWARE_VERSION "Legacy wiring"
-  #endif
+  #define GROVA_HARDWARE_VERSION "GROVA PCB v1"
 #endif
 
 // ===== SENSORS =====
-#ifndef DHTTYPE
-  #define DHTTYPE DHT22
-#endif
 #ifndef BOSCH_PRIMARY_ADDR
   #define BOSCH_PRIMARY_ADDR 0x76
 #endif
 #ifndef BOSCH_SECONDARY_ADDR
   #define BOSCH_SECONDARY_ADDR 0x77
+#endif
+#ifndef VEML7700_I2C_ADDR
+  #define VEML7700_I2C_ADDR 0x10
+#endif
+#ifndef SCD41_I2C_ADDR
+  #define SCD41_I2C_ADDR 0x62
+#endif
+#ifndef LTR390_I2C_ADDR
+  #define LTR390_I2C_ADDR 0x53
+#endif
+#ifndef LTR390_UVI_DIVISOR
+  #define LTR390_UVI_DIVISOR 2300.0F
 #endif
 #ifndef OLED_ADDR
   #define OLED_ADDR 0x3C

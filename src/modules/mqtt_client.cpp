@@ -10,6 +10,7 @@
 #include "modules/control.h"
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
+#include "modules/i2c_discovery.h"
 #include "modules/light.h"
 #include "modules/local_run.h"
 #include "modules/mqtt_client.h"
@@ -158,6 +159,22 @@ static String buildTelemetryJson() {
   appendJsonString(json, "time_source", time_getSourceName());
   appendJsonInt(json, "hour", getHour());
   appendJsonInt(json, "minute", getMinute());
+
+  json += "\"environment\":{";
+  appendJsonFloat(json, "temperature_c", temp, 1);
+  appendJsonFloat(json, "humidity_pct", hum, 1);
+  appendJsonFloat(json, "pressure_hpa", sensors_getPressureHpa(), 0);
+  appendJsonFloat(json, "co2_ppm", sensors_getCo2Ppm(), 0);
+  appendJsonFloat(json, "lux", sensors_getLux(), 0);
+  appendJsonFloat(json, "uv_index", sensors_getUvIndex(), 1);
+  appendJsonString(json, "temperature_source", sensors_getSourceName());
+  appendJsonString(json, "humidity_source", sensors_getSourceName());
+  appendJsonString(json, "pressure_source", sensors_getPressureSourceName());
+  appendJsonString(json, "co2_source", sensors_getCo2SourceName());
+  appendJsonString(json, "lux_source", sensors_getLuxSourceName());
+  appendJsonString(json, "uv_source", sensors_getUvSourceName(), false);
+  json += "},";
+
   runtimeConfig_appendJson(json);
   json += ",";
   presetStore_appendSummaryJson(json);
@@ -265,8 +282,12 @@ static String buildTelemetryJson() {
   appendJsonFloat(json, "bosch_temp_c", sensors_getBoschTemp(), 1);
   appendJsonInt(json, "fail_count", sensors_getFailCount());
   appendJsonInt(json, "consecutive_fail_count", sensors_getConsecutiveFailCount());
-  appendJsonBool(json, "fault", sensors_hasFault(), false);
+  appendJsonBool(json, "fault", sensors_hasFault());
+  sensors_appendSourcesJson(json);
   json += "}";
+
+  json += ",";
+  i2cDiscovery_appendJson(json);
 
   json += "}";
   return json;
@@ -409,9 +430,12 @@ static String buildHomeAssistantDiscoveryJson() {
   json += "},";
 
   json += "\"components\":{";
-  appendSensorComponent(json, "temperature", "temperature", "Temperature", "{{ value_json.temp_c }}", "temperature", "\xC2\xB0" "C");
-  appendSensorComponent(json, "humidity", "humidity", "Humidity", "{{ value_json.hum_pct }}", "humidity", "%");
-  appendSensorComponent(json, "pressure", "pressure", "Pressure", "{{ value_json.sensor.pressure_hpa }}", "pressure", "hPa");
+  appendSensorComponent(json, "temperature", "temperature", "Temperature", "{{ value_json.environment.temperature_c }}", "temperature", "\xC2\xB0" "C");
+  appendSensorComponent(json, "humidity", "humidity", "Humidity", "{{ value_json.environment.humidity_pct }}", "humidity", "%");
+  appendSensorComponent(json, "pressure", "pressure", "Pressure", "{{ value_json.environment.pressure_hpa }}", "pressure", "hPa");
+  appendSensorComponent(json, "co2", "co2", "CO2", "{{ value_json.environment.co2_ppm }}", "carbon_dioxide", "ppm");
+  appendSensorComponent(json, "lux", "lux", "Light", "{{ value_json.environment.lux }}", "illuminance", "lx");
+  appendSensorComponent(json, "uv_index", "uv_index", "UV index", "{{ value_json.environment.uv_index }}", "", "");
   appendSensorComponent(json, "fan1_percent", "fan1_percent", "Fan 1 speed", "{{ value_json.fan1.current_pct }}", "", "%");
   appendSensorComponent(json, "fan1_rpm", "fan1_rpm", "Fan 1 RPM", "{{ value_json.fan1.rpm }}", "", "rpm");
 #if FAN2_ENABLED

@@ -1,53 +1,46 @@
 # GROVA Firmware Profiles
 
-Status date: 2026-07-30
+Status date: 2026-07-31
 
-The firmware uses one software line for all active cubes. The legacy DHT cube
-and the GROVA PCB v1 cube are built from the same source code; only the
-hardware profile changes through PlatformIO build flags or an optional local
-`include/board_config.h`.
+The active firmware line now targets only the current GROVA PCB v1 / Founder
+Edition hardware. Legacy hand-wired DHT hardware is frozen and is no longer
+updated from this source line.
 
 Credentials stay local in `include/secrets.h`. Each cube must set its own
-`MQTT_CUBE_ID`/device name, but no separate firmware version or branch is
-needed for the old PCB/wiring.
+`MQTT_CUBE_ID`/device name.
+
+Legacy DHT hardware remains documented for traceability only:
+
+```text
+Last commit intended to support legacy DHT hardware: 11eacaf Add optional SHT41 sensor support
+Last stable release tag remains: v1.1.0 -> 0917d42
+Current source line after this cleanup: PCB v1 / Founder Edition only
+```
 
 RTC support is included in the shared firmware line, but it is disabled by
 default because the current active cubes do not have RTC modules fitted yet.
 
-Optional SHT41/SHT4x temperature/humidity support is prepared in the shared
-firmware line and is disabled by default through `GROVA_SENSOR_SHT41=0`.
+SHT41/SHT4x temperature/humidity support is compiled into PCB/Founder builds
+by default and remains optional at runtime. If the sensor is connected and
+initializes successfully, it becomes the active temperature/humidity source.
 
-## Active Cubes
+## Active Hardware Target
 
 ```text
-grova-cube-001
-  Hardware: legacy cube
-  Sensor:   DHT22 on DHTPIN
-  Fan:      one fan
-  OTA IP:   192.168.1.70
-  Build:    grova_cube_001_dht
-  OTA:      grova_cube_001_dht_ota
-
-grova-cube-002
   Hardware: GROVA PCB v1
-  Sensor:   AHT20 for temperature/humidity, Bosch BME/BMP for pressure
+  Sensor:   optional I2C modules, auto-detected at boot/restart and periodic rescan
   Fan:      two independent PWM fan outputs, Fan 2 tacho optional
   Outputs:  LED, pump, aux 12V, aux 5V MOSFETs
-  OTA IP:   192.168.1.97
-  Build:    grova_cube_002_bme
-  OTA:      grova_cube_002_bme_ota
+  Default:  no sensor is required
+  Build:    grova_core_v1
 ```
 
 The cube ID is part of MQTT topics, payloads, ACK matching, dashboard state,
 history, and per-cube commands. Each physical cube must use a unique ID.
 
-## Planned PCB v1 Expansion Headers
+## PCB v1 Expansion Headers
 
-The old DHT cube is expected to be replaced by a second GROVA PCB v1 build.
-After that transition, the legacy DHT wiring profile can be treated as
-deprecated and the PCB v1 expansion map can become the normal hardware target.
-
-Planned additional headers for GROVA Core PCB v1:
+Additional headers for GROVA Core PCB v1:
 
 ```text
 J1 - ANALOG INPUT 1
@@ -97,8 +90,6 @@ I2C address: 0x68
 Default: disabled
 Compile-time default: GROVA_RTC_DEFAULT_ENABLED=0
 Persistent runtime setting: ESP32 Preferences/NVS key rtc_enabled
-Current Cube 001: no RTC fitted, rtc.enabled false
-Current Cube 002: no RTC fitted, rtc.enabled false
 ```
 
 When enabled and a valid RTC is present, the cube can seed ESP system time from
@@ -205,36 +196,18 @@ Status and MQTT telemetry expose `local_presets` and `local_run`, including `loc
 ## Build Commands
 
 ```powershell
-C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_001_dht
-C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_002_bme
+C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_core_v1
 ```
 
-OTA upload:
+OTA upload uses the firmware binary from the same single profile. Pass the
+current cube IP at upload time so no local LAN address is committed:
 
 ```powershell
-C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_001_dht_ota -t upload
-C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_cube_002_bme_ota -t upload
+C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_core_v1
+C:\Users\Kai\.platformio\penv\Scripts\python.exe C:\Users\Kai\.platformio\packages\framework-arduinoespressif32\tools\espota.py -i <cube-ip> -p 3232 -f .pio\build\grova_core_v1\firmware.bin
 ```
 
-Latest verified RTC-support OTA uploads:
-
-```text
-2026-07-25 grova_cube_001_dht_ota -> 192.168.1.70: success, warning OK, rtc.enabled false
-2026-07-25 grova_cube_002_bme_ota -> 192.168.1.97: success, warning OK, rtc.enabled false
-```
-
-Latest verified native Rest Mode OTA uploads:
-
-```text
-2026-07-25 grova_cube_001_dht_ota -> 192.168.1.70: success, healthy true, warning OK, rest_mode.enabled true after server enforcement
-2026-07-25 grova_cube_002_bme_ota -> 192.168.1.97: success, healthy true, warning OK, rest_mode.enabled true after server enforcement
-```
-
-Local test build for the new PCB, without MQTT telemetry or commands:
-
-```powershell
-C:\Users\Kai\.platformio\penv\Scripts\platformio.exe run -e grova_core_v1_local
-```
+Do not run firmware updates against legacy hardware from this source line.
 
 ## Sensor Roles
 
@@ -242,16 +215,24 @@ The sensor module reads the enabled primary temperature/humidity source in this
 order:
 
 ```text
-1. SHT41/SHT4x, when enabled and detected
-2. AHT20, when enabled and detected
-3. DHT, when enabled
-4. BME280 humidity/temperature fallback, when Bosch is enabled and no primary source exists
+1. SHT41/SHT4x, when compiled in and detected
+2. SCD41, when detected and a measurement is available
+3. BME280 humidity/temperature fallback, when Bosch is enabled and present
 ```
 
-For the current PCB cube, AHT20 remains the default primary temperature/humidity
-sensor. To test a fitted SHT41/SHT4x sensor, set `GROVA_SENSOR_SHT41=1` in
-`include/board_config.h`. The Bosch sensor is used for pressure. Its temperature
-reading is exposed only as diagnostic information.
+For PCB/Founder builds, all planned I2C sensor families are compiled in by
+default. Missing sensors are normal. The cube reports unavailable channels as
+`null` and continues with the available modules.
+
+Independent optional channels:
+
+```text
+Pressure: BME280/BMP280
+CO2:      SCD41
+Lux:      VEML7700
+UV index: LTR390
+RTC:      DS3231/DS1307-compatible module at 0x68
+```
 
 Transient sensor read failures are debounced. A single missed read keeps the
 last valid measurement and does not immediately create a cube warning. A warning
@@ -267,15 +248,14 @@ include/board_config.h
   Optional local hardware profile override. Ignored by Git.
 
 include/board_config.example.h
-  Versioned example for PCB v1 and legacy wiring profiles.
-  Includes optional RTC defaults and SHT41/SHT4x support disabled by default.
+  Versioned example for the active PCB v1 / Founder Edition profile.
+  Includes optional RTC defaults and runtime I2C sensor detection.
 ```
 
 Do not commit real Wi-Fi or MQTT credentials.
 
-Use `GROVA_BOARD_PCB_V1=1` for the GROVA PCB v1 defaults and
-`GROVA_BOARD_PCB_V1=0` for the legacy DHT wiring defaults. Older local configs
-that still define `GROVA_BOARD_PCB_V2` continue to work as an alias.
+Use the PCB v1 defaults for new work. Legacy hardware should stay on the frozen
+commit listed at the top of this document.
 
 ## MQTT Topics
 
@@ -355,6 +335,9 @@ Sensors:
   Temperature
   Humidity
   Pressure
+  CO2
+  Light / lux
+  UV index
   Fan speed
   Fan RPM
   Pump runs today
@@ -415,9 +398,8 @@ Optional local overrides in `include/secrets.h`:
 #define GROVA_SUPPORT_URL "https://github.com/grovahome/grova-cube-firmware"
 ```
 
-`GROVA_HARDWARE_VERSION` defaults to `Legacy wiring` for the DHT profile and
-`GROVA PCB v1` for the PCB profile. It can be overridden in
-`include/board_config.h` if needed.
+`GROVA_HARDWARE_VERSION` defaults to `GROVA PCB v1`. It can be overridden in
+`include/board_config.h` if needed for a prototype batch.
 
 For PCB v1, `FAN2_ENABLED` defaults to `1` so GPIO 23 is available as a second
 independent PWM output. `FAN2_TACHO_ENABLED` defaults to `0` to avoid warnings

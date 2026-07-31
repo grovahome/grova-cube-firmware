@@ -10,6 +10,7 @@
 #include "modules/control.h"
 #include "modules/fan.h"
 #include "modules/grow_mode.h"
+#include "modules/i2c_discovery.h"
 #include "modules/light.h"
 #include "modules/local_run.h"
 #include "modules/outputs.h"
@@ -79,12 +80,14 @@ static const char STATUS_PAGE[] PROGMEM = R"HTML(
     <div class="card"><h2>Light</h2><div id="light"></div></div>
     <div class="card"><h2>Pump</h2><div id="pump"></div></div>
     <div class="card"><h2>Sensors</h2><div id="sensors"></div></div>
+    <div class="card"><h2>I2C Discovery</h2><div id="i2c"></div></div>
     <div class="card"><h2>System</h2><div id="system"></div></div>
     <div class="card"><h2>Local Presets</h2><div id="localPresets"></div><div class="sub" id="localPresetStatus"></div></div>
   </section>
 </main>
 <script>
 const row=(k,v)=>`<div class="row"><span class="key">${k}</span><span class="value">${v}</span></div>`;
+const val=(v,d,u)=>Number.isFinite(v)?v.toFixed(d)+u:'-';
 const yn=v=>v?'YES':'NO';
 function setRows(id, rows){document.getElementById(id).innerHTML=rows.map(x=>row(x[0],x[1])).join('');}
 async function refresh(){
@@ -95,9 +98,9 @@ async function refresh(){
     document.getElementById('health').innerHTML=d.rest_mode.enabled?'<span class="warn">REST MODE</span>':(d.healthy?'<span class="ok">HEALTH OK</span>':'<span class="warn">WARN</span>');
     document.getElementById('updated').textContent=d.cube_id+' | IP '+d.ip+' | uptime '+d.uptime_s+'s';
     setRows('climate',[
-      ['Temp',d.temp_c.toFixed(1)+' C'],
+      ['Temp',val(d.temp_c,1,' C')],
       ['Active target temp',d.target_temp_c.toFixed(1)+' C'],
-      ['Hum',d.hum_pct.toFixed(1)+' %'],
+      ['Hum',val(d.hum_pct,1,' %')],
       ['Active target hum',d.target_hum_pct.toFixed(0)+' %'],
       ['Warning',warn]
     ]);
@@ -142,11 +145,21 @@ async function refresh(){
     setRows('sensors',[
       ['Status',d.sensor.status],
       ['Source',d.sensor.source],
-      ['Pressure',d.sensor.pressure_hpa===null?'-':d.sensor.pressure_hpa+' hPa'],
+      ['Pressure',val(d.sensor.pressure_hpa,0,' hPa')],
       ['Pressure sensor',d.sensor.pressure_source],
+      ['CO2',val(d.environment&&d.environment.co2_ppm,0,' ppm')],
+      ['Lux',val(d.environment&&d.environment.lux,0,' lx')],
+      ['UV index',val(d.environment&&d.environment.uv_index,1,'')],
+      ['Sources',(d.sensor.sources||[]).map(s=>s.label+': '+s.status).join('<br>')||'-'],
       ['Fails',d.sensor.fail_count],
       ['Consecutive fails',d.sensor.consecutive_fail_count],
       ['Fault',yn(d.sensor.fault)]
+    ]);
+    const found=(d.i2c&&d.i2c.devices?d.i2c.devices:[]).filter(x=>x.present).map(x=>x.module+' '+x.name+' '+x.addr);
+    setRows('i2c',[
+      ['Bus',d.i2c?'SDA '+d.i2c.sda+' / SCL '+d.i2c.scl:'-'],
+      ['Known found',d.i2c?d.i2c.found_count:0],
+      ['Detected',found.length?found.join('<br>'):'none']
     ]);
     setRows('system',[
       ['Cube ID',d.cube_id],
@@ -387,6 +400,22 @@ static void handleStatus() {
   appendJsonString(json, "firmware_build_date", GROVA_BUILD_DATE);
   appendJsonString(json, "firmware_build_time", GROVA_BUILD_TIME);
   appendJsonString(json, "firmware_build_env", GROVA_BUILD_ENV);
+
+  json += "\"environment\":{";
+  appendJsonFloat(json, "temperature_c", temp, 1);
+  appendJsonFloat(json, "humidity_pct", hum, 1);
+  appendJsonFloat(json, "pressure_hpa", sensors_getPressureHpa(), 0);
+  appendJsonFloat(json, "co2_ppm", sensors_getCo2Ppm(), 0);
+  appendJsonFloat(json, "lux", sensors_getLux(), 0);
+  appendJsonFloat(json, "uv_index", sensors_getUvIndex(), 1);
+  appendJsonString(json, "temperature_source", sensors_getSourceName());
+  appendJsonString(json, "humidity_source", sensors_getSourceName());
+  appendJsonString(json, "pressure_source", sensors_getPressureSourceName());
+  appendJsonString(json, "co2_source", sensors_getCo2SourceName());
+  appendJsonString(json, "lux_source", sensors_getLuxSourceName());
+  appendJsonString(json, "uv_source", sensors_getUvSourceName(), false);
+  json += "},";
+
   runtimeConfig_appendJson(json);
   json += ",";
   presetStore_appendSummaryJson(json);
@@ -494,8 +523,12 @@ static void handleStatus() {
   appendJsonFloat(json, "bosch_temp_c", sensors_getBoschTemp(), 1);
   appendJsonInt(json, "fail_count", sensors_getFailCount());
   appendJsonInt(json, "consecutive_fail_count", sensors_getConsecutiveFailCount());
-  appendJsonBool(json, "fault", sensors_hasFault(), false);
+  appendJsonBool(json, "fault", sensors_hasFault());
+  sensors_appendSourcesJson(json);
   json += "}";
+
+  json += ",";
+  i2cDiscovery_appendJson(json);
 
   json += "}";
 

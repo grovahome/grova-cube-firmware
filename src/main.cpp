@@ -8,6 +8,7 @@
 #include "modules/grow_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/light.h"
+#include "modules/i2c_discovery.h"
 #include "modules/sensors.h"
 #include "modules/fan.h"
 #include "modules/climate.h"
@@ -50,6 +51,7 @@ void setup() {
   outputs_begin();
   growMode_begin();
   light_begin();
+  i2cDiscovery_begin();
   sensors_begin();
   fan_begin();
   climate_begin();
@@ -94,6 +96,7 @@ void loop() {
   climate_loop();
 
   // Read sensors
+  i2cDiscovery_loop();
   sensors_loop();
 
   // Time-based light control

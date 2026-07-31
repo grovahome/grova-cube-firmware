@@ -3,6 +3,7 @@
 This document collects the technical firmware details that are intentionally kept out of the front-page README.
 
 For setup and flashing, see [setup.md](setup.md). For lower-level endpoint details, see [api.md](api.md).
+For I2C module autodiscovery, see [i2c-discovery.md](i2c-discovery.md).
 
 ## Current Baseline
 
@@ -20,21 +21,29 @@ For setup and flashing, see [setup.md](setup.md). For lower-level endpoint detai
 
 Current firmware supports:
 
-- AHT20 temperature and humidity
-- Optional SHT41/SHT4x temperature and humidity, disabled by default
-- DHT22 temperature and humidity
+- SHT41/SHT4x temperature and humidity
+- SCD41 CO2, temperature and humidity
 - BME280 pressure, temperature and humidity
 - BMP280 pressure and temperature
+- VEML7700 ambient light / lux
+- LTR390 UV index and UV/ALS raw sensing
 - Optional DS3231/DS1307-compatible RTC at `0x68`
+
+I2C discovery reports known GROVA module addresses for SHT41/SHT4x, VEML7700,
+SCD41, BME/BMP, LTR390, OLED, and RTC. No I2C sensor is required for the
+firmware to boot. Stable telemetry channels such as CO2, lux, UV index, and
+pressure use `null` while no matching sensor is connected or no valid reading
+has been received yet.
 
 The sensor module reads the enabled primary temperature/humidity source in this order:
 
-1. SHT41/SHT4x, when enabled and detected
-2. AHT20, when enabled and detected
-3. DHT, when enabled
-4. BME280 humidity/temperature fallback, when Bosch support is enabled and no primary source exists
+1. SHT41/SHT4x, when compiled in and detected
+2. SCD41, when detected and a measurement is available
+3. BME280 humidity/temperature fallback, when Bosch support is enabled and present
 
-For the current PCB cube, AHT20 remains the default primary temperature/humidity sensor. SHT41 support is compiled only when `GROVA_SENSOR_SHT41=1` is set locally. The Bosch sensor is used mainly for pressure.
+For PCB/Founder builds, the planned I2C sensor families are compiled in by
+default and detected at runtime. The user should only need to connect a known
+module and restart the cube or wait for a rescan.
 
 ## Local HTTP API
 
@@ -223,11 +232,9 @@ Telemetry exposes `time_source` plus `rtc.enabled`, `rtc.present`, `rtc.valid`, 
 
 ## Hardware Profiles
 
-The built-in defaults are selected with `GROVA_BOARD_PCB_V1`.
-
-Use `GROVA_BOARD_PCB_V1=1` for the GROVA PCB v1 defaults and `GROVA_BOARD_PCB_V1=0` for the legacy DHT wiring defaults.
-
-Older local `board_config.h` files that define `GROVA_BOARD_PCB_V2` are accepted as a backwards-compatible alias, but new configs should use `GROVA_BOARD_PCB_V1`.
+The active built-in defaults target GROVA PCB v1 / Founder Edition. Legacy DHT
+hardware is frozen at commit `11eacaf` and should not receive updates from the
+current source line.
 
 See [firmware-profiles.md](firmware-profiles.md) and [hardware/README.md](hardware/README.md) for the current hardware reference.
 
