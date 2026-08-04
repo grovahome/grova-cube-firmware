@@ -22,6 +22,7 @@ For I2C module autodiscovery, see [i2c-discovery.md](i2c-discovery.md).
 Current firmware supports:
 
 - SHT41/SHT4x temperature and humidity
+- AHT20/AHTx0 temperature and humidity
 - SCD41 CO2, temperature and humidity
 - BME280 pressure, temperature and humidity
 - BMP280 pressure and temperature
@@ -29,8 +30,8 @@ Current firmware supports:
 - LTR390 UV index and UV/ALS raw sensing
 - Optional DS3231/DS1307-compatible RTC at `0x68`
 
-I2C discovery reports known GROVA module addresses for SHT41/SHT4x, VEML7700,
-SCD41, BME/BMP, LTR390, OLED, and RTC. No I2C sensor is required for the
+I2C discovery reports known GROVA module addresses for SHT41/SHT4x, AHT20/AHTx0,
+VEML7700, SCD41, BME/BMP, LTR390, OLED, and RTC. No I2C sensor is required for the
 firmware to boot. Stable telemetry channels such as CO2, lux, UV index, and
 pressure use `null` while no matching sensor is connected or no valid reading
 has been received yet.
@@ -38,8 +39,9 @@ has been received yet.
 The sensor module reads the enabled primary temperature/humidity source in this order:
 
 1. SHT41/SHT4x, when compiled in and detected
-2. SCD41, when detected and a measurement is available
-3. BME280 humidity/temperature fallback, when Bosch support is enabled and present
+2. AHT20/AHTx0, when compiled in and detected
+3. SCD41, when detected and a measurement is available
+4. BME280 humidity/temperature fallback, when Bosch support is enabled and present
 
 For PCB/Founder builds, the planned I2C sensor families are compiled in by
 default and detected at runtime. The user should only need to connect a known

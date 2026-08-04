@@ -58,11 +58,6 @@ void light_loop() {
     return;
   }
 
-  if (growMode_isGermination()) {
-    digitalWrite(PIN_LIGHT, LOW);
-    return;
-  }
-
   if (ui_isLightManualOn()) {
     digitalWrite(PIN_LIGHT, HIGH);
     return;
@@ -73,15 +68,21 @@ void light_loop() {
     return;
   }
 
+  if (growMode_isGermination()) {
+    digitalWrite(PIN_LIGHT, LOW);
+    return;
+  }
+
   digitalWrite(PIN_LIGHT, isAutoLightOn() ? HIGH : LOW);
 }
 
 bool isLightOn() {
   if (restMode_isEnabled()) return false;
-  if (growMode_isGermination()) return false;
 
   if (ui_isLightManualOn()) return true;
   if (ui_isLightManualOff()) return false;
+
+  if (growMode_isGermination()) return false;
 
   return isAutoLightOn();
 }
@@ -96,9 +97,9 @@ int light_getOffHour() {
 
 const char* light_getReasonName() {
   if (restMode_isEnabled()) return "REST OFF";
-  if (growMode_isGermination()) return "GERM OFF";
   if (ui_isLightManualOn()) return "MAN ON";
   if (ui_isLightManualOff()) return "MAN OFF";
+  if (growMode_isGermination()) return "GERM OFF";
   if (!isTimeSynced()) return "TIME WAIT";
   return isAutoLightOn() ? "SCHED ON" : "SCHED OFF";
 }

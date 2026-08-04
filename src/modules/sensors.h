@@ -20,6 +20,8 @@ float sensors_getCo2Ppm();
 float sensors_getLux();
 float sensors_getUvIndex();
 const char* sensors_getSourceName();
+const char* sensors_getTemperatureSourceName();
+const char* sensors_getHumiditySourceName();
 const char* sensors_getPressureSourceName();
 const char* sensors_getCo2SourceName();
 const char* sensors_getLuxSourceName();

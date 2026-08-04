@@ -290,6 +290,14 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
 
     normalizeToken(mode);
 
+    const bool manualLight = strcmp(mode, "MAN_ON") == 0 ||
+                             strcmp(mode, "ON") == 0 ||
+                             strcmp(mode, "MAN_OFF") == 0 ||
+                             strcmp(mode, "OFF") == 0;
+    if (manualLight && restMode_isEnabled()) {
+      restMode_setEnabled(false, true);
+    }
+
     if (!setLightModeByName(mode)) {
       makeResponse(responseJson, false, "invalid light mode");
       return false;
@@ -325,6 +333,9 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
 
     int fan = 0;
     extractInt(requestBody, "fan", fan);
+    if (restMode_isEnabled()) {
+      restMode_setEnabled(false, true);
+    }
     if (!fan_setManual(fan, percent)) {
       makeResponse(responseJson, false, "invalid fan");
       return false;

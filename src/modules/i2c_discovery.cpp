@@ -10,6 +10,7 @@ static constexpr unsigned long I2C_DISCOVERY_RESCAN_MS = 60000UL;
 static I2cKnownDevice knownDevices[] = {
   {"sht4x_44", "SHT41/SHT4x", "GROVA Climate", 0x44, false},
   {"sht4x_45", "SHT41/SHT4x", "GROVA Climate", 0x45, false},
+  {"aht20", "AHT20/AHTx0", "GROVA PCB v1 Climate", 0x38, false},
   {"veml7700", "VEML7700", "GROVA Light", 0x10, false},
   {"scd41", "SCD41", "GROVA CO2", 0x62, false},
   {"bme_76", "BME/BMP", "GROVA Pressure", 0x76, false},

@@ -10,6 +10,11 @@
   Adafruit_SHT4x sht4;
 #endif
 
+#if GROVA_SENSOR_AHT20
+  #include <Adafruit_AHTX0.h>
+  Adafruit_AHTX0 aht;
+#endif
+
 #if GROVA_SENSOR_BOSCH
   #include <Adafruit_BME280.h>
   #include <Adafruit_BMP280.h>
@@ -55,6 +60,8 @@ static unsigned int consecutiveFailCount = 0;
 static bool hasPrimaryReading = false;
 static SensorStatus sensorStatus = SENSOR_WAITING;
 static const char* sensorSourceName = "NONE";
+static const char* temperatureSourceName = "NONE";
+static const char* humiditySourceName = "NONE";
 static const char* pressureSourceName = "NONE";
 static const char* co2SourceName = "NONE";
 static const char* luxSourceName = "NONE";
@@ -62,6 +69,10 @@ static const char* uvSourceName = "NONE";
 
 #if GROVA_SENSOR_SHT41
 static bool sht4Ready = false;
+#endif
+
+#if GROVA_SENSOR_AHT20
+static bool ahtReady = false;
 #endif
 
 #if GROVA_SENSOR_BOSCH
@@ -101,15 +112,19 @@ static void setSensorStatus(SensorStatus nextStatus) {
   Serial.println(sensors_getStatusName());
 }
 
-static bool isInRange(float t, float h) {
-  return t >= SENSOR_TEMP_MIN &&
-         t <= SENSOR_TEMP_MAX &&
-         h >= SENSOR_HUM_MIN &&
-         h <= SENSOR_HUM_MAX;
+static bool isTempInRange(float t) {
+  return t >= SENSOR_TEMP_MIN && t <= SENSOR_TEMP_MAX;
+}
+
+static bool isHumInRange(float h) {
+  return h >= SENSOR_HUM_MIN && h <= SENSOR_HUM_MAX;
 }
 
 static bool isActiveSource(const char* sourceName) {
-  return strcmp(sensorSourceName, sourceName) == 0 && sensorStatus == SENSOR_OK;
+  return sensorStatus == SENSOR_OK &&
+         (strcmp(temperatureSourceName, sourceName) == 0 ||
+          strcmp(humiditySourceName, sourceName) == 0 ||
+          strcmp(pressureSourceName, sourceName) == 0);
 }
 
 static const char* sourceStatus(bool compiled, bool present, bool ready, bool active) {
@@ -132,6 +147,14 @@ static void tryInitSht41(bool logResult) {
     sht4.setHeater(SHT4X_NO_HEATER);
   }
   if (logResult) Serial.println(sht4Ready ? "SHT41 ready" : "SHT41 init failed");
+}
+#endif
+
+#if GROVA_SENSOR_AHT20
+static void tryInitAht20(bool logResult) {
+  if (ahtReady || !i2cDiscovery_isPresent("aht20")) return;
+  ahtReady = aht.begin(&Wire, 0, AHT20_I2C_ADDR);
+  if (logResult) Serial.println(ahtReady ? "AHT20 ready" : "AHT20 init failed");
 }
 #endif
 
@@ -200,6 +223,9 @@ static void tryInitI2cSensors(bool logResult) {
 #if GROVA_SENSOR_SHT41
   tryInitSht41(logResult);
 #endif
+#if GROVA_SENSOR_AHT20
+  tryInitAht20(logResult);
+#endif
 #if GROVA_SENSOR_BOSCH
   tryInitBosch(logResult);
 #endif
@@ -214,15 +240,24 @@ static void tryInitI2cSensors(bool logResult) {
 #endif
 }
 
-static bool hasClimateCandidateReady() {
+static bool hasMeasurementCandidateReady() {
 #if GROVA_SENSOR_SHT41
   if (sht4Ready) return true;
+#endif
+#if GROVA_SENSOR_AHT20
+  if (ahtReady) return true;
 #endif
 #if GROVA_SENSOR_SCD41
   if (scd41HadReading) return true;
 #endif
 #if GROVA_SENSOR_BOSCH
-  if (bmeReady) return true;
+  if (bmeReady || bmpReady) return true;
+#endif
+#if GROVA_SENSOR_VEML7700
+  if (vemlReady) return true;
+#endif
+#if GROVA_SENSOR_LTR390
+  if (ltr390Ready) return true;
 #endif
   return false;
 }
@@ -242,10 +277,12 @@ void sensors_loop() {
   if (millis() - lastRead < 2000) return;
   lastRead = millis();
 
-  bool primaryRead = false;
+  bool tempRead = false;
+  bool humRead = false;
   float primaryT = NAN;
   float primaryH = NAN;
-  const char* primarySource = "NONE";
+  const char* tempSource = "NONE";
+  const char* humSource = "NONE";
 
 #if GROVA_SENSOR_VEML7700
   if (vemlReady) {
@@ -304,20 +341,45 @@ void sensors_loop() {
     if (sht4.getEvent(&hum, &temp) &&
         !isnan(temp.temperature) &&
         !isnan(hum.relative_humidity)) {
-      primaryRead = true;
+      tempRead = true;
+      humRead = true;
       primaryT = temp.temperature;
       primaryH = hum.relative_humidity;
-      primarySource = "SHT41";
+      tempSource = "SHT41";
+      humSource = "SHT41";
+    }
+  }
+#endif
+
+#if GROVA_SENSOR_AHT20
+  if (!tempRead && ahtReady) {
+    sensors_event_t hum;
+    sensors_event_t temp;
+    if (aht.getEvent(&hum, &temp) &&
+        !isnan(temp.temperature) &&
+        !isnan(hum.relative_humidity)) {
+      tempRead = true;
+      humRead = true;
+      primaryT = temp.temperature;
+      primaryH = hum.relative_humidity;
+      tempSource = "AHT20";
+      humSource = "AHT20";
     }
   }
 #endif
 
 #if GROVA_SENSOR_SCD41
-  if (!primaryRead && scd41HadReading) {
-    primaryRead = true;
-    primaryT = lastScd41Temp;
-    primaryH = lastScd41Hum;
-    primarySource = "SCD41";
+  if (scd41HadReading) {
+    if (!tempRead) {
+      tempRead = true;
+      primaryT = lastScd41Temp;
+      tempSource = "SCD41";
+    }
+    if (!humRead) {
+      humRead = true;
+      primaryH = lastScd41Hum;
+      humSource = "SCD41";
+    }
   }
 #endif
 
@@ -326,25 +388,63 @@ void sensors_loop() {
     lastBoschTemp = bme.readTemperature();
     lastPressure = bme.readPressure() / 100.0F;
 
-    if (!primaryRead) {
-      float h = bme.readHumidity();
-      if (!isnan(lastBoschTemp) && !isnan(h)) {
-        primaryRead = true;
-        primaryT = lastBoschTemp;
-        primaryH = h;
-        primarySource = "BME280";
-      }
+    float h = bme.readHumidity();
+    if (!tempRead && !isnan(lastBoschTemp)) {
+      tempRead = true;
+      primaryT = lastBoschTemp;
+      tempSource = "BME280";
+    }
+    if (!humRead && !isnan(h)) {
+      humRead = true;
+      primaryH = h;
+      humSource = "BME280";
     }
   } else if (bmpReady) {
     lastBoschTemp = bmp.readTemperature();
     lastPressure = bmp.readPressure() / 100.0F;
+    if (!tempRead && !isnan(lastBoschTemp)) {
+      tempRead = true;
+      primaryT = lastBoschTemp;
+      tempSource = "BMP280";
+    }
   }
 #endif
 
-  if (!primaryRead) {
-    if (!hasClimateCandidateReady()) {
+  if (tempRead && !isTempInRange(primaryT)) {
+    failCount++;
+    consecutiveFailCount++;
+    if (!hasPrimaryReading || consecutiveFailCount >= SENSOR_READ_FAIL_WARN_AFTER) {
+      setSensorStatus(SENSOR_OUT_OF_RANGE);
+    }
+    Serial.print("Sensor temperature out of range | T ");
+    Serial.println(primaryT, 1);
+    return;
+  }
+
+  if (humRead && !isHumInRange(primaryH)) {
+    failCount++;
+    consecutiveFailCount++;
+    if (!hasPrimaryReading || consecutiveFailCount >= SENSOR_READ_FAIL_WARN_AFTER) {
+      setSensorStatus(SENSOR_OUT_OF_RANGE);
+    }
+    Serial.print("Sensor humidity out of range | H ");
+    Serial.println(primaryH, 1);
+    return;
+  }
+
+  bool hasAnyReading = tempRead ||
+                       humRead ||
+                       !isnan(lastPressure) ||
+                       !isnan(lastCo2) ||
+                       !isnan(lastLux) ||
+                       !isnan(lastUvIndex);
+
+  if (!hasAnyReading) {
+    if (!hasMeasurementCandidateReady()) {
       setSensorStatus(SENSOR_WAITING);
       sensorSourceName = "NONE";
+      temperatureSourceName = "NONE";
+      humiditySourceName = "NONE";
       return;
     }
 
@@ -356,32 +456,52 @@ void sensors_loop() {
     return;
   }
 
-  if (!isInRange(primaryT, primaryH)) {
-    failCount++;
-    consecutiveFailCount++;
-    if (!hasPrimaryReading || consecutiveFailCount >= SENSOR_READ_FAIL_WARN_AFTER) {
-      setSensorStatus(SENSOR_OUT_OF_RANGE);
-    }
-    Serial.print("Sensor raw out of range | T ");
-    Serial.print(primaryT, 1);
-    Serial.print("C | H ");
-    Serial.println(primaryH, 1);
-    return;
-  }
-
   setSensorStatus(SENSOR_OK);
   consecutiveFailCount = 0;
   hasPrimaryReading = true;
-  lastT = primaryT;
-  lastH = primaryH;
-  sensorSourceName = primarySource;
 
-  Serial.print("Temp: ");
-  Serial.print(lastT, 1);
-  Serial.print("C | Hum: ");
-  Serial.print(lastH, 1);
-  Serial.print("% | Source: ");
-  Serial.print(sensorSourceName);
+  if (tempRead) {
+    lastT = primaryT;
+    temperatureSourceName = tempSource;
+  } else {
+    lastT = NAN;
+    temperatureSourceName = "NONE";
+  }
+
+  if (humRead) {
+    lastH = primaryH;
+    humiditySourceName = humSource;
+  } else {
+    lastH = NAN;
+    humiditySourceName = "NONE";
+  }
+
+  sensorSourceName = strcmp(temperatureSourceName, "NONE") != 0
+    ? temperatureSourceName
+    : (strcmp(humiditySourceName, "NONE") != 0
+      ? humiditySourceName
+      : pressureSourceName);
+
+  if (tempRead || humRead) {
+    Serial.print("Temp: ");
+    if (tempRead) {
+      Serial.print(lastT, 1);
+      Serial.print("C ");
+      Serial.print(temperatureSourceName);
+    } else {
+      Serial.print("--");
+    }
+    Serial.print(" | Hum: ");
+    if (humRead) {
+      Serial.print(lastH, 1);
+      Serial.print("% ");
+      Serial.print(humiditySourceName);
+    } else {
+      Serial.print("--");
+    }
+  } else {
+    Serial.print("Sensor env: no climate reading");
+  }
   if (!isnan(lastPressure)) {
     Serial.print(" | Pressure: ");
     Serial.print(lastPressure, 0);
@@ -400,6 +520,8 @@ float sensors_getCo2Ppm() { return lastCo2; }
 float sensors_getLux() { return lastLux; }
 float sensors_getUvIndex() { return lastUvIndex; }
 const char* sensors_getSourceName() { return sensorSourceName; }
+const char* sensors_getTemperatureSourceName() { return temperatureSourceName; }
+const char* sensors_getHumiditySourceName() { return humiditySourceName; }
 const char* sensors_getPressureSourceName() { return pressureSourceName; }
 const char* sensors_getCo2SourceName() { return co2SourceName; }
 const char* sensors_getLuxSourceName() { return luxSourceName; }
@@ -438,6 +560,12 @@ void sensors_appendSourcesJson(String& json) {
   appendSource("sht41", "SHT41/SHT4x", "climate", false, false, false, false);
 #endif
 
+#if GROVA_SENSOR_AHT20
+  appendSource("aht20", "AHT20/AHTx0", "climate", true, i2cDiscovery_isPresent("aht20"), ahtReady, isActiveSource("AHT20"));
+#else
+  appendSource("aht20", "AHT20/AHTx0", "climate", false, false, false, false);
+#endif
+
 #if GROVA_SENSOR_SCD41
   appendSource("scd41", "SCD41", "co2_climate", true, i2cDiscovery_isPresent("scd41"), scd41Ready, isActiveSource("SCD41"));
 #else
@@ -446,7 +574,7 @@ void sensors_appendSourcesJson(String& json) {
 
 #if GROVA_SENSOR_BOSCH
   bool boschPresent = i2cDiscovery_isPresent("bme_76") || i2cDiscovery_isPresent("bme_77");
-  appendSource("bme_bmp", "BME/BMP", "pressure", true, boschPresent, bmeReady || bmpReady, isActiveSource("BME280"));
+  appendSource("bme_bmp", "BME/BMP", "pressure_temp", true, boschPresent, bmeReady || bmpReady, isActiveSource("BME280") || isActiveSource("BMP280"));
 #else
   appendSource("bme_bmp", "BME/BMP", "pressure", false, false, false, false);
 #endif

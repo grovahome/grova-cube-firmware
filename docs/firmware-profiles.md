@@ -20,9 +20,10 @@ Current source line after this cleanup: PCB v1 / Founder Edition only
 RTC support is included in the shared firmware line, but it is disabled by
 default because the current active cubes do not have RTC modules fitted yet.
 
-SHT41/SHT4x temperature/humidity support is compiled into PCB/Founder builds
-by default and remains optional at runtime. If the sensor is connected and
-initializes successfully, it becomes the active temperature/humidity source.
+SHT41/SHT4x and AHT20/AHTx0 temperature/humidity support is compiled into
+PCB/Founder builds by default and remains optional at runtime. If a supported
+sensor is connected and initializes successfully, it can become the active
+temperature/humidity source according to the sensor priority below.
 
 ## Active Hardware Target
 
@@ -216,8 +217,9 @@ order:
 
 ```text
 1. SHT41/SHT4x, when compiled in and detected
-2. SCD41, when detected and a measurement is available
-3. BME280 humidity/temperature fallback, when Bosch is enabled and present
+2. AHT20/AHTx0, when compiled in and detected
+3. SCD41, when detected and a measurement is available
+4. BME280 humidity/temperature fallback, when Bosch is enabled and present
 ```
 
 For PCB/Founder builds, all planned I2C sensor families are compiled in by

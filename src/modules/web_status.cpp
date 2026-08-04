@@ -408,8 +408,8 @@ static void handleStatus() {
   appendJsonFloat(json, "co2_ppm", sensors_getCo2Ppm(), 0);
   appendJsonFloat(json, "lux", sensors_getLux(), 0);
   appendJsonFloat(json, "uv_index", sensors_getUvIndex(), 1);
-  appendJsonString(json, "temperature_source", sensors_getSourceName());
-  appendJsonString(json, "humidity_source", sensors_getSourceName());
+  appendJsonString(json, "temperature_source", sensors_getTemperatureSourceName());
+  appendJsonString(json, "humidity_source", sensors_getHumiditySourceName());
   appendJsonString(json, "pressure_source", sensors_getPressureSourceName());
   appendJsonString(json, "co2_source", sensors_getCo2SourceName());
   appendJsonString(json, "lux_source", sensors_getLuxSourceName());

@@ -81,6 +81,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 #ifndef GROVA_SENSOR_SHT41
   #define GROVA_SENSOR_SHT41 1
 #endif
+#ifndef GROVA_SENSOR_AHT20
+  #define GROVA_SENSOR_AHT20 1
+#endif
 #ifndef GROVA_SENSOR_BOSCH
   #define GROVA_SENSOR_BOSCH 1
 #endif
@@ -156,6 +159,9 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 #endif
 #ifndef BOSCH_SECONDARY_ADDR
   #define BOSCH_SECONDARY_ADDR 0x77
+#endif
+#ifndef AHT20_I2C_ADDR
+  #define AHT20_I2C_ADDR 0x38
 #endif
 #ifndef VEML7700_I2C_ADDR
   #define VEML7700_I2C_ADDR 0x10

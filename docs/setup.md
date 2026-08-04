@@ -11,7 +11,7 @@ For the product overview, see the main [README](../README.md). For APIs, MQTT to
 - USB cable for first flashing
 - Wi-Fi credentials for network features
 - Optional MQTT broker for telemetry and remote commands
-- Optional GROVA I2C sensor modules: SHT41/SHT4x, VEML7700, SCD41, BME/BMP, LTR390
+- Optional GROVA I2C sensor modules: SHT41/SHT4x, AHT20/AHTx0, VEML7700, SCD41, BME/BMP, LTR390
 
 ## Repository Setup
 
@@ -55,7 +55,7 @@ uses it without user code changes.
 Temperature and humidity priority:
 
 ```text
-SHT41/SHT4x -> SCD41 -> BME280
+SHT41/SHT4x -> AHT20/AHTx0 -> SCD41 -> BME280
 ```
 
 Missing sensors are normal. Their telemetry channels are emitted as `null` and

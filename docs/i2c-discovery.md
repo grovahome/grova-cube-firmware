@@ -14,6 +14,7 @@ telemetry channel remains `null`.
 | GROVA module | Device | Address | Data |
 | --- | --- | --- | --- |
 | GROVA Climate | SHT41/SHT4x | `0x44`, `0x45` | Temperature, humidity |
+| GROVA PCB v1 Climate | AHT20/AHTx0 | `0x38` | Temperature, humidity |
 | GROVA Light | VEML7700 | `0x10` | Ambient light / lux |
 | GROVA CO2 | SCD41 | `0x62` | CO2, temperature, humidity |
 | GROVA Pressure | BME/BMP | `0x76`, `0x77` | Pressure, temperature, optional humidity |
@@ -73,13 +74,15 @@ Temperature and humidity should prefer the best available source, not a required
 one:
 
 1. SHT41/SHT4x
-2. SCD41
-3. BME280, when present and humidity is available
+2. AHT20/AHTx0
+3. SCD41
+4. BME280, when present and humidity is available
 
-In the PCB/Founder firmware line the SHT41/SHT4x driver is compiled in by
-default. If an SHT41/SHT4x is connected and initializes successfully, it becomes
-the active temperature/humidity source. If it is not connected, the cube
-continues with the next available source.
+In the PCB/Founder firmware line the SHT41/SHT4x and AHT20/AHTx0 drivers are
+compiled in by default. If a supported climate sensor is connected and
+initializes successfully, it becomes the active temperature/humidity source
+according to the priority above. If it is not connected, the cube continues with
+the next available source.
 
 BME/BMP pressure, VEML7700 lux, SCD41 CO2, and LTR390 UV readings are
 independent optional data channels. Missing channels must not create firmware

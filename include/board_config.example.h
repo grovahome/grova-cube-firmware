@@ -14,8 +14,9 @@
 // Enable the driver families that this firmware may auto-detect on the cube.
 // Missing I2C sensors are allowed; they are reported as missing/unavailable.
 // Preferred temperature/humidity order:
-// SHT41/SHT4x -> SCD41 -> BME280.
+// SHT41/SHT4x -> AHT20/AHTx0 -> SCD41 -> BME280.
 #define GROVA_SENSOR_SHT41 1
+#define GROVA_SENSOR_AHT20 1
 #define GROVA_SENSOR_BOSCH 1
 #define GROVA_SENSOR_VEML7700 1
 #define GROVA_SENSOR_SCD41 1
@@ -24,6 +25,7 @@
 // Bosch sensor can be BME280 or BMP280. Firmware probes both addresses.
 #define BOSCH_PRIMARY_ADDR 0x76
 #define BOSCH_SECONDARY_ADDR 0x77
+#define AHT20_I2C_ADDR 0x38
 #define VEML7700_I2C_ADDR 0x10
 #define SCD41_I2C_ADDR 0x62
 #define LTR390_I2C_ADDR 0x53
