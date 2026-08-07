@@ -113,7 +113,8 @@ and help shape the product before the next batch.
         <li>Native USB-C</li>
         <li>Dual PWM fan headers with tacho support</li>
         <li>12 V and 5 V MOSFET outputs</li>
-        <li>I2C sensor expansion</li>
+        <li>8 independent I2C sensor expansion</li>
+        <li>Dual 0-10V output</li>
         <li>OneWire, analog, flow and safety inputs</li>
         <li>OLED display, rotary encoder and status LED</li>
       </ul>
