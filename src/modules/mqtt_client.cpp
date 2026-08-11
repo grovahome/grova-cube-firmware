@@ -9,6 +9,7 @@
 #include "modules/climate.h"
 #include "modules/control.h"
 #include "modules/fan.h"
+#include "modules/fan_control.h"
 #include "modules/grow_mode.h"
 #include "modules/i2c_discovery.h"
 #include "modules/light.h"
@@ -177,6 +178,8 @@ static String buildTelemetryJson() {
 
   runtimeConfig_appendJson(json);
   json += ",";
+  fanControl_appendJson(json);
+  json += ",";
   presetStore_appendSummaryJson(json);
   json += ",";
   localRun_appendJson(json);
@@ -227,6 +230,8 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "current_pct", getFanPercent());
   appendJsonInt(json, "target_pct", getFanTargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(1));
+  appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(1));
+  appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(1));
   appendJsonInt(json, "rpm", getFanRPM());
   appendJsonBool(json, "tacho_fault", fan_getTachoFault(1), false);
   json += "},";
@@ -237,6 +242,8 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "current_pct", getFan2Percent());
   appendJsonInt(json, "target_pct", getFan2TargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(2));
+  appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(2));
+  appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(2));
   appendJsonInt(json, "rpm", getFan2RPM());
   appendJsonBool(json, "tacho_fault", fan_getTachoFault(2), false);
   json += "},";

@@ -15,6 +15,40 @@ Use HTTP or MQTT to set Fan 2:
 Commands without `fan` keep the legacy Fan 1 behavior and do not change Fan 2.
 Fan 2 tacho monitoring stays disabled until its tacho wire is connected.
 
+## Code-only automatic curve engine
+
+The current implementation keeps all new fan settings in
+`src/modules/fan_control.cpp`; no server or product-dashboard editor has been
+added yet. Fan 1 defaults to automatic control. Fan 2 defaults to manual 0%.
+
+Each fan config contains its default mode, manual and base output, minimum and
+maximum output, startup boost, ramp rates, minimum runtime, and stall limits.
+Temperature and humidity each have an independent source rule with:
+
+- enabled flag
+- absolute lead below the active climate target
+- full-load distance above the active climate target
+- hysteresis
+- `GENTLE`, `NORMAL`, or `AGGRESSIVE` curve style
+
+The active day/night or local-grow climate targets remain the actual targets,
+so existing grow presets keep controlling the desired climate. The firmware
+generates ten curve points for every enabled source rule and interpolates
+between them. Temperature and humidity demands are combined using `MAXIMUM`.
+Rest Mode, sensor-safe behavior, and latched stall shutdown remain higher
+priority than normal automatic demand.
+
+Current Fan 1 defaults:
+
+```text
+mode: automatic
+minimum / maximum: 25% / 100%
+startup boost: 60% for 1.5 s
+minimum runtime: 60 s
+temperature: target lead 1.5 C, full load target + 7 C, hysteresis 0.5 C, normal
+humidity: target lead 5%, full load target + 20%, hysteresis 3%, normal
+```
+
 ## Stall protection
 
 Stall protection is available independently for both fans when the respective

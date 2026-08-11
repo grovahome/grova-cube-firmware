@@ -310,10 +310,6 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
   if (strcmp(command, "SET_FAN_AUTO") == 0) {
     int fan = 0;
     extractInt(requestBody, "fan", fan);
-    if (fan == 2) {
-      makeResponse(responseJson, false, "fan 2 automation is not configured; use manual control");
-      return false;
-    }
     if (!fan_setAuto(fan)) {
       makeResponse(responseJson, false, "invalid fan");
       return false;

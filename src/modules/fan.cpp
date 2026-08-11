@@ -6,6 +6,7 @@
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
 #include "modules/sensors.h"
+#include "modules/fan_control.h"
 
 const int pwmChannel = 0;
 const int pwmChannel2 = 1;
@@ -17,9 +18,14 @@ struct FanChannel {
   int targetPercent = 0;
   int manualPercent = 50;
   int rpm = 0;
-  bool manual = false;
+  int temperatureDemandPercent = 0;
+  int humidityDemandPercent = 0;
+  FanOperatingMode mode = FAN_MODE_AUTOMATIC;
+  FanRuleState ruleState;
   bool tachoFault = false;
   unsigned long demandSince = 0;
+  unsigned long autoRunSince = 0;
+  unsigned long boostUntil = 0;
   const char* reason = "START";
 };
 
@@ -82,11 +88,15 @@ void fan_preinit() {
   digitalWrite(FAN2_PWM, LOW);
 #endif
   fan1.pwm = 0;
+  fan1.targetPercent = 0;
+  fan1.manualPercent = fanControl_getConfig(1).manualPercent;
+  fan1.mode = fanControl_getConfig(1).defaultMode;
+  fan1.reason = fanControl_modeName(fan1.mode);
   fan2.pwm = 0;
   fan2.targetPercent = 0;
-  fan2.manualPercent = 0;
-  fan2.manual = true;
-  fan2.reason = "MANUAL";
+  fan2.manualPercent = fanControl_getConfig(2).manualPercent;
+  fan2.mode = fanControl_getConfig(2).defaultMode;
+  fan2.reason = fanControl_modeName(fan2.mode);
 }
 
 void fan_begin() {
@@ -136,29 +146,42 @@ int getFan2TargetPercent() {
   return fan2.targetPercent;
 }
 
+int fan_getTemperatureDemandPercent(int fan) {
+  if (!isFanIndexEnabled(fan)) return 0;
+  return channelForFan(fan).temperatureDemandPercent;
+}
+
+int fan_getHumidityDemandPercent(int fan) {
+  if (!isFanIndexEnabled(fan)) return 0;
+  return channelForFan(fan).humidityDemandPercent;
+}
+
 bool fan_isEnabled(int fan) {
   return isFanIndexEnabled(fan);
 }
 
 bool fan_isManual(int fan) {
   if (!isFanIndexEnabled(fan)) return false;
-  return channelForFan(fan).manual;
+  return channelForFan(fan).mode == FAN_MODE_MANUAL;
 }
 
 bool fan_setAuto(int fan) {
   if (fan == 0) {
     fan1.tachoFault = false;
     fan1.demandSince = 0;
-    fan1.manual = false;
+    fan1.autoRunSince = 0;
+    fan1.boostUntil = 0;
+    fan1.mode = FAN_MODE_AUTOMATIC;
     return true;
   }
 
   if (!isFanIndexEnabled(fan)) return false;
-  if (fan == 2) return false;
   FanChannel& channel = channelForFan(fan);
   channel.tachoFault = false;
   channel.demandSince = 0;
-  channel.manual = false;
+  channel.autoRunSince = 0;
+  channel.boostUntil = 0;
+  channel.mode = FAN_MODE_AUTOMATIC;
   return true;
 }
 
@@ -168,7 +191,9 @@ bool fan_setManual(int fan, int percent) {
   if (fan == 0) {
     fan1.tachoFault = false;
     fan1.demandSince = 0;
-    fan1.manual = true;
+    fan1.autoRunSince = 0;
+    fan1.boostUntil = 0;
+    fan1.mode = FAN_MODE_MANUAL;
     fan1.manualPercent = percent;
     return true;
   }
@@ -177,7 +202,9 @@ bool fan_setManual(int fan, int percent) {
   FanChannel& channel = channelForFan(fan);
   channel.tachoFault = false;
   channel.demandSince = 0;
-  channel.manual = true;
+  channel.autoRunSince = 0;
+  channel.boostUntil = 0;
+  channel.mode = FAN_MODE_MANUAL;
   channel.manualPercent = percent;
   return true;
 }
@@ -205,7 +232,8 @@ const char* fan_getModeName(int fan) {
   if (!isFanIndexEnabled(fan)) return "OFF";
   if (restMode_isEnabled()) return "REST";
   if (channelForFan(fan).tachoFault) return "FAULT";
-  if (channelForFan(fan).manual) return "MANUAL";
+  if (channelForFan(fan).mode == FAN_MODE_OFF) return "OFF";
+  if (channelForFan(fan).mode == FAN_MODE_MANUAL) return "MANUAL";
   if (fan == 1 && ui_isFanManual()) return "MANUAL";
   return "AUTO";
 }
@@ -241,35 +269,68 @@ void fan_forceOff() {
   writeFanPwm();
 }
 
-static void rampFanToTarget(FanChannel& channel, int targetPWM) {
-  if (channel.pwm < targetPWM) channel.pwm += FAN_RAMP_UP_PWM_STEP;
-  if (channel.pwm > targetPWM) channel.pwm -= FAN_RAMP_DOWN_PWM_STEP;
+static void rampFanToTarget(FanChannel& channel, int targetPWM, const FanControlConfig& config) {
+  if (channel.pwm < targetPWM) channel.pwm += config.rampUpPwmStep;
+  if (channel.pwm > targetPWM) channel.pwm -= config.rampDownPwmStep;
   channel.pwm = clamp(channel.pwm, 0, 255);
 }
 
-static const char* autoReason(float activeErrorT, float activeErrorH) {
-  if (activeErrorT > 0 && activeErrorH > 0) return "TEMP+HUM";
-  if (activeErrorT > 0) return "TEMP";
-  if (activeErrorH > 0) return "HUM";
-  return "IDLE";
+static int applyMinimumIfRunning(int requested, const FanControlConfig& config) {
+  if (requested <= 0) return 0;
+  return clamp(requested, config.minimumPercent, config.maximumPercent);
 }
 
-static void applyFanChannel(FanChannel& channel, int fan, int autoPercent, const char* autoReasonName, bool sensorFault) {
+static void applyFanChannel(FanChannel& channel, int fan, const FanDemand& demand, bool sensorFault) {
+  const FanControlConfig& config = fanControl_getConfig(fan);
+  const unsigned long now = millis();
+  if (channel.mode != FAN_MODE_AUTOMATIC || sensorFault || channel.tachoFault) {
+    channel.temperatureDemandPercent = 0;
+    channel.humidityDemandPercent = 0;
+  }
   if (channel.tachoFault) {
     channel.reason = "STALL OFF";
     channel.targetPercent = 0;
-  } else if (sensorFault) {
+  } else if (sensorFault && channel.mode == FAN_MODE_AUTOMATIC) {
     channel.reason = "SENSOR SAFE";
-    channel.targetPercent = FAN_SENSOR_FAIL_PERCENT;
-  } else if (channel.manual || (fan == 1 && ui_isFanManual())) {
+    channel.targetPercent = clamp(FAN_SENSOR_FAIL_PERCENT, config.minimumPercent, config.maximumPercent);
+  } else if (channel.mode == FAN_MODE_OFF) {
+    channel.reason = "OFF";
+    channel.targetPercent = 0;
+  } else if (channel.mode == FAN_MODE_MANUAL || (fan == 1 && ui_isFanManual())) {
     channel.reason = "MANUAL";
-    channel.targetPercent = channel.manual ? channel.manualPercent : ui_getFanManualValue();
+    const int requested = channel.mode == FAN_MODE_MANUAL ? channel.manualPercent : ui_getFanManualValue();
+    channel.targetPercent = applyMinimumIfRunning(requested, config);
   } else {
-    channel.reason = autoReasonName;
-    channel.targetPercent = autoPercent;
+    channel.temperatureDemandPercent = demand.temperaturePercent;
+    channel.humidityDemandPercent = demand.humidityPercent;
+    int requested = demand.percent;
+
+    bool minimumRunHold = false;
+    if (requested > 0) {
+      if (channel.autoRunSince == 0) {
+        channel.autoRunSince = now;
+        channel.boostUntil = now + config.startupBoostMs;
+        channel.pwm = percentToPwm(config.startupBoostPercent);
+      }
+    } else if (channel.autoRunSince != 0 && now - channel.autoRunSince < config.minimumRunMs) {
+      requested = config.minimumPercent;
+      minimumRunHold = true;
+    } else {
+      channel.autoRunSince = 0;
+      channel.boostUntil = 0;
+    }
+
+    channel.reason = minimumRunHold ? "MIN RUN" : demand.reason;
+    channel.targetPercent = applyMinimumIfRunning(requested, config);
+    if (channel.boostUntil != 0 && static_cast<long>(channel.boostUntil - now) > 0) {
+      channel.targetPercent = max(channel.targetPercent, config.startupBoostPercent);
+      channel.reason = "START BOOST";
+    } else if (channel.boostUntil != 0) {
+      channel.boostUntil = 0;
+    }
   }
 
-  channel.targetPercent = clamp(channel.targetPercent, 0, FAN_MAX_PERCENT);
+  channel.targetPercent = clamp(channel.targetPercent, 0, config.maximumPercent);
 }
 
 static void updateFanTacho() {
@@ -320,7 +381,8 @@ static void updateFanTacho() {
       channels[i]->demandSince = 0;
       continue;
     }
-    bool shouldSpin = tachoEnabled && channels[i]->targetPercent >= FAN_TACHO_MIN_CHECK_PERCENT;
+    const FanControlConfig& config = fanControl_getConfig(i + 1);
+    bool shouldSpin = tachoEnabled && channels[i]->targetPercent >= config.stall.minimumCheckPercent;
 
     if (!shouldSpin) {
       channels[i]->demandSince = 0;
@@ -333,8 +395,8 @@ static void updateFanTacho() {
       continue;
     }
 
-    if (now - channels[i]->demandSince >= FAN_TACHO_FAULT_DELAY_MS) {
-      if (channels[i]->rpm < FAN_TACHO_MIN_RPM) {
+    if (now - channels[i]->demandSince >= config.stall.faultDelayMs) {
+      if (channels[i]->rpm < config.stall.minimumRpm) {
         channels[i]->tachoFault = true;
         channels[i]->targetPercent = 0;
         channels[i]->pwm = 0;
@@ -359,42 +421,30 @@ void fan_loop(float t, float h) {
   h = safeHum(h);
 
   bool sensorFault = sensors_hasFault();
-  float activeErrorT = t - getTargetTemp();
-  float activeErrorH = h - getTargetHum();
-  if (activeErrorT < 0) activeErrorT = 0;
-  if (activeErrorH < 0) activeErrorH = 0;
+  FanDemand fan1Demand = fanControl_evaluate(1, t, h, getTargetTemp(), getTargetHum(), fan1.ruleState);
+  FanDemand fan2Demand = fanControl_evaluate(2, t, h, getTargetTemp(), getTargetHum(), fan2.ruleState);
+  fanReasonName = sensorFault ? "SENSOR SAFE" : fan1Demand.reason;
 
-  int autoPercent = sensorFault
-    ? FAN_SENSOR_FAIL_PERCENT
-    : runtimeConfig_evaluateFanPercent(activeErrorT, activeErrorH);
-  autoPercent = clamp(autoPercent, 0, FAN_MAX_PERCENT);
-
-  const char* reason = sensorFault ? "SENSOR SAFE" : autoReason(activeErrorT, activeErrorH);
-  fanReasonName = reason;
-
-  applyFanChannel(fan1, 1, autoPercent, reason, sensorFault);
+  applyFanChannel(fan1, 1, fan1Demand, sensorFault);
 #if FAN2_ENABLED
-  // Fan 2 remains independent from temperature and humidity for now.
-  // Its target can only be changed through an explicit fan:2 manual command.
-  if (fan2.tachoFault) {
-    fan2.reason = "STALL OFF";
-    fan2.targetPercent = 0;
-  } else {
-    fan2.reason = "MANUAL";
-    fan2.targetPercent = clamp(fan2.manualPercent, 0, FAN_MAX_PERCENT);
-  }
+  applyFanChannel(fan2, 2, fan2Demand, sensorFault);
 #else
   fan2.targetPercent = 0;
   fan2.pwm = 0;
   fan2.reason = "OFF";
 #endif
+  fanReasonName = fan1.reason;
 
   unsigned long now = millis();
-  if (now - lastRampUpdate >= FAN_RAMP_INTERVAL_MS) {
+  const unsigned long rampInterval = min(
+    fanControl_getConfig(1).rampIntervalMs,
+    fanControl_getConfig(2).rampIntervalMs
+  );
+  if (now - lastRampUpdate >= rampInterval) {
     lastRampUpdate = now;
-    rampFanToTarget(fan1, percentToPwm(fan1.targetPercent));
+    rampFanToTarget(fan1, percentToPwm(fan1.targetPercent), fanControl_getConfig(1));
 #if FAN2_ENABLED
-    rampFanToTarget(fan2, percentToPwm(fan2.targetPercent));
+    rampFanToTarget(fan2, percentToPwm(fan2.targetPercent), fanControl_getConfig(2));
 #endif
   }
 
