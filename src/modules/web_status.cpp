@@ -305,9 +305,14 @@ function drawControls(){
       <button onclick="sendControl({cmd:'set_light_mode',mode:'AUTO'})">Light Auto</button>
       <button onclick="sendControl({cmd:'set_light_mode',mode:'ON'})">Light On</button>
       <button onclick="sendControl({cmd:'set_light_mode',mode:'OFF'})">Light Off</button>
-      <button onclick="sendControl({cmd:'set_fan_auto'})">Fan Auto</button>
-      <button onclick="sendControl({cmd:'set_fan_manual',percent:50})">Fan 50%</button>
-      <button onclick="sendControl({cmd:'set_fan_manual',percent:75})">Fan 75%</button>
+      <button onclick="sendControl({cmd:'set_fan_auto',fan:1})">Fan 1 Auto</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:1,percent:50})">Fan 1 50%</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:1,percent:75})">Fan 1 75%</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:2,percent:0})">Fan 2 Off</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:2,percent:25})">Fan 2 25%</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:2,percent:50})">Fan 2 50%</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:2,percent:75})">Fan 2 75%</button>
+      <button onclick="sendControl({cmd:'set_fan_manual',fan:2,percent:100})">Fan 2 100%</button>
       <button onclick="sendControl({cmd:'pump_test',action:'start'})">Pump Test</button>
       <button onclick="sendControl({cmd:'pump_test',action:'stop'})">Pump Stop</button>
     </div>`;

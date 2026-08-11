@@ -24,6 +24,8 @@ struct FanChannel {
 };
 
 static FanChannel fan1;
+// Fan 2 is intentionally manual-only until per-channel automation rules exist.
+// Starting at 0% keeps an unconnected or newly fitted fan in a safe state.
 static FanChannel fan2;
 static unsigned long lastTachoSample = 0;
 static unsigned long lastFanLog = 0;
@@ -81,6 +83,10 @@ void fan_preinit() {
 #endif
   fan1.pwm = 0;
   fan2.pwm = 0;
+  fan2.targetPercent = 0;
+  fan2.manualPercent = 0;
+  fan2.manual = true;
+  fan2.reason = "MANUAL";
 }
 
 void fan_begin() {
@@ -141,15 +147,18 @@ bool fan_isManual(int fan) {
 
 bool fan_setAuto(int fan) {
   if (fan == 0) {
+    fan1.tachoFault = false;
+    fan1.demandSince = 0;
     fan1.manual = false;
-#if FAN2_ENABLED
-    fan2.manual = false;
-#endif
     return true;
   }
 
   if (!isFanIndexEnabled(fan)) return false;
-  channelForFan(fan).manual = false;
+  if (fan == 2) return false;
+  FanChannel& channel = channelForFan(fan);
+  channel.tachoFault = false;
+  channel.demandSince = 0;
+  channel.manual = false;
   return true;
 }
 
@@ -157,17 +166,17 @@ bool fan_setManual(int fan, int percent) {
   percent = clamp(percent, 0, 100);
 
   if (fan == 0) {
+    fan1.tachoFault = false;
+    fan1.demandSince = 0;
     fan1.manual = true;
     fan1.manualPercent = percent;
-#if FAN2_ENABLED
-    fan2.manual = true;
-    fan2.manualPercent = percent;
-#endif
     return true;
   }
 
   if (!isFanIndexEnabled(fan)) return false;
   FanChannel& channel = channelForFan(fan);
+  channel.tachoFault = false;
+  channel.demandSince = 0;
   channel.manual = true;
   channel.manualPercent = percent;
   return true;
@@ -195,6 +204,7 @@ const char* fan_getTachoStatusName() {
 const char* fan_getModeName(int fan) {
   if (!isFanIndexEnabled(fan)) return "OFF";
   if (restMode_isEnabled()) return "REST";
+  if (channelForFan(fan).tachoFault) return "FAULT";
   if (channelForFan(fan).manual) return "MANUAL";
   if (fan == 1 && ui_isFanManual()) return "MANUAL";
   return "AUTO";
@@ -216,13 +226,11 @@ void fan_forceOff() {
   fan1.pwm = 0;
   fan1.reason = "REST OFF";
   fan1.demandSince = 0;
-  fan1.tachoFault = false;
 #if FAN2_ENABLED
   fan2.targetPercent = 0;
   fan2.pwm = 0;
   fan2.reason = "REST OFF";
   fan2.demandSince = 0;
-  fan2.tachoFault = false;
 #else
   fan2.targetPercent = 0;
   fan2.pwm = 0;
@@ -247,7 +255,10 @@ static const char* autoReason(float activeErrorT, float activeErrorH) {
 }
 
 static void applyFanChannel(FanChannel& channel, int fan, int autoPercent, const char* autoReasonName, bool sensorFault) {
-  if (sensorFault) {
+  if (channel.tachoFault) {
+    channel.reason = "STALL OFF";
+    channel.targetPercent = 0;
+  } else if (sensorFault) {
     channel.reason = "SENSOR SAFE";
     channel.targetPercent = FAN_SENSOR_FAIL_PERCENT;
   } else if (channel.manual || (fan == 1 && ui_isFanManual())) {
@@ -303,11 +314,16 @@ static void updateFanTacho() {
   FanChannel* channels[] = {&fan1, &fan2};
   for (int i = 0; i < 2; i++) {
     bool tachoEnabled = (i == 0 && FAN_TACHO_ENABLED) || (i == 1 && FAN2_ENABLED && FAN2_TACHO_ENABLED);
+    if (channels[i]->tachoFault) {
+      channels[i]->targetPercent = 0;
+      channels[i]->reason = "STALL OFF";
+      channels[i]->demandSince = 0;
+      continue;
+    }
     bool shouldSpin = tachoEnabled && channels[i]->targetPercent >= FAN_TACHO_MIN_CHECK_PERCENT;
 
     if (!shouldSpin) {
       channels[i]->demandSince = 0;
-      channels[i]->tachoFault = false;
       continue;
     }
 
@@ -318,9 +334,17 @@ static void updateFanTacho() {
     }
 
     if (now - channels[i]->demandSince >= FAN_TACHO_FAULT_DELAY_MS) {
-      channels[i]->tachoFault = channels[i]->rpm < FAN_TACHO_MIN_RPM;
+      if (channels[i]->rpm < FAN_TACHO_MIN_RPM) {
+        channels[i]->tachoFault = true;
+        channels[i]->targetPercent = 0;
+        channels[i]->pwm = 0;
+        channels[i]->reason = "STALL OFF";
+      }
     }
   }
+  // A detected stall is a safety shutdown and must not wait for the normal
+  // downward ramp, which is intentionally slow during regular operation.
+  writeFanPwm();
 #endif
 }
 
@@ -350,7 +374,15 @@ void fan_loop(float t, float h) {
 
   applyFanChannel(fan1, 1, autoPercent, reason, sensorFault);
 #if FAN2_ENABLED
-  applyFanChannel(fan2, 2, autoPercent, reason, sensorFault);
+  // Fan 2 remains independent from temperature and humidity for now.
+  // Its target can only be changed through an explicit fan:2 manual command.
+  if (fan2.tachoFault) {
+    fan2.reason = "STALL OFF";
+    fan2.targetPercent = 0;
+  } else {
+    fan2.reason = "MANUAL";
+    fan2.targetPercent = clamp(fan2.manualPercent, 0, FAN_MAX_PERCENT);
+  }
 #else
   fan2.targetPercent = 0;
   fan2.pwm = 0;
@@ -368,6 +400,7 @@ void fan_loop(float t, float h) {
 
   writeFanPwm();
   updateFanTacho();
+  if (fan1.tachoFault) fanReasonName = "STALL OFF";
 
   if (millis() - lastFanLog >= FAN_LOG_INTERVAL_MS) {
     lastFanLog = millis();

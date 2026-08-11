@@ -467,9 +467,6 @@ static String buildHomeAssistantDiscoveryJson() {
 #endif
 
   appendButtonComponent(json, "fan1_auto", "fan1_auto", "Fan 1 auto", "{\"cmd\":\"set_fan_auto\",\"fan\":1}");
-#if FAN2_ENABLED
-  appendButtonComponent(json, "fan2_auto", "fan2_auto", "Fan 2 auto", "{\"cmd\":\"set_fan_auto\",\"fan\":2}");
-#endif
 #if PIN_AUX_12V >= 0
   appendSwitchComponent(json, "aux_12v", "aux_12v", "12V output", "{{ 'ON' if value_json.outputs.aux_12v.on else 'OFF' }}", "{\"cmd\":\"set_output\",\"output\":\"aux_12v\",\"state\":true}", "{\"cmd\":\"set_output\",\"output\":\"aux_12v\",\"state\":false}");
 #endif
