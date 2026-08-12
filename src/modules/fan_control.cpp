@@ -7,36 +7,33 @@ static constexpr int AUTO_CURVE_POINT_COUNT = 10;
 
 // Code-only defaults. The active climate targets still come from the current
 // day/night or local grow configuration.
-static const FanControlConfig FAN1_CONFIG = {
-  FAN_MODE_AUTOMATIC,
-  50,
-  0,
+// Both physical fan channels use the same device profile. Differences between
+// their jobs belong to the automation layer, not the hardware/device layer.
+static const FanDeviceConfig STANDARD_FAN_DEVICE_CONFIG = {
   FAN_IDLE_PERCENT,
   FAN_MAX_PERCENT,
   60,
   1500UL,
-  60000UL,
   FAN_RAMP_UP_PWM_STEP,
   FAN_RAMP_DOWN_PWM_STEP,
   FAN_RAMP_INTERVAL_MS,
-  {FAN_TACHO_MIN_CHECK_PERCENT, FAN_TACHO_MIN_RPM, FAN_TACHO_FAULT_DELAY_MS},
+  {FAN_TACHO_MIN_CHECK_PERCENT, FAN_TACHO_MIN_RPM, FAN_TACHO_FAULT_DELAY_MS}
+};
+
+static const FanAutomationConfig FAN1_AUTOMATION_CONFIG = {
+  FAN_MODE_AUTOMATIC,
+  50,
+  0,
+  60000UL,
   {true, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
   {true, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
 };
 
-static const FanControlConfig FAN2_CONFIG = {
+static const FanAutomationConfig FAN2_AUTOMATION_CONFIG = {
   FAN_MODE_MANUAL,
   0,
   0,
-  FAN_IDLE_PERCENT,
-  FAN_MAX_PERCENT,
-  60,
-  1500UL,
   60000UL,
-  FAN_RAMP_UP_PWM_STEP,
-  FAN_RAMP_DOWN_PWM_STEP,
-  FAN_RAMP_INTERVAL_MS,
-  {FAN_TACHO_MIN_CHECK_PERCENT, FAN_TACHO_MIN_RPM, FAN_TACHO_FAULT_DELAY_MS},
   {false, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
   {false, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
 };
@@ -105,8 +102,13 @@ static int evaluateCurve(
   return maximumPercent;
 }
 
-const FanControlConfig& fanControl_getConfig(int fan) {
-  return fan == 2 ? FAN2_CONFIG : FAN1_CONFIG;
+const FanDeviceConfig& fanControl_getDeviceConfig(int fan) {
+  (void)fan;
+  return STANDARD_FAN_DEVICE_CONFIG;
+}
+
+const FanAutomationConfig& fanControl_getAutomationConfig(int fan) {
+  return fan == 2 ? FAN2_AUTOMATION_CONFIG : FAN1_AUTOMATION_CONFIG;
 }
 
 const char* fanControl_modeName(FanOperatingMode mode) {
@@ -129,30 +131,31 @@ FanDemand fanControl_evaluate(
   float humidityTarget,
   FanRuleState& state
 ) {
-  const FanControlConfig& config = fanControl_getConfig(fan);
+  const FanDeviceConfig& deviceConfig = fanControl_getDeviceConfig(fan);
+  const FanAutomationConfig& automationConfig = fanControl_getAutomationConfig(fan);
   FanDemand demand;
   demand.temperaturePercent = evaluateCurve(
-    config.temperature,
+    automationConfig.temperature,
     temperature,
     temperatureTarget,
-    config.minimumPercent,
-    config.maximumPercent,
+    deviceConfig.minimumPercent,
+    deviceConfig.maximumPercent,
     state.temperatureActive
   );
   demand.humidityPercent = evaluateCurve(
-    config.humidity,
+    automationConfig.humidity,
     humidity,
     humidityTarget,
-    config.minimumPercent,
-    config.maximumPercent,
+    deviceConfig.minimumPercent,
+    deviceConfig.maximumPercent,
     state.humidityActive
   );
-  demand.percent = max(config.basePercent, max(demand.temperaturePercent, demand.humidityPercent));
+  demand.percent = max(automationConfig.basePercent, max(demand.temperaturePercent, demand.humidityPercent));
 
   if (demand.temperaturePercent > 0 && demand.humidityPercent > 0) demand.reason = "TEMP+HUM";
   else if (demand.temperaturePercent > 0) demand.reason = "TEMP";
   else if (demand.humidityPercent > 0) demand.reason = "HUM";
-  else if (config.basePercent > 0) demand.reason = "BASE";
+  else if (automationConfig.basePercent > 0) demand.reason = "BASE";
   else demand.reason = "IDLE";
 
   return demand;
@@ -175,30 +178,36 @@ static void appendSourceConfig(String& json, const char* source, const FanSource
   json += "\"}";
 }
 
-static void appendFanConfig(String& json, int fan, const FanControlConfig& config) {
+static void appendFanConfig(
+  String& json,
+  int fan,
+  const FanDeviceConfig& deviceConfig,
+  const FanAutomationConfig& automationConfig
+) {
   json += "\"fan";
   json += fan;
   json += "\":{";
+  json += "\"device_profile\":\"STANDARD_PWM_TACHO\",";
   json += "\"default_mode\":\"";
-  json += fanControl_modeName(config.defaultMode);
+  json += fanControl_modeName(automationConfig.defaultMode);
   json += "\",\"manual_percent\":";
-  json += config.manualPercent;
+  json += automationConfig.manualPercent;
   json += ",\"base_percent\":";
-  json += config.basePercent;
+  json += automationConfig.basePercent;
   json += ",\"minimum_percent\":";
-  json += config.minimumPercent;
+  json += deviceConfig.minimumPercent;
   json += ",\"maximum_percent\":";
-  json += config.maximumPercent;
+  json += deviceConfig.maximumPercent;
   json += ",\"startup_boost_percent\":";
-  json += config.startupBoostPercent;
+  json += deviceConfig.startupBoostPercent;
   json += ",\"startup_boost_ms\":";
-  json += config.startupBoostMs;
+  json += deviceConfig.startupBoostMs;
   json += ",\"minimum_run_ms\":";
-  json += config.minimumRunMs;
+  json += automationConfig.minimumRunMs;
   json += ",\"combine\":\"MAXIMUM\",";
-  appendSourceConfig(json, "temperature", config.temperature);
+  appendSourceConfig(json, "temperature", automationConfig.temperature);
   json += ",";
-  appendSourceConfig(json, "humidity", config.humidity);
+  appendSourceConfig(json, "humidity", automationConfig.humidity);
   json += "}";
 }
 
@@ -209,8 +218,8 @@ void fanControl_appendJson(String& json) {
   json += ",\"sensor_failure_percent\":";
   json += FAN_SENSOR_FAIL_PERCENT;
   json += ",";
-  appendFanConfig(json, 1, FAN1_CONFIG);
+  appendFanConfig(json, 1, STANDARD_FAN_DEVICE_CONFIG, FAN1_AUTOMATION_CONFIG);
   json += ",";
-  appendFanConfig(json, 2, FAN2_CONFIG);
+  appendFanConfig(json, 2, STANDARD_FAN_DEVICE_CONFIG, FAN2_AUTOMATION_CONFIG);
   json += "}";
 }

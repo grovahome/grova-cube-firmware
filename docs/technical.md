@@ -99,6 +99,13 @@ The current PCB defaults use Fan 1 as the connected automatic fan. Fan 2 is an
 available independent PWM channel but defaults to manual 0% until a second fan
 is fitted.
 
+Both channels use the same `STANDARD_PWM_TACHO` device profile and the same
+driver, device, arbiter, command, and telemetry path. Their hardware behavior
+is identical. Only the policy above the device differs: Fan 1 currently
+receives temperature/humidity demand, while Fan 2 receives no automatic
+demand. A later interval-based circulation policy can request a percentage
+from Fan 2 without changing its hardware or device implementation.
+
 Fan 1 automatic demand is calculated independently from temperature and
 humidity. Both rules use the active day/night or local-program climate targets,
 automatically generated ten-point curves, hysteresis, startup boost, and a

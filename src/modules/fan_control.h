@@ -28,19 +28,22 @@ struct FanStallConfig {
   unsigned long faultDelayMs;
 };
 
-struct FanControlConfig {
-  FanOperatingMode defaultMode;
-  int manualPercent;
-  int basePercent;
+struct FanDeviceConfig {
   int minimumPercent;
   int maximumPercent;
   int startupBoostPercent;
   unsigned long startupBoostMs;
-  unsigned long minimumRunMs;
   int rampUpPwmStep;
   int rampDownPwmStep;
   unsigned long rampIntervalMs;
   FanStallConfig stall;
+};
+
+struct FanAutomationConfig {
+  FanOperatingMode defaultMode;
+  int manualPercent;
+  int basePercent;
+  unsigned long minimumRunMs;
   FanSourceRuleConfig temperature;
   FanSourceRuleConfig humidity;
 };
@@ -57,7 +60,8 @@ struct FanDemand {
   const char* reason = "IDLE";
 };
 
-const FanControlConfig& fanControl_getConfig(int fan);
+const FanDeviceConfig& fanControl_getDeviceConfig(int fan);
+const FanAutomationConfig& fanControl_getAutomationConfig(int fan);
 const char* fanControl_modeName(FanOperatingMode mode);
 const char* fanControl_curveName(FanCurveStyle curve);
 FanDemand fanControl_evaluate(

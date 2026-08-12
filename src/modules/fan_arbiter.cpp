@@ -2,12 +2,15 @@
 #include "config.h"
 #include "modules/fan_arbiter.h"
 
-static int clampRunningPercent(int requested, const FanControlConfig& config) {
+static int clampRunningPercent(int requested, const FanDeviceConfig& config) {
   if (requested <= 0) return 0;
   return constrain(requested, config.minimumPercent, config.maximumPercent);
 }
 
-FanArbiter::FanArbiter(const FanControlConfig& config) : config_(config) {}
+FanArbiter::FanArbiter(
+  const FanDeviceConfig& deviceConfig,
+  const FanAutomationConfig& automationConfig
+) : deviceConfig_(deviceConfig), automationConfig_(automationConfig) {}
 
 const char* fanArbiter_priorityName(FanDecisionPriority priority) {
   if (priority == FAN_PRIORITY_DEVICE_FAULT) return "DEVICE_FAULT";
@@ -45,7 +48,7 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
   if (input.sensorFault && input.mode == FAN_MODE_AUTOMATIC) {
     automaticRunSince_ = 0;
     result.priority = FAN_PRIORITY_SENSOR_SAFETY;
-    result.requestedPercent = clampRunningPercent(FAN_SENSOR_FAIL_PERCENT, config_);
+    result.requestedPercent = clampRunningPercent(FAN_SENSOR_FAIL_PERCENT, deviceConfig_);
     result.reason = "SENSOR SAFE";
     return result;
   }
@@ -62,7 +65,7 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
     const int manualPercent = input.mode == FAN_MODE_MANUAL
       ? input.manualPercent
       : input.legacyManualPercent;
-    result.requestedPercent = clampRunningPercent(manualPercent, config_);
+    result.requestedPercent = clampRunningPercent(manualPercent, deviceConfig_);
     result.reason = "MANUAL";
     return result;
   }
@@ -75,8 +78,8 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
   if (requested > 0) {
     if (automaticRunSince_ == 0) automaticRunSince_ = now;
     result.reason = input.automaticDemand.reason;
-  } else if (automaticRunSince_ != 0 && now - automaticRunSince_ < config_.minimumRunMs) {
-    requested = config_.minimumPercent;
+  } else if (automaticRunSince_ != 0 && now - automaticRunSince_ < automationConfig_.minimumRunMs) {
+    requested = deviceConfig_.minimumPercent;
     result.reason = "MIN RUN";
   } else {
     automaticRunSince_ = 0;
@@ -84,6 +87,6 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
     result.reason = input.automaticDemand.reason;
   }
 
-  result.requestedPercent = clampRunningPercent(requested, config_);
+  result.requestedPercent = clampRunningPercent(requested, deviceConfig_);
   return result;
 }

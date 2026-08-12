@@ -13,7 +13,7 @@ struct FanDeviceStatus {
 
 class FanDevice {
  public:
-  FanDevice(int fan, const FanControlConfig& config);
+  FanDevice(int fan, const FanDeviceConfig& config);
   void begin();
   void requestPercent(int percent);
   void forceOff();
@@ -23,7 +23,7 @@ class FanDevice {
 
  private:
   int fan_;
-  const FanControlConfig& config_;
+  const FanDeviceConfig& config_;
   int requestedPercent_ = 0;
   int appliedPwm_ = 0;
   bool faultLatched_ = false;
@@ -31,4 +31,3 @@ class FanDevice {
   unsigned long boostUntil_ = 0;
   unsigned long lastRampUpdate_ = 0;
 };
-

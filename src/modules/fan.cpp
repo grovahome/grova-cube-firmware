@@ -23,10 +23,12 @@ struct FanChannelControl {
 
 static FanChannelControl fan1Control;
 static FanChannelControl fan2Control;
-static FanDevice fan1Device(1, fanControl_getConfig(1));
-static FanDevice fan2Device(2, fanControl_getConfig(2));
-static FanArbiter fan1Arbiter(fanControl_getConfig(1));
-static FanArbiter fan2Arbiter(fanControl_getConfig(2));
+static FanDevice fan1Device(1, fanControl_getDeviceConfig(1));
+static FanDevice fan2Device(2, fanControl_getDeviceConfig(2));
+static FanArbiter fan1Arbiter(
+  fanControl_getDeviceConfig(1), fanControl_getAutomationConfig(1));
+static FanArbiter fan2Arbiter(
+  fanControl_getDeviceConfig(2), fanControl_getAutomationConfig(2));
 static unsigned long lastFanLog = 0;
 static const char* fanReasonName = "START";
 
@@ -41,7 +43,7 @@ static FanArbiter& arbiterFor(int fan) {
 }
 
 static void resetControl(FanChannelControl& control, int fan) {
-  const FanControlConfig& config = fanControl_getConfig(fan);
+  const FanAutomationConfig& config = fanControl_getAutomationConfig(fan);
   control.manualPercent = config.manualPercent;
   control.temperatureDemandPercent = 0;
   control.humidityDemandPercent = 0;

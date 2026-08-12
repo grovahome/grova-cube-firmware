@@ -41,6 +41,35 @@ knowledge. The device block has no temperature or humidity knowledge. On a
 confirmed RPM stall, the device block calls the driver's immediate emergency
 stop and keeps the fault latched until a deliberate new fan command or reboot.
 
+## Symmetric fan channels
+
+Fan 1 and Fan 2 use the same `STANDARD_PWM_TACHO` device profile. There is one
+shared definition for minimum/maximum output, startup boost, ramp behavior, and
+stall thresholds. Both channels run through the same hardware driver, device,
+arbiter, status, and command code. Channel-specific compile-time flags only
+describe whether physical PWM and tacho wiring is present.
+
+Channel jobs are assigned exclusively above the device layer:
+
+```text
+Fan 1 current policy:
+  automatic temperature + humidity demand
+
+Fan 2 current policy:
+  manual 0%, no enabled climate source
+
+Fan 2 later circulation policy:
+  interval/schedule demand, for example 30% every 10 minutes
+
+Either channel later:
+  temperature, humidity, CO2, schedule, or another registered demand source
+```
+
+Fan 2 can therefore use the same climate curves as Fan 1 by changing only its
+automation configuration. An interval circulation feature will likewise
+produce a percentage demand for Fan 2; it will not require a different fan
+driver or device implementation.
+
 ## Current behavior
 
 Fan 1 keeps its existing climate automation and manual override. Fan 2 is an

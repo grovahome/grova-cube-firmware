@@ -10,7 +10,7 @@ static int pwmToPercent(int pwm) {
   return (constrain(pwm, 0, 255) * 100) / 255;
 }
 
-FanDevice::FanDevice(int fan, const FanControlConfig& config)
+FanDevice::FanDevice(int fan, const FanDeviceConfig& config)
   : fan_(fan), config_(config) {}
 
 void FanDevice::begin() {
@@ -107,4 +107,3 @@ FanDeviceStatus FanDevice::getStatus() const {
   status.faultLatched = faultLatched_;
   return status;
 }
-

@@ -33,12 +33,13 @@ struct FanArbiterResult {
 
 class FanArbiter {
  public:
-  explicit FanArbiter(const FanControlConfig& config);
+  FanArbiter(const FanDeviceConfig& deviceConfig, const FanAutomationConfig& automationConfig);
   void reset();
   FanArbiterResult evaluate(const FanArbiterInput& input);
 
  private:
-  const FanControlConfig& config_;
+  const FanDeviceConfig& deviceConfig_;
+  const FanAutomationConfig& automationConfig_;
   unsigned long automaticRunSince_ = 0;
 };
 
