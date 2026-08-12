@@ -1,5 +1,32 @@
 # Fan Control Concept
 
+## Layered implementation
+
+The fan path is split into fixed layers while preserving the existing public
+HTTP, MQTT, display, and control interfaces:
+
+```text
+fan_control.cpp
+  evaluates temperature and humidity curves and produces demand percentages
+
+fan.cpp
+  coordinates mode, minimum runtime, Rest/Sensor policy, and legacy API adapters
+
+fan_device.cpp
+  executes one requested percentage with ramp, startup boost, RPM validation,
+  latched stall detection, and deliberate fault acknowledgement
+
+fan_hw_driver.cpp
+  owns ESP32 PWM, tacho interrupts, RPM calculation, and immediate emergency stop
+
+physical fan
+```
+
+The hardware driver has no climate, grow phase, Rest Mode, MQTT, or HTTP
+knowledge. The device block has no temperature or humidity knowledge. On a
+confirmed RPM stall, the device block calls the driver's immediate emergency
+stop and keeps the fault latched until a deliberate new fan command or reboot.
+
 ## Current behavior
 
 Fan 1 keeps its existing climate automation and manual override. Fan 2 is an
