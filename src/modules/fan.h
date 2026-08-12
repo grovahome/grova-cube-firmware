@@ -13,6 +13,7 @@ int getFan2Percent();
 int getFan2TargetPercent();
 int fan_getTemperatureDemandPercent(int fan);
 int fan_getHumidityDemandPercent(int fan);
+const char* fan_getDecisionPriorityName(int fan);
 bool fan_isEnabled(int fan);
 bool fan_isManual(int fan);
 bool fan_setAuto(int fan);

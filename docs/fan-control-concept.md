@@ -9,8 +9,12 @@ HTTP, MQTT, display, and control interfaces:
 fan_control.cpp
   evaluates temperature and humidity curves and produces demand percentages
 
+fan_arbiter.cpp
+  resolves device fault, Rest Mode, sensor safety, manual override, automatic
+  demand, and minimum runtime into one final requested percentage
+
 fan.cpp
-  coordinates mode, minimum runtime, Rest/Sensor policy, and legacy API adapters
+  adapts the existing public API and connects control, arbiter, and device layers
 
 fan_device.cpp
   executes one requested percentage with ramp, startup boost, RPM validation,
@@ -21,6 +25,16 @@ fan_hw_driver.cpp
 
 physical fan
 ```
+
+The arbiter uses one explicit priority order:
+
+```text
+DEVICE_FAULT -> REST -> SENSOR_SAFETY -> MANUAL -> AUTOMATIC -> IDLE
+```
+
+Normal temperature, humidity, and base demands are already combined with
+`MAXIMUM` by the control layer. The arbiter never reads sensors or writes PWM.
+Its decision priority is exposed in Fan 1 and Fan 2 HTTP/MQTT status.
 
 The hardware driver has no climate, grow phase, Rest Mode, MQTT, or HTTP
 knowledge. The device block has no temperature or humidity knowledge. On a
@@ -95,8 +109,9 @@ protection becomes active only after its tacho wire is connected and
 
 ## Planned per-fan automation
 
-Each fan should later have a mode (`manual` or `automatic`) and a list of
-configurable trigger rules. A rule defines:
+The current temperature/humidity curve engine and per-fan arbiter provide the
+first two automatic sources. Later versions can generalize these code-only
+settings into configurable trigger rules. A rule would define:
 
 - source, such as temperature, humidity, CO2, light, schedule or digital input
 - comparison (`above`, `below`, `on` or `off`)
@@ -130,7 +145,7 @@ Example future configuration:
 Recommended implementation order:
 
 1. Persist independent mode and manual percentage for every fan.
-2. Add a generic trigger evaluator outside the GPIO/PWM driver.
-3. Expose validated rules through HTTP and MQTT.
-4. Add dashboard controls for source, threshold, hysteresis and speed.
-5. Add sensor-failure policies, reason telemetry and automated tests.
+2. Generalize the existing curve evaluator for additional registered sources.
+3. Expose validated rule configuration through HTTP and MQTT.
+4. Add dashboard controls for source, target, lead, full load, hysteresis and curve style.
+5. Add automated tests for rule, arbiter, device, and fault behavior.

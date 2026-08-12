@@ -2,6 +2,7 @@
 #include "config.h"
 #include "modules/climate.h"
 #include "modules/fan.h"
+#include "modules/fan_arbiter.h"
 #include "modules/fan_control.h"
 #include "modules/fan_device.h"
 #include "modules/fan_hw_driver.h"
@@ -16,7 +17,7 @@ struct FanChannelControl {
   int humidityDemandPercent = 0;
   FanOperatingMode mode = FAN_MODE_AUTOMATIC;
   FanRuleState ruleState;
-  unsigned long autoRunSince = 0;
+  FanDecisionPriority decisionPriority = FAN_PRIORITY_IDLE;
   const char* reason = "START";
 };
 
@@ -24,6 +25,8 @@ static FanChannelControl fan1Control;
 static FanChannelControl fan2Control;
 static FanDevice fan1Device(1, fanControl_getConfig(1));
 static FanDevice fan2Device(2, fanControl_getConfig(2));
+static FanArbiter fan1Arbiter(fanControl_getConfig(1));
+static FanArbiter fan2Arbiter(fanControl_getConfig(2));
 static unsigned long lastFanLog = 0;
 static const char* fanReasonName = "START";
 
@@ -33,10 +36,8 @@ static FanChannelControl& controlFor(int fan) {
 static FanDevice& deviceFor(int fan) {
   return fan == 2 ? fan2Device : fan1Device;
 }
-
-static int applyMinimumIfRunning(int requested, const FanControlConfig& config) {
-  if (requested <= 0) return 0;
-  return constrain(requested, config.minimumPercent, config.maximumPercent);
+static FanArbiter& arbiterFor(int fan) {
+  return fan == 2 ? fan2Arbiter : fan1Arbiter;
 }
 
 static void resetControl(FanChannelControl& control, int fan) {
@@ -46,8 +47,9 @@ static void resetControl(FanChannelControl& control, int fan) {
   control.humidityDemandPercent = 0;
   control.mode = config.defaultMode;
   control.ruleState = FanRuleState{};
-  control.autoRunSince = 0;
+  control.decisionPriority = FAN_PRIORITY_IDLE;
   control.reason = fanControl_modeName(control.mode);
+  arbiterFor(fan).reset();
 }
 
 void fan_preinit() {
@@ -79,6 +81,12 @@ int fan_getHumidityDemandPercent(int fan) {
   return fanHw_isEnabled(fan) ? controlFor(fan).humidityDemandPercent : 0;
 }
 
+const char* fan_getDecisionPriorityName(int fan) {
+  return fanHw_isEnabled(fan)
+    ? fanArbiter_priorityName(controlFor(fan).decisionPriority)
+    : "DISABLED";
+}
+
 bool fan_isEnabled(int fan) { return fanHw_isEnabled(fan); }
 
 bool fan_isManual(int fan) {
@@ -92,8 +100,10 @@ bool fan_setAuto(int fan) {
   FanDevice& device = deviceFor(fan);
   device.acknowledgeFault();
   device.forceOff();
-  control.autoRunSince = 0;
+  arbiterFor(fan).reset();
   control.mode = FAN_MODE_AUTOMATIC;
+  control.decisionPriority = FAN_PRIORITY_IDLE;
+  control.reason = "IDLE";
   return true;
 }
 
@@ -104,9 +114,11 @@ bool fan_setManual(int fan, int percent) {
   FanDevice& device = deviceFor(fan);
   device.acknowledgeFault();
   device.forceOff();
-  control.autoRunSince = 0;
+  arbiterFor(fan).reset();
   control.mode = FAN_MODE_MANUAL;
   control.manualPercent = percent;
+  control.decisionPriority = FAN_PRIORITY_MANUAL;
+  control.reason = "MANUAL";
   return true;
 }
 
@@ -149,66 +161,33 @@ void fan_forceOff() {
   fanReasonName = "REST OFF";
   fan1Control.reason = "REST OFF";
   fan2Control.reason = FAN2_ENABLED ? "REST OFF" : "OFF";
-  fan1Control.autoRunSince = 0;
-  fan2Control.autoRunSince = 0;
+  fan1Control.decisionPriority = FAN_PRIORITY_REST;
+  fan2Control.decisionPriority = FAN2_ENABLED ? FAN_PRIORITY_REST : FAN_PRIORITY_IDLE;
+  fan1Arbiter.reset();
+  fan2Arbiter.reset();
   fan1Device.forceOff();
   fan2Device.forceOff();
 }
 
-static int evaluateRequestedPercent(
-  FanChannelControl& control,
+static FanArbiterResult evaluateFanDecision(
   int fan,
+  FanChannelControl& control,
   const FanDemand& demand,
   bool sensorFault
 ) {
-  const FanControlConfig& config = fanControl_getConfig(fan);
-  const unsigned long now = millis();
-  control.temperatureDemandPercent = 0;
-  control.humidityDemandPercent = 0;
-
-  if (fan_getTachoFault(fan)) {
-    control.reason = "STALL OFF";
-    return 0;
-  }
-  if (sensorFault && control.mode == FAN_MODE_AUTOMATIC) {
-    control.reason = "SENSOR SAFE";
-    return constrain(FAN_SENSOR_FAIL_PERCENT, config.minimumPercent, config.maximumPercent);
-  }
-  if (control.mode == FAN_MODE_OFF) {
-    control.reason = "OFF";
-    return 0;
-  }
-  if (control.mode == FAN_MODE_MANUAL || (fan == 1 && ui_isFanManual())) {
-    control.reason = "MANUAL";
-    const int requested = control.mode == FAN_MODE_MANUAL
-      ? control.manualPercent
-      : ui_getFanManualValue();
-    return applyMinimumIfRunning(requested, config);
-  }
-
-  control.temperatureDemandPercent = demand.temperaturePercent;
-  control.humidityDemandPercent = demand.humidityPercent;
-  int requested = demand.percent;
-  if (requested > 0) {
-    if (control.autoRunSince == 0) control.autoRunSince = now;
-    control.reason = demand.reason;
-  } else if (control.autoRunSince != 0 && now - control.autoRunSince < config.minimumRunMs) {
-    requested = config.minimumPercent;
-    control.reason = "MIN RUN";
-  } else {
-    control.autoRunSince = 0;
-    control.reason = demand.reason;
-  }
-  return applyMinimumIfRunning(requested, config);
+  FanArbiterInput input;
+  input.mode = control.mode;
+  input.manualPercent = control.manualPercent;
+  input.legacyManualOverride = fan == 1 && ui_isFanManual();
+  input.legacyManualPercent = fan == 1 ? ui_getFanManualValue() : 0;
+  input.restMode = restMode_isEnabled();
+  input.sensorFault = sensorFault;
+  input.deviceFault = fan_getTachoFault(fan);
+  input.automaticDemand = demand;
+  return arbiterFor(fan).evaluate(input);
 }
 
 void fan_loop(float temperature, float humidity) {
-  if (restMode_isEnabled()) {
-    fan_forceOff();
-    fanHw_update();
-    return;
-  }
-
   temperature = safeTemp(temperature);
   humidity = safeHum(humidity);
   const bool sensorFault = sensors_hasFault();
@@ -217,9 +196,22 @@ void fan_loop(float temperature, float humidity) {
   const FanDemand demand2 = fanControl_evaluate(
     2, temperature, humidity, getTargetTemp(), getTargetHum(), fan2Control.ruleState);
 
-  fan1Device.requestPercent(evaluateRequestedPercent(fan1Control, 1, demand1, sensorFault));
+  const FanArbiterResult decision1 = evaluateFanDecision(1, fan1Control, demand1, sensorFault);
+  const FanArbiterResult decision2 = evaluateFanDecision(2, fan2Control, demand2, sensorFault);
+  fan1Control.temperatureDemandPercent = decision1.temperatureDemandPercent;
+  fan1Control.humidityDemandPercent = decision1.humidityDemandPercent;
+  fan1Control.reason = decision1.reason;
+  fan1Control.decisionPriority = decision1.priority;
+  fan2Control.temperatureDemandPercent = decision2.temperatureDemandPercent;
+  fan2Control.humidityDemandPercent = decision2.humidityDemandPercent;
+  fan2Control.reason = decision2.reason;
+  fan2Control.decisionPriority = decision2.priority;
+
+  if (decision1.immediateStop) fan1Device.forceOff();
+  else fan1Device.requestPercent(decision1.requestedPercent);
 #if FAN2_ENABLED
-  fan2Device.requestPercent(evaluateRequestedPercent(fan2Control, 2, demand2, sensorFault));
+  if (decision2.immediateStop) fan2Device.forceOff();
+  else fan2Device.requestPercent(decision2.requestedPercent);
 #else
   fan2Device.forceOff();
 #endif

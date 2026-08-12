@@ -67,6 +67,13 @@ Example control commands:
 {"cmd":"set_fan_manual","percent":50}
 ```
 
+The command above controls Fan 1 for backward compatibility. Explicit fan
+selection is recommended:
+
+```json
+{"cmd":"set_fan_auto","fan":1}
+```
+
 ```json
 {"cmd":"set_fan_manual","fan":2,"percent":70}
 ```
@@ -83,7 +90,40 @@ Example control commands:
 {"cmd":"set_rest_mode","enabled":true}
 ```
 
-If `fan` is omitted, fan commands apply to all enabled fan channels for backward compatibility.
+If `fan` is omitted, the command applies to Fan 1. Fan 2 currently defaults to
+manual 0% and is only changed by an explicit `"fan":2` command.
+
+## Fan Control
+
+The current PCB defaults use Fan 1 as the connected automatic fan. Fan 2 is an
+available independent PWM channel but defaults to manual 0% until a second fan
+is fitted.
+
+Fan 1 automatic demand is calculated independently from temperature and
+humidity. Both rules use the active day/night or local-program climate targets,
+automatically generated ten-point curves, hysteresis, startup boost, and a
+minimum runtime. The higher temperature or humidity demand wins.
+
+The final demand is resolved locally using this priority order:
+
+```text
+DEVICE_FAULT -> REST -> SENSOR_SAFETY -> MANUAL -> AUTOMATIC -> IDLE
+```
+
+Fan status under HTTP and MQTT includes current/target percentage, RPM, reason,
+decision priority, temperature demand, humidity demand, and tacho fault state.
+
+When an enabled tacho remains below the configured minimum RPM while the fan
+should be running, the device layer latches a stall fault and the hardware
+driver immediately sets PWM to 0. A deliberate new manual/auto command for that
+fan acknowledges the fault and permits a new start attempt. Fan 2 stall
+monitoring remains disabled until its tacho wire is physically connected and
+`FAN2_TACHO_ENABLED` is enabled.
+
+The current curve and device settings are code-only in
+`src/modules/fan_control.cpp`; the server/dashboard does not edit them yet. See
+[fan-control-concept.md](fan-control-concept.md) for the layered architecture
+and current defaults.
 
 See [api.md](api.md) for endpoint and payload details.
 
