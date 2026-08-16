@@ -1,6 +1,10 @@
 #pragma once
 
 #include <Arduino.h>
+#include "modules/signal_registry.h"
+
+constexpr int FAN_CHANNEL_COUNT = 2;
+constexpr int FAN_RULE_SOURCE_COUNT = 2;
 
 enum FanOperatingMode {
   FAN_MODE_OFF = 0,
@@ -15,6 +19,7 @@ enum FanCurveStyle {
 };
 
 struct FanSourceRuleConfig {
+  SignalId source;
   bool enabled;
   float leadBeforeTarget;
   float fullLoadAboveTarget;
@@ -44,13 +49,11 @@ struct FanAutomationConfig {
   int manualPercent;
   int basePercent;
   unsigned long minimumRunMs;
-  FanSourceRuleConfig temperature;
-  FanSourceRuleConfig humidity;
+  FanSourceRuleConfig rules[FAN_RULE_SOURCE_COUNT];
 };
 
 struct FanRuleState {
-  bool temperatureActive = false;
-  bool humidityActive = false;
+  bool active[FAN_RULE_SOURCE_COUNT] = {false, false};
 };
 
 struct FanDemand {
@@ -66,8 +69,6 @@ const char* fanControl_modeName(FanOperatingMode mode);
 const char* fanControl_curveName(FanCurveStyle curve);
 FanDemand fanControl_evaluate(
   int fan,
-  float temperature,
-  float humidity,
   float temperatureTarget,
   float humidityTarget,
   FanRuleState& state

@@ -2,7 +2,7 @@
 
 void fan_preinit();
 void fan_begin();
-void fan_loop(float temp, float hum);
+void fan_loop();
 void fan_forceOff();
 
 int getFanPercent();

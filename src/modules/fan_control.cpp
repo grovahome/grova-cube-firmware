@@ -20,22 +20,28 @@ static const FanDeviceConfig STANDARD_FAN_DEVICE_CONFIG = {
   {FAN_TACHO_MIN_CHECK_PERCENT, FAN_TACHO_MIN_RPM, FAN_TACHO_FAULT_DELAY_MS}
 };
 
-static const FanAutomationConfig FAN1_AUTOMATION_CONFIG = {
-  FAN_MODE_AUTOMATIC,
-  50,
-  0,
-  60000UL,
-  {true, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
-  {true, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
-};
-
-static const FanAutomationConfig FAN2_AUTOMATION_CONFIG = {
-  FAN_MODE_MANUAL,
-  0,
-  0,
-  60000UL,
-  {false, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
-  {false, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
+// Every fan has the same capabilities. Only policy data differs per channel.
+static const FanAutomationConfig FAN_AUTOMATION_CONFIGS[FAN_CHANNEL_COUNT] = {
+  {
+    FAN_MODE_AUTOMATIC,
+    50,
+    0,
+    60000UL,
+    {
+      {SIGNAL_CLIMATE_TEMPERATURE_C, true, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
+      {SIGNAL_CLIMATE_HUMIDITY_PCT, true, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
+    }
+  },
+  {
+    FAN_MODE_MANUAL,
+    0,
+    0,
+    60000UL,
+    {
+      {SIGNAL_CLIMATE_TEMPERATURE_C, false, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
+      {SIGNAL_CLIMATE_HUMIDITY_PCT, false, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
+    }
+  }
 };
 
 static int clampPercent(int value, int minimum, int maximum) {
@@ -108,7 +114,8 @@ const FanDeviceConfig& fanControl_getDeviceConfig(int fan) {
 }
 
 const FanAutomationConfig& fanControl_getAutomationConfig(int fan) {
-  return fan == 2 ? FAN2_AUTOMATION_CONFIG : FAN1_AUTOMATION_CONFIG;
+  const int index = fan >= 1 && fan <= FAN_CHANNEL_COUNT ? fan - 1 : 0;
+  return FAN_AUTOMATION_CONFIGS[index];
 }
 
 const char* fanControl_modeName(FanOperatingMode mode) {
@@ -125,8 +132,6 @@ const char* fanControl_curveName(FanCurveStyle curve) {
 
 FanDemand fanControl_evaluate(
   int fan,
-  float temperature,
-  float humidity,
   float temperatureTarget,
   float humidityTarget,
   FanRuleState& state
@@ -134,23 +139,40 @@ FanDemand fanControl_evaluate(
   const FanDeviceConfig& deviceConfig = fanControl_getDeviceConfig(fan);
   const FanAutomationConfig& automationConfig = fanControl_getAutomationConfig(fan);
   FanDemand demand;
-  demand.temperaturePercent = evaluateCurve(
-    automationConfig.temperature,
-    temperature,
-    temperatureTarget,
-    deviceConfig.minimumPercent,
-    deviceConfig.maximumPercent,
-    state.temperatureActive
-  );
-  demand.humidityPercent = evaluateCurve(
-    automationConfig.humidity,
-    humidity,
-    humidityTarget,
-    deviceConfig.minimumPercent,
-    deviceConfig.maximumPercent,
-    state.humidityActive
-  );
-  demand.percent = max(automationConfig.basePercent, max(demand.temperaturePercent, demand.humidityPercent));
+  demand.percent = automationConfig.basePercent;
+
+  for (int i = 0; i < FAN_RULE_SOURCE_COUNT; i++) {
+    const FanSourceRuleConfig& rule = automationConfig.rules[i];
+    const SignalValue signal = signalRegistry_read(rule.source);
+    float value = signal.value;
+    float target = 0.0F;
+
+    if (rule.source == SIGNAL_CLIMATE_TEMPERATURE_C) {
+      if (!signal.valid) value = 22.0F;
+      target = temperatureTarget;
+    } else if (rule.source == SIGNAL_CLIMATE_HUMIDITY_PCT) {
+      if (!signal.valid) value = 60.0F;
+      target = humidityTarget;
+    } else if (!signal.valid) {
+      state.active[i] = false;
+      continue;
+    }
+
+    const int sourcePercent = evaluateCurve(
+      rule,
+      value,
+      target,
+      deviceConfig.minimumPercent,
+      deviceConfig.maximumPercent,
+      state.active[i]
+    );
+    demand.percent = max(demand.percent, sourcePercent);
+    if (rule.source == SIGNAL_CLIMATE_TEMPERATURE_C) {
+      demand.temperaturePercent = sourcePercent;
+    } else if (rule.source == SIGNAL_CLIMATE_HUMIDITY_PCT) {
+      demand.humidityPercent = sourcePercent;
+    }
+  }
 
   if (demand.temperaturePercent > 0 && demand.humidityPercent > 0) demand.reason = "TEMP+HUM";
   else if (demand.temperaturePercent > 0) demand.reason = "TEMP";
@@ -165,6 +187,9 @@ static void appendSourceConfig(String& json, const char* source, const FanSource
   json += "\"";
   json += source;
   json += "\":{";
+  json += "\"signal\":\"";
+  json += signalRegistry_name(rule.source);
+  json += "\",";
   json += "\"enabled\":";
   json += rule.enabled ? "true" : "false";
   json += ",\"lead_before_target\":";
@@ -205,9 +230,9 @@ static void appendFanConfig(
   json += ",\"minimum_run_ms\":";
   json += automationConfig.minimumRunMs;
   json += ",\"combine\":\"MAXIMUM\",";
-  appendSourceConfig(json, "temperature", automationConfig.temperature);
+  appendSourceConfig(json, "temperature", automationConfig.rules[0]);
   json += ",";
-  appendSourceConfig(json, "humidity", automationConfig.humidity);
+  appendSourceConfig(json, "humidity", automationConfig.rules[1]);
   json += "}";
 }
 
@@ -218,8 +243,14 @@ void fanControl_appendJson(String& json) {
   json += ",\"sensor_failure_percent\":";
   json += FAN_SENSOR_FAIL_PERCENT;
   json += ",";
-  appendFanConfig(json, 1, STANDARD_FAN_DEVICE_CONFIG, FAN1_AUTOMATION_CONFIG);
-  json += ",";
-  appendFanConfig(json, 2, STANDARD_FAN_DEVICE_CONFIG, FAN2_AUTOMATION_CONFIG);
+  for (int fan = 1; fan <= FAN_CHANNEL_COUNT; fan++) {
+    if (fan > 1) json += ",";
+    appendFanConfig(
+      json,
+      fan,
+      STANDARD_FAN_DEVICE_CONFIG,
+      fanControl_getAutomationConfig(fan)
+    );
+  }
   json += "}";
 }

@@ -10,6 +10,7 @@
 #include "modules/light.h"
 #include "modules/i2c_discovery.h"
 #include "modules/sensors.h"
+#include "modules/signal_registry.h"
 #include "modules/fan.h"
 #include "modules/climate.h"
 #include "modules/pump_scheduler.h"
@@ -52,6 +53,7 @@ void setup() {
   growMode_begin();
   light_begin();
   i2cDiscovery_begin();
+  signalRegistry_begin();
   sensors_begin();
   fan_begin();
   climate_begin();
@@ -103,7 +105,7 @@ void loop() {
   light_loop();
 
   // Fan control
-  fan_loop(getTemp(), getHum());
+  fan_loop();
 
   ui_loop();
   encoder_loop();

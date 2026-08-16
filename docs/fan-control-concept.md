@@ -6,8 +6,11 @@ The fan path is split into fixed layers while preserving the existing public
 HTTP, MQTT, display, and control interfaces:
 
 ```text
+signal_registry.cpp
+  stores neutral sensor signals with value, validity, source, and update time
+
 fan_control.cpp
-  evaluates temperature and humidity curves and produces demand percentages
+  reads registered signals, evaluates configured curves, and produces demands
 
 fan_arbiter.cpp
   resolves device fault, Rest Mode, sensor safety, manual override, automatic
@@ -45,9 +48,38 @@ stop and keeps the fault latched until a deliberate new fan command or reboot.
 
 Fan 1 and Fan 2 use the same `STANDARD_PWM_TACHO` device profile. There is one
 shared definition for minimum/maximum output, startup boost, ramp behavior, and
-stall thresholds. Both channels run through the same hardware driver, device,
-arbiter, status, and command code. Channel-specific compile-time flags only
-describe whether physical PWM and tacho wiring is present.
+stall thresholds. Both channels run as instances of the same control, arbiter,
+device, status, and command code. The runtime path iterates over all configured
+fan channels instead of maintaining separate Fan 1 and Fan 2 implementations.
+Channel-specific compile-time flags only describe whether physical PWM and
+tacho wiring is present.
+
+Automation capabilities are shared as well. Each fan policy contains the same
+rule slots and every rule references a neutral registry signal. The current
+policy data enables temperature and humidity for Fan 1 and disables them for
+Fan 2; this is configuration, not a capability difference.
+
+## Signal registry
+
+Sensor drivers publish measurements to `signal_registry.cpp`. Consumers do not
+need to know whether temperature came from AHT20, SHT41, SCD41, or BME/BMP. Each
+registry entry contains its value, validity, physical source, unit metadata, and
+last update timestamp.
+
+Initial registered signals:
+
+```text
+climate.temperature_c
+climate.humidity_pct
+climate.pressure_hpa
+climate.co2_ppm
+light.lux
+light.uv_index
+```
+
+The fan curve engine currently consumes temperature and humidity from this
+registry. Pressure, CO2, lux, and UV are already published so future rules can
+use them without coupling fan code to a sensor driver.
 
 Channel jobs are assigned exclusively above the device layer:
 

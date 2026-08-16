@@ -2,6 +2,7 @@
 #include "config.h"
 #include "modules/i2c_discovery.h"
 #include "modules/sensors.h"
+#include "modules/signal_registry.h"
 
 #include <Wire.h>
 
@@ -262,6 +263,21 @@ static bool hasMeasurementCandidateReady() {
   return false;
 }
 
+static void publishSignals() {
+  signalRegistry_publish(
+    SIGNAL_CLIMATE_TEMPERATURE_C, lastT, temperatureSourceName);
+  signalRegistry_publish(
+    SIGNAL_CLIMATE_HUMIDITY_PCT, lastH, humiditySourceName);
+  signalRegistry_publish(
+    SIGNAL_CLIMATE_PRESSURE_HPA, lastPressure, pressureSourceName);
+  signalRegistry_publish(
+    SIGNAL_CLIMATE_CO2_PPM, lastCo2, co2SourceName);
+  signalRegistry_publish(
+    SIGNAL_LIGHT_LUX, lastLux, luxSourceName);
+  signalRegistry_publish(
+    SIGNAL_LIGHT_UV_INDEX, lastUvIndex, uvSourceName);
+}
+
 void sensors_begin() {
   Wire.begin(OLED_SDA, OLED_SCL);
 
@@ -481,6 +497,8 @@ void sensors_loop() {
     : (strcmp(humiditySourceName, "NONE") != 0
       ? humiditySourceName
       : pressureSourceName);
+
+  publishSignals();
 
   if (tempRead || humRead) {
     Serial.print("Temp: ");

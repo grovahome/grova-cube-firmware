@@ -43,6 +43,12 @@ The sensor module reads the enabled primary temperature/humidity source in this 
 3. SCD41, when detected and a measurement is available
 4. BME280 humidity/temperature fallback, when Bosch support is enabled and present
 
+Measurements are then published to a central signal registry with a neutral
+name, value, unit, validity, physical source, and update timestamp. Control
+modules therefore do not depend directly on AHT20, SHT41, SCD41, BME/BMP,
+VEML7700, or LTR390 drivers. The fan controller currently consumes
+`climate.temperature_c` and `climate.humidity_pct` through this registry.
+
 For PCB/Founder builds, the planned I2C sensor families are compiled in by
 default and detected at runtime. The user should only need to connect a known
 module and restart the cube or wait for a rescan.
