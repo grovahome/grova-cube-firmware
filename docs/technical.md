@@ -109,14 +109,15 @@ Both channels use the same `STANDARD_PWM_TACHO` device profile and the same
 driver, device, arbiter, command, and telemetry path. Their hardware behavior
 is identical. Only the policy above the device differs: Fan 1 currently
 receives temperature/humidity demand, while Fan 2 receives no automatic
-demand. A later interval-based circulation policy can request a percentage
-from Fan 2 without changing its hardware or device implementation.
+demand. Both channels also have the same uptime-based interval producer and
+three local-time schedule slots; all are disabled in the compiled defaults.
 
 Every fan has the same generic list capacity of up to six curve rules. Each rule
 selects a registry signal, `ABOVE`/`BELOW` direction, fixed or active-climate
 target, lead, full-load distance, hysteresis, and curve style. The current Fan 1
 policy enables temperature and humidity while the current Fan 2 policy keeps
-the same rules disabled. All rule demands are combined with `MAXIMUM`.
+the same rules disabled. Curve, interval, schedule, and base demands are combined with
+`MAXIMUM` before entering the arbiter.
 
 The final demand is resolved locally using this priority order:
 
@@ -125,8 +126,16 @@ DEVICE_FAULT -> REST -> SENSOR_SAFETY -> MANUAL -> AUTOMATIC -> IDLE
 ```
 
 Fan status under HTTP and MQTT includes current/target percentage, RPM, reason,
-decision priority, winning generic rule, compatibility temperature/humidity
-demands, and tacho fault state.
+decision priority, winning demand producer and generic rule, compatibility
+temperature/humidity demand, interval/schedule demand, and tacho fault state.
+
+The interval policy contains enabled state, period, run duration, start delay,
+and percentage. It uses device uptime, so it also works offline. Sensor-safe
+output applies only to a fan whose policy has enabled sensor curve rules; a
+pure interval/base fan is not affected by an unrelated climate sensor fault.
+Daily schedules require valid synchronized time and can cross midnight.
+Enabled signal rules reject invalid or stale readings and use their configured
+`IGNORE` or `SAFE_OUTPUT` behavior after a boot grace period.
 
 When an enabled tacho remains below the configured minimum RPM while the fan
 should be running, the device layer latches a stall fault and the hardware
@@ -135,8 +144,10 @@ fan acknowledges the fault and permits a new start attempt. Fan 2 stall
 monitoring remains disabled until its tacho wire is physically connected and
 `FAN2_TACHO_ENABLED` is enabled.
 
-The current curve and device settings are code-only in
-`src/modules/fan_control.cpp`; the server/dashboard does not edit them yet. See
+Each fan policy is validated and persisted as one versioned NVS record. It can
+be read and changed through the local HTTP/MQTT API, while the server/dashboard
+does not edit it yet. The physical Fan 1 screen and remote commands share this
+same mode state instead of maintaining independent overrides. See
 [fan-control-concept.md](fan-control-concept.md) for the layered architecture
 and current defaults.
 

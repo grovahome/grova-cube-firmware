@@ -45,7 +45,9 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
     return result;
   }
 
-  if (input.sensorFault && input.mode == FAN_MODE_AUTOMATIC) {
+  const bool sensorSafetyRequired = input.automaticDemand.signalSafetyRequired ||
+    (input.sensorFault && input.automaticDemand.requiresHealthySignals);
+  if (input.mode == FAN_MODE_AUTOMATIC && sensorSafetyRequired) {
     automaticRunSince_ = 0;
     result.priority = FAN_PRIORITY_SENSOR_SAFETY;
     result.requestedPercent = clampRunningPercent(FAN_SENSOR_FAIL_PERCENT, deviceConfig_);
@@ -59,13 +61,10 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
     return result;
   }
 
-  if (input.mode == FAN_MODE_MANUAL || input.legacyManualOverride) {
+  if (input.mode == FAN_MODE_MANUAL) {
     automaticRunSince_ = 0;
     result.priority = FAN_PRIORITY_MANUAL;
-    const int manualPercent = input.mode == FAN_MODE_MANUAL
-      ? input.manualPercent
-      : input.legacyManualPercent;
-    result.requestedPercent = clampRunningPercent(manualPercent, deviceConfig_);
+    result.requestedPercent = clampRunningPercent(input.manualPercent, deviceConfig_);
     result.reason = "MANUAL";
     return result;
   }

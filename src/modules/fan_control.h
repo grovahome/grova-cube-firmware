@@ -29,6 +29,11 @@ enum FanTargetSource {
   FAN_TARGET_CLIMATE_HUMIDITY = 2
 };
 
+enum FanMissingSignalBehavior {
+  FAN_SIGNAL_IGNORE = 0,
+  FAN_SIGNAL_SAFE_OUTPUT = 1
+};
+
 struct FanSourceRuleConfig {
   const char* id;
   SignalId source;
@@ -39,6 +44,8 @@ struct FanSourceRuleConfig {
   float leadBeforeTarget;
   float fullLoadBeyondTarget;
   float hysteresis;
+  unsigned long maxSignalAgeMs;
+  FanMissingSignalBehavior missingSignalBehavior;
   FanCurveStyle curve;
 };
 
@@ -82,21 +89,32 @@ struct FanRuleDemand {
 
 struct FanDemand {
   int percent = 0;
+  int curvePercent = 0;
+  int basePercent = 0;
+  int intervalPercent = 0;
+  int schedulePercent = 0;
   int temperaturePercent = 0;
   int humidityPercent = 0;
   int ruleCount = 0;
   int winningRuleIndex = -1;
+  bool requiresHealthySignals = false;
+  bool signalSafetyRequired = false;
   FanRuleDemand rules[FAN_MAX_RULES_PER_CHANNEL];
+  const char* curveReason = "IDLE";
+  const char* winningProducer = "NONE";
   const char* reason = "IDLE";
 };
 
 const FanDeviceConfig& fanControl_getDeviceConfig(int fan);
 const FanAutomationConfig& fanControl_getAutomationConfig(int fan);
+void fanControl_setDeviceConfig(int fan, const FanDeviceConfig& config);
+void fanControl_setAutomationConfig(int fan, const FanAutomationConfig& config);
 const char* fanControl_modeName(FanOperatingMode mode);
 const char* fanControl_curveName(FanCurveStyle curve);
 const char* fanControl_directionName(FanRuleDirection direction);
 const char* fanControl_targetSourceName(FanTargetSource source);
-FanDemand fanControl_evaluate(
+const char* fanControl_missingSignalBehaviorName(FanMissingSignalBehavior behavior);
+FanDemand fanControl_evaluateCurves(
   int fan,
   float temperatureTarget,
   float humidityTarget,

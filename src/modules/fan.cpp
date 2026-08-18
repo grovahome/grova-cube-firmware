@@ -4,17 +4,19 @@
 #include "modules/fan.h"
 #include "modules/fan_arbiter.h"
 #include "modules/fan_control.h"
+#include "modules/fan_demand.h"
 #include "modules/fan_device.h"
 #include "modules/fan_hw_driver.h"
+#include "modules/fan_interval.h"
+#include "modules/fan_policy.h"
 #include "modules/rest_mode.h"
 #include "modules/sensors.h"
-#include "modules/ui.h"
 
 struct FanChannelControl {
   int manualPercent = 0;
   FanDemand automaticDemand;
   FanOperatingMode mode = FAN_MODE_AUTOMATIC;
-  FanRuleState ruleState;
+  FanDemandState demandState;
   FanDecisionPriority decisionPriority = FAN_PRIORITY_IDLE;
   const char* reason = "START";
 };
@@ -50,7 +52,7 @@ static void resetControl(FanChannelControl& control, int fan) {
   control.manualPercent = config.manualPercent;
   control.automaticDemand = FanDemand{};
   control.mode = config.defaultMode;
-  control.ruleState = FanRuleState{};
+  control.demandState = FanDemandState{};
   control.decisionPriority = FAN_PRIORITY_IDLE;
   control.reason = fanControl_modeName(control.mode);
   arbiterFor(fan).reset();
@@ -64,11 +66,24 @@ void fan_preinit() {
 }
 
 void fan_begin() {
+  fanPolicy_begin();
   fanHw_begin();
+  fanInterval_begin();
   for (int fan = 1; fan <= FAN_CHANNEL_COUNT; fan++) {
     resetControl(controlFor(fan), fan);
     deviceFor(fan).begin();
   }
+}
+
+bool fan_applyPolicyConfig(int fan) {
+  if (!fanHw_isEnabled(fan)) return false;
+  FanChannelControl& control = controlFor(fan);
+  FanDevice& device = deviceFor(fan);
+  device.acknowledgeFault();
+  device.forceOff();
+  resetControl(control, fan);
+  fanInterval_resetRuntime(fan);
+  return true;
 }
 
 int getFanPercent() { return deviceFor(1).getStatus().appliedPercent; }
@@ -87,6 +102,18 @@ int fan_getTemperatureDemandPercent(int fan) {
 int fan_getHumidityDemandPercent(int fan) {
   return fanHw_isEnabled(fan)
     ? controlFor(fan).automaticDemand.humidityPercent
+    : 0;
+}
+
+int fan_getIntervalDemandPercent(int fan) {
+  return fanHw_isEnabled(fan)
+    ? controlFor(fan).automaticDemand.intervalPercent
+    : 0;
+}
+
+int fan_getScheduleDemandPercent(int fan) {
+  return fanHw_isEnabled(fan)
+    ? controlFor(fan).automaticDemand.schedulePercent
     : 0;
 }
 
@@ -111,10 +138,17 @@ const char* fan_getRuleDemandId(int fan, int ruleIndex) {
 const char* fan_getWinningRuleId(int fan) {
   if (!fanHw_isEnabled(fan)) return "NONE";
   const FanDemand& demand = controlFor(fan).automaticDemand;
+  if (strcmp(demand.winningProducer, "CURVE") != 0) return "NONE";
   if (demand.winningRuleIndex < 0 || demand.winningRuleIndex >= demand.ruleCount) {
-    return demand.percent > 0 ? "BASE" : "NONE";
+    return "NONE";
   }
   return demand.rules[demand.winningRuleIndex].ruleId;
+}
+
+const char* fan_getWinningProducerName(int fan) {
+  return fanHw_isEnabled(fan)
+    ? controlFor(fan).automaticDemand.winningProducer
+    : "NONE";
 }
 
 const char* fan_getDecisionPriorityName(int fan) {
@@ -129,7 +163,11 @@ bool fan_isManual(int fan) {
   return fanHw_isEnabled(fan) && controlFor(fan).mode == FAN_MODE_MANUAL;
 }
 
-bool fan_setAuto(int fan) {
+int fan_getManualPercent(int fan) {
+  return fanHw_isEnabled(fan) ? controlFor(fan).manualPercent : 0;
+}
+
+bool fan_setAuto(int fan, bool persist) {
   if (fan == 0) fan = 1;
   if (!fanHw_isEnabled(fan)) return false;
   FanChannelControl& control = controlFor(fan);
@@ -140,10 +178,11 @@ bool fan_setAuto(int fan) {
   control.mode = FAN_MODE_AUTOMATIC;
   control.decisionPriority = FAN_PRIORITY_IDLE;
   control.reason = "IDLE";
-  return true;
+  return !persist || fanPolicy_setOperatingMode(
+    fan, FAN_MODE_AUTOMATIC, control.manualPercent);
 }
 
-bool fan_setManual(int fan, int percent) {
+bool fan_setManual(int fan, int percent, bool persist) {
   if (fan == 0) fan = 1;
   if (!fanHw_isEnabled(fan) || percent < 0 || percent > 100) return false;
   FanChannelControl& control = controlFor(fan);
@@ -155,7 +194,7 @@ bool fan_setManual(int fan, int percent) {
   control.manualPercent = percent;
   control.decisionPriority = FAN_PRIORITY_MANUAL;
   control.reason = "MANUAL";
-  return true;
+  return !persist || fanPolicy_setOperatingMode(fan, FAN_MODE_MANUAL, percent);
 }
 
 bool fan_getTachoFault(int fan) {
@@ -180,7 +219,6 @@ const char* fan_getModeName(int fan) {
   const FanChannelControl& control = controlFor(fan);
   if (control.mode == FAN_MODE_OFF) return "OFF";
   if (control.mode == FAN_MODE_MANUAL) return "MANUAL";
-  if (fan == 1 && ui_isFanManual()) return "MANUAL";
   return "AUTO";
 }
 
@@ -214,8 +252,6 @@ static FanArbiterResult evaluateFanDecision(
   FanArbiterInput input;
   input.mode = control.mode;
   input.manualPercent = control.manualPercent;
-  input.legacyManualOverride = fan == 1 && ui_isFanManual();
-  input.legacyManualPercent = fan == 1 ? ui_getFanManualValue() : 0;
   input.restMode = restMode_isEnabled();
   input.sensorFault = sensorFault;
   input.deviceFault = fan_getTachoFault(fan);
@@ -228,8 +264,8 @@ void fan_loop() {
   for (int fan = 1; fan <= FAN_CHANNEL_COUNT; fan++) {
     FanChannelControl& control = controlFor(fan);
     FanDevice& device = deviceFor(fan);
-    const FanDemand demand = fanControl_evaluate(
-      fan, getTargetTemp(), getTargetHum(), control.ruleState);
+    const FanDemand demand = fanDemand_evaluate(
+      fan, getTargetTemp(), getTargetHum(), control.demandState);
     const FanArbiterResult decision = evaluateFanDecision(
       fan, control, demand, sensorFault);
 

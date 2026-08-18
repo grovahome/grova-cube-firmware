@@ -14,8 +14,6 @@ enum FanDecisionPriority {
 struct FanArbiterInput {
   FanOperatingMode mode = FAN_MODE_OFF;
   int manualPercent = 0;
-  bool legacyManualOverride = false;
-  int legacyManualPercent = 0;
   bool restMode = false;
   bool sensorFault = false;
   bool deviceFault = false;

@@ -19,6 +19,7 @@
 #include "modules/pump_scheduler.h"
 #include "modules/rest_mode.h"
 #include "modules/runtime_config.h"
+#include "modules/fan_policy.h"
 #include "modules/sensors.h"
 #include "modules/stability.h"
 #include "modules/time_sync.h"
@@ -380,6 +381,7 @@ static void handleStatus() {
     presetStore_settingsReady() &&
     localRun_settingsReady() &&
     runtimeConfig_settingsReady() &&
+    fanPolicy_settingsReady() &&
     time_settingsReady();
 
   String json;
@@ -477,9 +479,12 @@ static void handleStatus() {
   appendJsonInt(json, "target_pct", getFanTargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(1));
   appendJsonString(json, "decision_priority", fan_getDecisionPriorityName(1));
+  appendJsonString(json, "winning_producer", fan_getWinningProducerName(1));
   appendJsonString(json, "winning_rule", fan_getWinningRuleId(1));
   appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(1));
   appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(1));
+  appendJsonInt(json, "interval_demand_pct", fan_getIntervalDemandPercent(1));
+  appendJsonInt(json, "schedule_demand_pct", fan_getScheduleDemandPercent(1));
   appendJsonInt(json, "rpm", getFanRPM());
   appendJsonBool(json, "tacho_fault", fan_getTachoFault(1), false);
   json += "},";
@@ -491,9 +496,12 @@ static void handleStatus() {
   appendJsonInt(json, "target_pct", getFan2TargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(2));
   appendJsonString(json, "decision_priority", fan_getDecisionPriorityName(2));
+  appendJsonString(json, "winning_producer", fan_getWinningProducerName(2));
   appendJsonString(json, "winning_rule", fan_getWinningRuleId(2));
   appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(2));
   appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(2));
+  appendJsonInt(json, "interval_demand_pct", fan_getIntervalDemandPercent(2));
+  appendJsonInt(json, "schedule_demand_pct", fan_getScheduleDemandPercent(2));
   appendJsonInt(json, "rpm", getFan2RPM());
   appendJsonBool(json, "tacho_fault", fan_getTachoFault(2), false);
   json += "},";
@@ -572,7 +580,15 @@ static void handleConfig() {
 static void handleConfigPost() {
   String body = server.arg("plain");
   String response;
-  bool ok = runtimeConfig_applyJson(body, response);
+  bool ok;
+  if (body.indexOf("\"section\"") >= 0 && body.indexOf("\"fan\"") >= 0) {
+    ok = fanPolicy_applyJson(body, response);
+    if (ok) {
+      fan_applyPolicyConfig(fanPolicy_extractFan(body));
+    }
+  } else {
+    ok = runtimeConfig_applyJson(body, response);
+  }
   server.send(ok ? 200 : 400, "application/json", response);
 }
 

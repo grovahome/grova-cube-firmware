@@ -69,3 +69,15 @@ const char* signalRegistry_unit(SignalId id) {
     default: return "";
   }
 }
+
+bool signalRegistry_idFromName(const char* name, SignalId& id) {
+  if (name == nullptr) return false;
+  for (int i = 0; i < SIGNAL_COUNT; i++) {
+    const SignalId candidate = static_cast<SignalId>(i);
+    if (strcmp(name, signalRegistry_name(candidate)) == 0) {
+      id = candidate;
+      return true;
+    }
+  }
+  return false;
+}

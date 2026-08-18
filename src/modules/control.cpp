@@ -4,6 +4,7 @@
 #include "modules/climate.h"
 #include "modules/control.h"
 #include "modules/fan.h"
+#include "modules/fan_policy.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
 #include "modules/local_run.h"
@@ -342,6 +343,17 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
     }
     if (fan == 0 || fan == 1) ui_setFanManual(percent);
     makeResponse(responseJson, true, "fan manual updated");
+    return true;
+  }
+
+  if (strcmp(command, "SET_FAN_POLICY") == 0) {
+    int fan = 0;
+    if (!extractInt(requestBody, "fan", fan)) {
+      makeResponse(responseJson, false, "missing fan");
+      return false;
+    }
+    if (!fanPolicy_applyJson(requestBody, responseJson)) return false;
+    fan_applyPolicyConfig(fan);
     return true;
   }
 

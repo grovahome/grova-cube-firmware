@@ -125,7 +125,7 @@ Persistent runtime settings are stored on the ESP32 through Preferences/NVS, inc
 - pump schedule and duration
 - climate day/night targets
 - warning limits
-- fan curve
+- legacy fan curve values (compatibility only; current fan policies use `/api/v1/config`)
 - optional RTC enablement
 - local preset slots
 - active local run state

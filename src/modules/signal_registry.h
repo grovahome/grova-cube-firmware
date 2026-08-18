@@ -26,3 +26,4 @@ SignalValue signalRegistry_read(SignalId id);
 unsigned long signalRegistry_ageMs(SignalId id);
 const char* signalRegistry_name(SignalId id);
 const char* signalRegistry_unit(SignalId id);
+bool signalRegistry_idFromName(const char* name, SignalId& id);

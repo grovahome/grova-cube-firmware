@@ -10,7 +10,19 @@ signal_registry.cpp
   stores neutral sensor signals with value, validity, source, and update time
 
 fan_control.cpp
-  reads registered signals, evaluates configured curves, and produces demands
+  reads registered signals and evaluates configured curve rules
+
+fan_interval.cpp
+  produces uptime-based circulation demands from period/run/delay settings
+
+fan_schedule.cpp
+  produces up to three local-time window demands per fan
+
+fan_demand.cpp
+  combines curve, interval, schedule, and base producers using MAXIMUM
+
+fan_policy.cpp
+  validates, versions, persists, restores, and resets each independent policy
 
 fan_arbiter.cpp
   resolves device fault, Rest Mode, sensor safety, manual override, automatic
@@ -35,9 +47,9 @@ The arbiter uses one explicit priority order:
 DEVICE_FAULT -> REST -> SENSOR_SAFETY -> MANUAL -> AUTOMATIC -> IDLE
 ```
 
-Normal temperature, humidity, and base demands are already combined with
-`MAXIMUM` by the control layer. The arbiter never reads sensors or writes PWM.
-Its decision priority is exposed in Fan 1 and Fan 2 HTTP/MQTT status.
+Normal curve, interval, schedule, and base demands are combined with `MAXIMUM` by the
+demand layer. The arbiter never reads sensors or writes PWM. Its decision
+priority is exposed in Fan 1 and Fan 2 HTTP/MQTT status.
 
 The hardware driver has no climate, grow phase, Rest Mode, MQTT, or HTTP
 knowledge. The device block has no temperature or humidity knowledge. On a
@@ -55,9 +67,10 @@ Channel-specific compile-time flags only describe whether physical PWM and
 tacho wiring is present.
 
 Automation capabilities are shared as well. Each fan policy contains the same
-rule slots and every rule references a neutral registry signal. The current
-policy data enables temperature and humidity for Fan 1 and disables them for
-Fan 2; this is configuration, not a capability difference.
+curve-rule slots, interval producer, and schedule slots. The current policy data enables
+temperature and humidity for Fan 1, disables them for Fan 2, and leaves both
+interval producers disabled. This is configuration, not a capability
+difference.
 
 ## Signal registry
 
@@ -90,7 +103,7 @@ Fan 1 current policy:
 Fan 2 current policy:
   manual 0%, no enabled climate source
 
-Fan 2 later circulation policy:
+Fan 2 available circulation policy:
   interval/schedule demand, for example 30% every 10 minutes
 
 Either channel later:
@@ -98,9 +111,8 @@ Either channel later:
 ```
 
 Fan 2 can therefore use the same climate curves as Fan 1 by changing only its
-automation configuration. An interval circulation feature will likewise
-produce a percentage demand for Fan 2; it will not require a different fan
-driver or device implementation.
+automation configuration. The interval producer is already available for both
+channels and remains disabled until a channel policy explicitly enables it.
 
 ## Current behavior
 
@@ -117,11 +129,12 @@ Use HTTP or MQTT to set Fan 2:
 Commands without `fan` keep the legacy Fan 1 behavior and do not change Fan 2.
 Fan 2 tacho monitoring stays disabled until its tacho wire is connected.
 
-## Code-only automatic curve engine
+## Automatic curve engine and persistent policies
 
-The current implementation keeps all new fan settings in
-`src/modules/fan_control.cpp`; no server or product-dashboard editor has been
-added yet. Fan 1 defaults to automatic control. Fan 2 defaults to manual 0%.
+Compiled defaults live in the fan modules; the effective policy for each fan is
+stored independently in versioned NVS and can be changed through validated
+local HTTP or MQTT commands. No server or product-dashboard editor has been
+added. Fan 1 defaults to automatic control. Fan 2 defaults to manual 0%.
 
 Each fan config contains its default mode, manual and base output, minimum and
 maximum output, startup boost, ramp rates, minimum runtime, and stall limits.
@@ -154,7 +167,41 @@ startup boost: 60% for 1.5 s
 minimum runtime: 60 s
 temperature: target lead 1.5 C, full load target + 7 C, hysteresis 0.5 C, normal
 humidity: target lead 5%, full load target + 20%, hysteresis 3%, normal
+interval: disabled (prepared default: 30% for 2 min every 10 min)
 ```
+
+## Demand producers and interval operation
+
+Automatic fan output is no longer produced by the curve engine alone. Each fan
+evaluates independent producers and the highest percentage wins:
+
+```text
+curve rules ---+
+interval -------+--> MAXIMUM --> arbiter
+schedule -------+
+base operation -+
+```
+
+The interval producer is based on ESP uptime and needs no network or valid wall
+clock. Its policy defines enabled state, period, run duration, start
+delay, and percentage. It stays inactive until the start delay has elapsed,
+then requests the configured percentage during the run window of each period.
+The arbiter's per-fan minimum runtime can extend a shorter interval run.
+
+A channel with enabled sensor curve rules participates in sensor-fault safety.
+A channel driven only by interval/base demand does not jump to sensor-safe
+output because of an unrelated climate sensor fault. Rest Mode and device
+faults still override every producer for every channel.
+
+Each enabled sensor rule has its own maximum signal age and missing-signal
+behavior. Invalid or stale values never enter curve calculation. `SAFE_OUTPUT`
+requests the configured global sensor-safe output after a ten-second boot grace;
+`IGNORE` disables only that demand. Daily schedule windows require valid system
+time and otherwise request zero. Cross-midnight windows are supported.
+
+The physical display, HTTP, and MQTT commands all update the same runtime fan
+mode. Encoder previews are applied without an NVS write for every detent and
+persisted when editing is completed.
 
 ## Stall protection
 
@@ -208,10 +255,5 @@ Example code-only rule shape:
 }
 ```
 
-Recommended implementation order:
-
-1. Add interval and schedule demand producers using the same demand interface.
-2. Define per-signal stale and missing-value behavior.
-3. Persist independent fan policies in NVS.
-4. Expose validated rule configuration through HTTP and MQTT.
-5. Add dashboard controls and automated rule/arbiter/device tests.
+The server/dashboard UI is intentionally still outstanding. It can later edit
+the existing policy API without changing the fan runtime architecture.

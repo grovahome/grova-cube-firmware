@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <Preferences.h>
 #include "modules/climate.h"
+#include "modules/fan.h"
 #include "modules/grow_mode.h"
 #include "modules/light.h"
 #include "modules/ui.h"
@@ -87,6 +88,7 @@ static void applyGrowModeDefaults(bool saveNow) {
   if (growMode_isGermination() || growMode_isGrowth() || growMode_isHarvest()) {
     setLightMode(AUTO, false);
     setFanMode(AUTO, false);
+    if (saveNow) fan_setAuto(1);
   }
 
   if (saveNow) saveSettings();
@@ -109,6 +111,11 @@ void ui_begin() {
   } else {
     Serial.println("Settings unavailable");
   }
+
+  // Fan policy is the single source of truth. The UI namespace only keeps a
+  // display/editing mirror for the physical encoder screen.
+  state.fanMode = fan_isManual(1) ? MANUAL : AUTO;
+  state.fanManualValue = fan_getManualPercent(1);
 
   Serial.println("UI gestartet");
 }
@@ -139,6 +146,7 @@ void ui_rotate(int delta) {
   if (state.editing && state.screen == UI_SCREEN_FAN) {
     setFanMode(MANUAL, false);
     setFanManualValue(state.fanManualValue + (delta * 5), false);
+    fan_setManual(1, state.fanManualValue, false);
     return;
   }
 
@@ -183,8 +191,11 @@ void ui_click() {
     state.editing = !state.editing;
 
     if (state.editing) {
+      state.fanManualValue = fan_getManualPercent(1);
       setFanMode(MANUAL, false);
+      fan_setManual(1, state.fanManualValue, false);
     } else {
+      fan_setManual(1, state.fanManualValue, true);
       saveSettings();
     }
     return;
@@ -235,6 +246,10 @@ void ui_longClick() {
       light_saveSettings();
     } else if (state.screen == UI_SCREEN_PUMP) {
       pumpScheduler_saveSettings();
+    } else if (state.screen == UI_SCREEN_FAN) {
+      if (state.fanMode == MANUAL) fan_setManual(1, state.fanManualValue, true);
+      else fan_setAuto(1, true);
+      saveSettings();
     } else {
       saveSettings();
     }
@@ -242,7 +257,9 @@ void ui_longClick() {
   }
 
   if (state.screen == UI_SCREEN_FAN) {
-    setFanMode((state.fanMode == AUTO) ? MANUAL : AUTO, true);
+    setFanMode(fan_isManual(1) ? AUTO : MANUAL, true);
+    if (state.fanMode == MANUAL) fan_setManual(1, state.fanManualValue, true);
+    else fan_setAuto(1, true);
     return;
   }
 
@@ -325,15 +342,15 @@ void ui_setLightManualOff() {
 // FAN
 // =====================
 bool ui_isFanManual() {
-  return state.fanMode == MANUAL;
+  return fan_isManual(1);
 }
 
 int ui_getFanManualValue() {
-  return state.fanManualValue;
+  return fan_getManualPercent(1);
 }
 
 const char* ui_getFanModeName() {
-  return state.fanMode == MANUAL ? "MANUAL" : "AUTO";
+  return fan_getModeName(1);
 }
 
 void ui_setFanAuto() {
