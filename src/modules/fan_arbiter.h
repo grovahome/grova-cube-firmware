@@ -24,8 +24,7 @@ struct FanArbiterInput {
 
 struct FanArbiterResult {
   int requestedPercent = 0;
-  int temperatureDemandPercent = 0;
-  int humidityDemandPercent = 0;
+  FanDemand automaticDemand;
   FanDecisionPriority priority = FAN_PRIORITY_IDLE;
   bool immediateStop = false;
   const char* reason = "IDLE";

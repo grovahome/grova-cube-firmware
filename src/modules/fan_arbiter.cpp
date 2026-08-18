@@ -71,8 +71,7 @@ FanArbiterResult FanArbiter::evaluate(const FanArbiterInput& input) {
   }
 
   result.priority = FAN_PRIORITY_AUTOMATIC;
-  result.temperatureDemandPercent = input.automaticDemand.temperaturePercent;
-  result.humidityDemandPercent = input.automaticDemand.humidityPercent;
+  result.automaticDemand = input.automaticDemand;
   int requested = input.automaticDemand.percent;
 
   if (requested > 0) {

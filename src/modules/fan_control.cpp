@@ -27,9 +27,16 @@ static const FanAutomationConfig FAN_AUTOMATION_CONFIGS[FAN_CHANNEL_COUNT] = {
     50,
     0,
     60000UL,
+    2,
     {
-      {SIGNAL_CLIMATE_TEMPERATURE_C, true, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
-      {SIGNAL_CLIMATE_HUMIDITY_PCT, true, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
+      {
+        "TEMP", SIGNAL_CLIMATE_TEMPERATURE_C, true, FAN_RULE_ABOVE,
+        FAN_TARGET_CLIMATE_TEMPERATURE, 0.0F, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL
+      },
+      {
+        "HUM", SIGNAL_CLIMATE_HUMIDITY_PCT, true, FAN_RULE_ABOVE,
+        FAN_TARGET_CLIMATE_HUMIDITY, 0.0F, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL
+      }
     }
   },
   {
@@ -37,9 +44,16 @@ static const FanAutomationConfig FAN_AUTOMATION_CONFIGS[FAN_CHANNEL_COUNT] = {
     0,
     0,
     60000UL,
+    2,
     {
-      {SIGNAL_CLIMATE_TEMPERATURE_C, false, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL},
-      {SIGNAL_CLIMATE_HUMIDITY_PCT, false, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL}
+      {
+        "TEMP", SIGNAL_CLIMATE_TEMPERATURE_C, false, FAN_RULE_ABOVE,
+        FAN_TARGET_CLIMATE_TEMPERATURE, 0.0F, 1.5F, 7.0F, 0.5F, FAN_CURVE_NORMAL
+      },
+      {
+        "HUM", SIGNAL_CLIMATE_HUMIDITY_PCT, false, FAN_RULE_ABOVE,
+        FAN_TARGET_CLIMATE_HUMIDITY, 0.0F, 5.0F, 20.0F, 3.0F, FAN_CURVE_NORMAL
+      }
     }
   }
 };
@@ -64,42 +78,57 @@ static int evaluateCurve(
   int maximumPercent,
   bool& active
 ) {
-  if (!rule.enabled || rule.fullLoadAboveTarget <= 0.0F) {
+  if (!rule.enabled || rule.fullLoadBeyondTarget <= 0.0F) {
     active = false;
     return 0;
   }
 
-  const float start = target - max(0.0F, rule.leadBeforeTarget);
-  const float stop = start - max(0.0F, rule.hysteresis);
-  if (active) {
-    if (value < stop) active = false;
-  } else if (value >= start) {
-    active = true;
+  const float lead = max(0.0F, rule.leadBeforeTarget);
+  const float hysteresis = max(0.0F, rule.hysteresis);
+  float progress = 0.0F;
+
+  if (rule.direction == FAN_RULE_BELOW) {
+    const float start = target + lead;
+    const float stop = start + hysteresis;
+    if (active) {
+      if (value > stop) active = false;
+    } else if (value <= start) {
+      active = true;
+    }
+    if (!active) return 0;
+    progress = (start - value) / (lead + rule.fullLoadBeyondTarget);
+  } else {
+    const float start = target - lead;
+    const float stop = start - hysteresis;
+    if (active) {
+      if (value < stop) active = false;
+    } else if (value >= start) {
+      active = true;
+    }
+    if (!active) return 0;
+    progress = (value - start) / (lead + rule.fullLoadBeyondTarget);
   }
 
-  if (!active) return 0;
+  progress = constrain(progress, 0.0F, 1.0F);
+  if (progress >= 1.0F) return maximumPercent;
+  if (progress <= 0.0F) return minimumPercent;
 
-  const float fullLoad = target + rule.fullLoadAboveTarget;
-  if (value >= fullLoad) return maximumPercent;
-  if (value <= start) return minimumPercent;
-
-  const float progress = (value - start) / (fullLoad - start);
   const float exponent = curveExponent(rule.curve);
 
   // Generate ten deterministic curve points, then interpolate between the
   // surrounding pair. Only the compact rule parameters are stored in code.
-  float pointValue[AUTO_CURVE_POINT_COUNT];
+  float pointProgress[AUTO_CURVE_POINT_COUNT];
   float pointPercent[AUTO_CURVE_POINT_COUNT];
   for (int i = 0; i < AUTO_CURVE_POINT_COUNT; i++) {
-    const float pointProgress = static_cast<float>(i) / (AUTO_CURVE_POINT_COUNT - 1);
-    pointValue[i] = start + pointProgress * (fullLoad - start);
+    pointProgress[i] = static_cast<float>(i) / (AUTO_CURVE_POINT_COUNT - 1);
     pointPercent[i] = minimumPercent +
-      (maximumPercent - minimumPercent) * powf(pointProgress, exponent);
+      (maximumPercent - minimumPercent) * powf(pointProgress[i], exponent);
   }
 
   for (int i = 1; i < AUTO_CURVE_POINT_COUNT; i++) {
-    if (value <= pointValue[i]) {
-      const float segment = (value - pointValue[i - 1]) / (pointValue[i] - pointValue[i - 1]);
+    if (progress <= pointProgress[i]) {
+      const float segment = (progress - pointProgress[i - 1]) /
+        (pointProgress[i] - pointProgress[i - 1]);
       const float output = pointPercent[i - 1] + segment * (pointPercent[i] - pointPercent[i - 1]);
       return clampPercent(lroundf(output), minimumPercent, maximumPercent);
     }
@@ -130,6 +159,38 @@ const char* fanControl_curveName(FanCurveStyle curve) {
   return "NORMAL";
 }
 
+const char* fanControl_directionName(FanRuleDirection direction) {
+  return direction == FAN_RULE_BELOW ? "BELOW" : "ABOVE";
+}
+
+const char* fanControl_targetSourceName(FanTargetSource source) {
+  if (source == FAN_TARGET_CLIMATE_TEMPERATURE) return "CLIMATE_TEMPERATURE";
+  if (source == FAN_TARGET_CLIMATE_HUMIDITY) return "CLIMATE_HUMIDITY";
+  return "FIXED";
+}
+
+static float resolveTarget(
+  const FanSourceRuleConfig& rule,
+  float temperatureTarget,
+  float humidityTarget
+) {
+  if (rule.targetSource == FAN_TARGET_CLIMATE_TEMPERATURE) return temperatureTarget;
+  if (rule.targetSource == FAN_TARGET_CLIMATE_HUMIDITY) return humidityTarget;
+  return rule.fixedTarget;
+}
+
+static bool applyLegacyFallback(SignalId source, float& value) {
+  if (source == SIGNAL_CLIMATE_TEMPERATURE_C) {
+    value = 22.0F;
+    return true;
+  }
+  if (source == SIGNAL_CLIMATE_HUMIDITY_PCT) {
+    value = 60.0F;
+    return true;
+  }
+  return false;
+}
+
 FanDemand fanControl_evaluate(
   int fan,
   float temperatureTarget,
@@ -140,20 +201,20 @@ FanDemand fanControl_evaluate(
   const FanAutomationConfig& automationConfig = fanControl_getAutomationConfig(fan);
   FanDemand demand;
   demand.percent = automationConfig.basePercent;
+  demand.ruleCount = constrain(
+    automationConfig.ruleCount, 0, FAN_MAX_RULES_PER_CHANNEL);
 
-  for (int i = 0; i < FAN_RULE_SOURCE_COUNT; i++) {
+  for (int i = 0; i < demand.ruleCount; i++) {
     const FanSourceRuleConfig& rule = automationConfig.rules[i];
     const SignalValue signal = signalRegistry_read(rule.source);
     float value = signal.value;
-    float target = 0.0F;
+    const float target = resolveTarget(rule, temperatureTarget, humidityTarget);
+    FanRuleDemand& ruleDemand = demand.rules[i];
+    ruleDemand.source = rule.source;
+    ruleDemand.ruleId = rule.id;
+    ruleDemand.signalValid = signal.valid;
 
-    if (rule.source == SIGNAL_CLIMATE_TEMPERATURE_C) {
-      if (!signal.valid) value = 22.0F;
-      target = temperatureTarget;
-    } else if (rule.source == SIGNAL_CLIMATE_HUMIDITY_PCT) {
-      if (!signal.valid) value = 60.0F;
-      target = humidityTarget;
-    } else if (!signal.valid) {
+    if (!signal.valid && !applyLegacyFallback(rule.source, value)) {
       state.active[i] = false;
       continue;
     }
@@ -166,36 +227,71 @@ FanDemand fanControl_evaluate(
       deviceConfig.maximumPercent,
       state.active[i]
     );
-    demand.percent = max(demand.percent, sourcePercent);
+    ruleDemand.percent = sourcePercent;
+    ruleDemand.active = state.active[i];
+    if (sourcePercent > demand.percent) {
+      demand.percent = sourcePercent;
+      demand.winningRuleIndex = i;
+    }
     if (rule.source == SIGNAL_CLIMATE_TEMPERATURE_C) {
-      demand.temperaturePercent = sourcePercent;
+      demand.temperaturePercent = max(demand.temperaturePercent, sourcePercent);
     } else if (rule.source == SIGNAL_CLIMATE_HUMIDITY_PCT) {
-      demand.humidityPercent = sourcePercent;
+      demand.humidityPercent = max(demand.humidityPercent, sourcePercent);
     }
   }
 
   if (demand.temperaturePercent > 0 && demand.humidityPercent > 0) demand.reason = "TEMP+HUM";
   else if (demand.temperaturePercent > 0) demand.reason = "TEMP";
   else if (demand.humidityPercent > 0) demand.reason = "HUM";
-  else if (automationConfig.basePercent > 0) demand.reason = "BASE";
+  else if (demand.winningRuleIndex >= 0) {
+    demand.reason = demand.rules[demand.winningRuleIndex].ruleId;
+  } else if (automationConfig.basePercent > 0) demand.reason = "BASE";
   else demand.reason = "IDLE";
 
   return demand;
 }
 
-static void appendSourceConfig(String& json, const char* source, const FanSourceRuleConfig& rule) {
+static void appendRuleConfig(String& json, const FanSourceRuleConfig& rule) {
+  json += "{";
+  json += "\"id\":\"";
+  json += rule.id;
+  json += "\",\"signal\":\"";
+  json += signalRegistry_name(rule.source);
+  json += "\",\"enabled\":";
+  json += rule.enabled ? "true" : "false";
+  json += ",\"direction\":\"";
+  json += fanControl_directionName(rule.direction);
+  json += "\",\"target_source\":\"";
+  json += fanControl_targetSourceName(rule.targetSource);
+  json += "\",\"fixed_target\":";
+  json += String(rule.fixedTarget, 1);
+  json += ",\"lead_before_target\":";
+  json += String(rule.leadBeforeTarget, 1);
+  json += ",\"full_load_beyond_target\":";
+  json += String(rule.fullLoadBeyondTarget, 1);
+  json += ",\"hysteresis\":";
+  json += String(rule.hysteresis, 1);
+  json += ",\"curve\":\"";
+  json += fanControl_curveName(rule.curve);
+  json += "\"}";
+}
+
+static void appendLegacySourceConfig(
+  String& json,
+  const char* source,
+  const FanSourceRuleConfig& rule
+) {
   json += "\"";
   json += source;
   json += "\":{";
   json += "\"signal\":\"";
   json += signalRegistry_name(rule.source);
-  json += "\",";
-  json += "\"enabled\":";
+  json += "\",\"enabled\":";
   json += rule.enabled ? "true" : "false";
   json += ",\"lead_before_target\":";
   json += String(rule.leadBeforeTarget, 1);
   json += ",\"full_load_above_target\":";
-  json += String(rule.fullLoadAboveTarget, 1);
+  json += String(rule.fullLoadBeyondTarget, 1);
   json += ",\"hysteresis\":";
   json += String(rule.hysteresis, 1);
   json += ",\"curve\":\"";
@@ -230,9 +326,17 @@ static void appendFanConfig(
   json += ",\"minimum_run_ms\":";
   json += automationConfig.minimumRunMs;
   json += ",\"combine\":\"MAXIMUM\",";
-  appendSourceConfig(json, "temperature", automationConfig.rules[0]);
+  appendLegacySourceConfig(json, "temperature", automationConfig.rules[0]);
   json += ",";
-  appendSourceConfig(json, "humidity", automationConfig.rules[1]);
+  appendLegacySourceConfig(json, "humidity", automationConfig.rules[1]);
+  json += ",\"rules\":[";
+  const int ruleCount = constrain(
+    automationConfig.ruleCount, 0, FAN_MAX_RULES_PER_CHANNEL);
+  for (int i = 0; i < ruleCount; i++) {
+    if (i > 0) json += ",";
+    appendRuleConfig(json, automationConfig.rules[i]);
+  }
+  json += "]";
   json += "}";
 }
 

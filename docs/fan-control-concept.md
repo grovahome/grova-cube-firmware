@@ -125,20 +125,25 @@ added yet. Fan 1 defaults to automatic control. Fan 2 defaults to manual 0%.
 
 Each fan config contains its default mode, manual and base output, minimum and
 maximum output, startup boost, ramp rates, minimum runtime, and stall limits.
-Temperature and humidity each have an independent source rule with:
+Every fan has the same capacity of up to six curve rules. A rule contains:
 
+- stable rule ID
 - enabled flag
-- absolute lead below the active climate target
-- full-load distance above the active climate target
+- registry signal
+- direction (`ABOVE` or `BELOW`)
+- target source (fixed value, active climate temperature, or active climate humidity)
+- absolute lead before the target
+- full-load distance beyond the target
 - hysteresis
 - `GENTLE`, `NORMAL`, or `AGGRESSIVE` curve style
 
-The active day/night or local-grow climate targets remain the actual targets,
-so existing grow presets keep controlling the desired climate. The firmware
-generates ten curve points for every enabled source rule and interpolates
-between them. Temperature and humidity demands are combined using `MAXIMUM`.
-Rest Mode, sensor-safe behavior, and latched stall shutdown remain higher
-priority than normal automatic demand.
+The active day/night or local-grow climate targets remain the actual targets
+for the current temperature and humidity rules, so existing grow presets keep
+controlling the desired climate. Other registry signals can use a fixed target.
+The firmware generates ten curve points for every enabled rule and interpolates
+between them. All active rule demands are combined using `MAXIMUM`. Rest Mode,
+sensor-safe behavior, and latched stall shutdown remain higher priority than
+normal automatic demand.
 
 Current Fan 1 defaults:
 
@@ -168,45 +173,45 @@ Fan 1 stall protection is active with the current PCB defaults. Fan 2 stall
 protection becomes active only after its tacho wire is connected and
 `FAN2_TACHO_ENABLED` is set to `1`.
 
-## Planned per-fan automation
+## Generic per-fan automation
 
-The current temperature/humidity curve engine and per-fan arbiter provide the
-first two automatic sources. Later versions can generalize these code-only
-settings into configurable trigger rules. A rule would define:
+The curve evaluator now iterates a generic rule list instead of containing one
+hard-coded temperature path and one hard-coded humidity path. The same engine
+can evaluate temperature, humidity, CO2, pressure, lux, or UV registry signals
+for either fan. `ABOVE` and `BELOW` rules are supported, as are fixed targets
+and the active climate targets.
 
-- source, such as temperature, humidity, CO2, light, schedule or digital input
-- comparison (`above`, `below`, `on` or `off`)
-- threshold and hysteresis
-- requested fan percentage
-- optional activation delay and minimum runtime
-- behavior when the source is missing or faulty
+The current policies still contain only temperature and humidity rules. Fan 1
+has both enabled; Fan 2 contains the same rule definitions with both disabled.
+Changing policy data is therefore sufficient to give either channel the same
+automatic job.
 
-Multiple active rules should be combined by taking the highest requested fan
-speed. Rest Mode and safety shutdowns always have higher priority.
+HTTP and MQTT status retain the compatibility fields
+`temperature_demand_pct` and `humidity_demand_pct` and additionally expose the
+winning generic rule ID. The configuration response includes the generic rule
+list while retaining the original named temperature/humidity fields.
 
-Example future configuration:
+Example code-only rule shape:
 
 ```json
 {
-  "fan": 2,
-  "mode": "automatic",
-  "combine": "maximum",
-  "triggers": [
-    {
-      "source": "temperature_c",
-      "condition": "above",
-      "threshold": 27.0,
-      "hysteresis": 1.0,
-      "output_percent": 60
-    }
-  ]
+  "id": "CO2",
+  "signal": "climate.co2_ppm",
+  "enabled": true,
+  "direction": "ABOVE",
+  "target_source": "FIXED",
+  "fixed_target": 900,
+  "lead_before_target": 100,
+  "full_load_beyond_target": 600,
+  "hysteresis": 50,
+  "curve": "NORMAL"
 }
 ```
 
 Recommended implementation order:
 
-1. Persist independent mode and manual percentage for every fan.
-2. Generalize the existing curve evaluator for additional registered sources.
-3. Expose validated rule configuration through HTTP and MQTT.
-4. Add dashboard controls for source, target, lead, full load, hysteresis and curve style.
-5. Add automated tests for rule, arbiter, device, and fault behavior.
+1. Add interval and schedule demand producers using the same demand interface.
+2. Define per-signal stale and missing-value behavior.
+3. Persist independent fan policies in NVS.
+4. Expose validated rule configuration through HTTP and MQTT.
+5. Add dashboard controls and automated rule/arbiter/device tests.

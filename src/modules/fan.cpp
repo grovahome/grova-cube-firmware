@@ -12,8 +12,7 @@
 
 struct FanChannelControl {
   int manualPercent = 0;
-  int temperatureDemandPercent = 0;
-  int humidityDemandPercent = 0;
+  FanDemand automaticDemand;
   FanOperatingMode mode = FAN_MODE_AUTOMATIC;
   FanRuleState ruleState;
   FanDecisionPriority decisionPriority = FAN_PRIORITY_IDLE;
@@ -49,8 +48,7 @@ static FanArbiter& arbiterFor(int fan) {
 static void resetControl(FanChannelControl& control, int fan) {
   const FanAutomationConfig& config = fanControl_getAutomationConfig(fan);
   control.manualPercent = config.manualPercent;
-  control.temperatureDemandPercent = 0;
-  control.humidityDemandPercent = 0;
+  control.automaticDemand = FanDemand{};
   control.mode = config.defaultMode;
   control.ruleState = FanRuleState{};
   control.decisionPriority = FAN_PRIORITY_IDLE;
@@ -81,11 +79,42 @@ int getFan2Percent() { return deviceFor(2).getStatus().appliedPercent; }
 int getFan2TargetPercent() { return deviceFor(2).getStatus().requestedPercent; }
 
 int fan_getTemperatureDemandPercent(int fan) {
-  return fanHw_isEnabled(fan) ? controlFor(fan).temperatureDemandPercent : 0;
+  return fanHw_isEnabled(fan)
+    ? controlFor(fan).automaticDemand.temperaturePercent
+    : 0;
 }
 
 int fan_getHumidityDemandPercent(int fan) {
-  return fanHw_isEnabled(fan) ? controlFor(fan).humidityDemandPercent : 0;
+  return fanHw_isEnabled(fan)
+    ? controlFor(fan).automaticDemand.humidityPercent
+    : 0;
+}
+
+int fan_getRuleDemandCount(int fan) {
+  return fanHw_isEnabled(fan) ? controlFor(fan).automaticDemand.ruleCount : 0;
+}
+
+int fan_getRuleDemandPercent(int fan, int ruleIndex) {
+  if (!fanHw_isEnabled(fan)) return 0;
+  const FanDemand& demand = controlFor(fan).automaticDemand;
+  if (ruleIndex < 0 || ruleIndex >= demand.ruleCount) return 0;
+  return demand.rules[ruleIndex].percent;
+}
+
+const char* fan_getRuleDemandId(int fan, int ruleIndex) {
+  if (!fanHw_isEnabled(fan)) return "NONE";
+  const FanDemand& demand = controlFor(fan).automaticDemand;
+  if (ruleIndex < 0 || ruleIndex >= demand.ruleCount) return "NONE";
+  return demand.rules[ruleIndex].ruleId;
+}
+
+const char* fan_getWinningRuleId(int fan) {
+  if (!fanHw_isEnabled(fan)) return "NONE";
+  const FanDemand& demand = controlFor(fan).automaticDemand;
+  if (demand.winningRuleIndex < 0 || demand.winningRuleIndex >= demand.ruleCount) {
+    return demand.percent > 0 ? "BASE" : "NONE";
+  }
+  return demand.rules[demand.winningRuleIndex].ruleId;
 }
 
 const char* fan_getDecisionPriorityName(int fan) {
@@ -204,8 +233,7 @@ void fan_loop() {
     const FanArbiterResult decision = evaluateFanDecision(
       fan, control, demand, sensorFault);
 
-    control.temperatureDemandPercent = decision.temperatureDemandPercent;
-    control.humidityDemandPercent = decision.humidityDemandPercent;
+    control.automaticDemand = decision.automaticDemand;
     control.reason = decision.reason;
     control.decisionPriority = decision.priority;
 

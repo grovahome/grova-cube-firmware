@@ -231,6 +231,7 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "target_pct", getFanTargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(1));
   appendJsonString(json, "decision_priority", fan_getDecisionPriorityName(1));
+  appendJsonString(json, "winning_rule", fan_getWinningRuleId(1));
   appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(1));
   appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(1));
   appendJsonInt(json, "rpm", getFanRPM());
@@ -244,6 +245,7 @@ static String buildTelemetryJson() {
   appendJsonInt(json, "target_pct", getFan2TargetPercent());
   appendJsonString(json, "reason", fan_getReasonName(2));
   appendJsonString(json, "decision_priority", fan_getDecisionPriorityName(2));
+  appendJsonString(json, "winning_rule", fan_getWinningRuleId(2));
   appendJsonInt(json, "temperature_demand_pct", fan_getTemperatureDemandPercent(2));
   appendJsonInt(json, "humidity_demand_pct", fan_getHumidityDemandPercent(2));
   appendJsonInt(json, "rpm", getFan2RPM());

@@ -112,10 +112,11 @@ receives temperature/humidity demand, while Fan 2 receives no automatic
 demand. A later interval-based circulation policy can request a percentage
 from Fan 2 without changing its hardware or device implementation.
 
-Fan 1 automatic demand is calculated independently from temperature and
-humidity. Both rules use the active day/night or local-program climate targets,
-automatically generated ten-point curves, hysteresis, startup boost, and a
-minimum runtime. The higher temperature or humidity demand wins.
+Every fan has the same generic list capacity of up to six curve rules. Each rule
+selects a registry signal, `ABOVE`/`BELOW` direction, fixed or active-climate
+target, lead, full-load distance, hysteresis, and curve style. The current Fan 1
+policy enables temperature and humidity while the current Fan 2 policy keeps
+the same rules disabled. All rule demands are combined with `MAXIMUM`.
 
 The final demand is resolved locally using this priority order:
 
@@ -124,7 +125,8 @@ DEVICE_FAULT -> REST -> SENSOR_SAFETY -> MANUAL -> AUTOMATIC -> IDLE
 ```
 
 Fan status under HTTP and MQTT includes current/target percentage, RPM, reason,
-decision priority, temperature demand, humidity demand, and tacho fault state.
+decision priority, winning generic rule, compatibility temperature/humidity
+demands, and tacho fault state.
 
 When an enabled tacho remains below the configured minimum RPM while the fan
 should be running, the device layer latches a stall fault and the hardware
