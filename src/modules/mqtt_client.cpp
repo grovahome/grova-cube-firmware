@@ -138,7 +138,7 @@ static String buildTelemetryJson() {
     time_settingsReady();
 
   String json;
-  json.reserve(3600);
+  json.reserve(5200);
   json += "{";
   appendJsonString(json, "cube_id", MQTT_CUBE_ID);
   appendJsonFloat(json, "temp_c", temp, 1);
@@ -178,7 +178,11 @@ static String buildTelemetryJson() {
 
   runtimeConfig_appendJson(json);
   json += ",";
-  fanControl_appendJson(json);
+  // MQTT telemetry carries only policy metadata and live fan state. The full
+  // per-fan policy remains available through /api/v1/config and the local
+  // status endpoint; including it here can exceed PubSubClient's 8 KiB packet
+  // buffer and silently stop telemetry while the connection stays alive.
+  fanControl_appendTelemetryJson(json);
   json += ",";
   presetStore_appendSummaryJson(json);
   json += ",";

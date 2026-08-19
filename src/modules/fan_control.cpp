@@ -416,3 +416,18 @@ void fanControl_appendJson(String& json) {
   }
   json += "}";
 }
+
+void fanControl_appendTelemetryJson(String& json) {
+  json += "\"fan_control\":{";
+  json += "\"policy_schema\":";
+  json += fanPolicy_schemaVersion();
+  json += ",\"settings_ready\":";
+  json += fanPolicy_settingsReady() ? "true" : "false";
+  json += ",\"curve_points\":";
+  json += AUTO_CURVE_POINT_COUNT;
+  json += ",\"sensor_failure_percent\":";
+  json += FAN_SENSOR_FAIL_PERCENT;
+  json += ",\"signal_startup_grace_ms\":";
+  json += SIGNAL_STARTUP_GRACE_MS;
+  json += "}";
+}

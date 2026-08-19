@@ -121,3 +121,4 @@ FanDemand fanControl_evaluateCurves(
   FanRuleState& state
 );
 void fanControl_appendJson(String& json);
+void fanControl_appendTelemetryJson(String& json);
