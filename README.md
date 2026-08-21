@@ -33,7 +33,7 @@ test it in real environments and help shape the product before wider release.
 
 ## What Is GROVA CORE?
 
-GROVA CORE is open firmware for a local-first environmental automation controller.
+GROVA CORE is an open source firmware for a local-first environmental automation controller.
 
 It runs climate logic directly on the ESP32, controls real hardware outputs, reads local sensors and stays useful even when the internet, dashboard or cloud services are unavailable.
 
