@@ -14,6 +14,10 @@
   #include "board_config.h"
 #endif
 
+// Physical pins and hardware capabilities live in the selected board profile.
+// The current firmware line selects only the existing GROVA PCB v1 profile.
+#include "board_profile.h"
+
 // ===== OTA =====
 #ifndef OTA_HOSTNAME
   #define OTA_HOSTNAME "growbox"
@@ -70,14 +74,10 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
   #define GROVA_LOCAL_PRESET_MAX_PUMP_EVENTS 5
 #endif
 
-// ===== BOARD / SENSOR SELECTION =====
-// Active firmware target: GROVA PCB v1 / Founder Edition.
+// ===== SENSOR SELECTION =====
+// Active firmware target: existing GROVA PCB v1.
 // Legacy hand-wired DHT hardware is frozen and no longer updated from this
 // source line; see docs/firmware-profiles.md for the last compatible commit.
-#ifndef GROVA_BOARD_PCB_V1
-  #define GROVA_BOARD_PCB_V1 1
-#endif
-
 #ifndef GROVA_SENSOR_SHT41
   #define GROVA_SENSOR_SHT41 1
 #endif
@@ -95,62 +95,6 @@ constexpr unsigned long MQTT_RECONNECT_INTERVAL_MS = 5000UL;
 #endif
 #ifndef GROVA_SENSOR_LTR390
   #define GROVA_SENSOR_LTR390 1
-#endif
-
-#ifndef PIN_LIGHT
-  #define PIN_LIGHT 26
-#endif
-#ifndef PIN_PUMP
-  #define PIN_PUMP 13
-#endif
-#ifndef PIN_AUX_12V
-  #define PIN_AUX_12V 27
-#endif
-#ifndef PIN_AUX_5V
-  #define PIN_AUX_5V 14
-#endif
-
-#ifndef FAN_PWM
-  #define FAN_PWM 25
-#endif
-#ifndef FAN_TACHO
-  #define FAN_TACHO 34
-#endif
-#ifndef FAN2_ENABLED
-  #define FAN2_ENABLED 1
-#endif
-#ifndef FAN2_PWM
-  #define FAN2_PWM 23
-#endif
-#ifndef FAN2_TACHO
-  #define FAN2_TACHO 35
-#endif
-#ifndef FAN_TACHO_ENABLED
-  #define FAN_TACHO_ENABLED 1
-#endif
-#ifndef FAN2_TACHO_ENABLED
-  #define FAN2_TACHO_ENABLED 0
-#endif
-
-#ifndef ENCODER_CLK
-  #define ENCODER_CLK 33
-#endif
-#ifndef ENCODER_DT
-  #define ENCODER_DT 32
-#endif
-#ifndef ENCODER_SW
-  #define ENCODER_SW 2
-#endif
-
-#ifndef OLED_SDA
-  #define OLED_SDA 21
-#endif
-#ifndef OLED_SCL
-  #define OLED_SCL 22
-#endif
-
-#ifndef GROVA_HARDWARE_VERSION
-  #define GROVA_HARDWARE_VERSION "GROVA PCB v1"
 #endif
 
 // ===== SENSORS =====

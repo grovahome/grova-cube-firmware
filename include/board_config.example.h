@@ -6,9 +6,11 @@
 // Keep credentials and the unique MQTT_CUBE_ID in include/secrets.h.
 // This file only describes connected hardware and pins.
 
-// ===== Board profile =====
-// Active firmware target: GROVA PCB v1 / Founder Edition.
-#define GROVA_BOARD_PCB_V1 1
+// The active board profile and its default pins live in:
+//   include/boards/grova_core_v1.h
+//
+// This optional local file is only for deviations on an individual cube.
+// Leave a setting undefined to use the versioned V1 board-profile default.
 
 // ===== Sensors =====
 // Enable the driver families that this firmware may auto-detect on the cube.
@@ -31,9 +33,9 @@
 #define LTR390_I2C_ADDR 0x53
 #define LTR390_UVI_DIVISOR 2300.0F
 
-// ===== I2C =====
-#define OLED_SDA 21
-#define OLED_SCL 22
+// ===== Optional I2C overrides =====
+// #define OLED_SDA 21
+// #define OLED_SCL 22
 #define OLED_ADDR 0x3C
 
 // Optional DS3231/DS1307-compatible RTC on the same I2C bus.
@@ -41,23 +43,23 @@
 #define RTC_I2C_ADDR 0x68
 #define GROVA_RTC_DEFAULT_ENABLED 0
 
-// ===== MOSFET outputs =====
-#define PIN_LIGHT 26
-#define PIN_PUMP 13
-#define PIN_AUX_12V 27
-#define PIN_AUX_5V 14
+// ===== Optional MOSFET output overrides =====
+// #define PIN_LIGHT 26
+// #define PIN_PUMP 13
+// #define PIN_AUX_12V 27
+// #define PIN_AUX_5V 14
 
-// ===== Fans =====
-#define FAN_PWM 25
-#define FAN_TACHO 34
-#define FAN_TACHO_ENABLED 1
+// ===== Optional fan overrides =====
+// #define FAN_PWM 25
+// #define FAN_TACHO 34
+// #define FAN_TACHO_ENABLED 1
 
-#define FAN2_ENABLED 1
-#define FAN2_PWM 23
-#define FAN2_TACHO 35
-#define FAN2_TACHO_ENABLED 0
+// #define FAN2_ENABLED 1
+// #define FAN2_PWM 23
+// #define FAN2_TACHO 35
+// #define FAN2_TACHO_ENABLED 0
 
-// ===== Encoder =====
-#define ENCODER_CLK 33
-#define ENCODER_DT 32
-#define ENCODER_SW 2
+// ===== Optional encoder overrides =====
+// #define ENCODER_CLK 33
+// #define ENCODER_DT 32
+// #define ENCODER_SW 2
