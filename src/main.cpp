@@ -14,6 +14,7 @@
 #include "modules/fan.h"
 #include "modules/climate.h"
 #include "modules/pump_scheduler.h"
+#include "modules/pump.h"
 #include "modules/outputs.h"
 #include "modules/stability.h"
 #include "modules/display.h"
@@ -29,6 +30,7 @@
 // =========================
 void setup() {
   Serial.begin(115200);
+  pump_begin(); // Safe output and independent cutoff before network startup.
   fan_preinit();
   delay(500);
 

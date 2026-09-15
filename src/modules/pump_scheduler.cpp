@@ -8,7 +8,6 @@
 #include "modules/pump.h"
 #include "modules/pump_scheduler.h"
 
-static bool pumpRunning = false;
 static unsigned long pumpStartTime = 0;
 static unsigned long pumpRuntimeMs = 0;
 static PumpMode pumpMode = PUMP_MODE_IDLE;
@@ -110,13 +109,12 @@ static void loadLastAutoRun() {
   Serial.println("Pump settings loaded");
 }
 
-static void pumpScheduler_start(PumpMode mode, unsigned long runtimeMs) {
-  if (pumpRunning) return;
+static bool pumpScheduler_start(PumpMode mode, unsigned long runtimeMs) {
+  if (pump_isRunning()) return false;
 
   runtimeMs = clampPumpRuntime(runtimeMs);
-  pump_on();
-  pumpRunning = true;
   pumpStartTime = millis();
+  if (!pump_startTimed(runtimeMs)) return false;
   pumpRuntimeMs = runtimeMs;
   pumpMode = mode;
 
@@ -132,17 +130,16 @@ static void pumpScheduler_start(PumpMode mode, unsigned long runtimeMs) {
 
   Serial.print("PUMP START ");
   Serial.println(pumpScheduler_getModeName());
+  return true;
 }
 
 static void pumpScheduler_stop() {
-  if (!pumpRunning) return;
-
+  bool wasRunning = pumpMode != PUMP_MODE_IDLE;
   pump_off();
-  pumpRunning = false;
   pumpRuntimeMs = 0;
   pumpMode = PUMP_MODE_IDLE;
 
-  Serial.println("PUMP STOP");
+  if (wasRunning) Serial.println("PUMP STOP");
 }
 
 void pumpScheduler_begin() {
@@ -151,6 +148,8 @@ void pumpScheduler_begin() {
 }
 
 void pumpScheduler_loop() {
+  // Reconcile an ISR cutoff before evaluating any new schedule.
+  if (pumpMode != PUMP_MODE_IDLE && !pump_isRunning()) pumpScheduler_stop();
   if (restMode_isEnabled()) {
     pumpScheduler_stop();
     return;
@@ -166,18 +165,18 @@ void pumpScheduler_loop() {
      getHour() == pumpRunHour &&
      getMinute() == pumpRunMinute);
 
-  if (isTime && !pumpRunning && canStartAutoPump()) {
+  if (isTime && !pump_isRunning() && canStartAutoPump()) {
     pumpScheduler_start(PUMP_MODE_AUTO, static_cast<unsigned long>(pumpRunDurationSeconds) * 1000UL);
   }
 
-  if (pumpRunning && millis() - pumpStartTime >= pumpRuntimeMs) {
+  if (pump_isRunning() && millis() - pumpStartTime >= pumpRuntimeMs) {
     pumpScheduler_stop();
   }
 }
 
-void pumpScheduler_manualStart() {
-  if (restMode_isEnabled()) return;
-  pumpScheduler_start(PUMP_MODE_TEST, PUMP_TEST_RUNTIME_MS);
+bool pumpScheduler_manualStart() {
+  if (restMode_isEnabled()) return false;
+  return pumpScheduler_start(PUMP_MODE_TEST, PUMP_TEST_RUNTIME_MS);
 }
 
 void pumpScheduler_manualStop() {
@@ -190,13 +189,12 @@ void pumpScheduler_setAutoScheduleEnabled(bool enabled) {
 
 bool pumpScheduler_startAutoRunSeconds(int seconds) {
   if (seconds < PUMP_RUNTIME_MIN_SECONDS || seconds > PUMP_RUNTIME_MAX_SECONDS) return false;
-  if (pumpRunning || !canStartAutoPump()) return false;
-  pumpScheduler_start(PUMP_MODE_AUTO, static_cast<unsigned long>(seconds) * 1000UL);
-  return true;
+  if (pump_isRunning() || !canStartAutoPump()) return false;
+  return pumpScheduler_start(PUMP_MODE_AUTO, static_cast<unsigned long>(seconds) * 1000UL);
 }
 
 bool pumpScheduler_isRunning() {
-  return pumpRunning;
+  return pump_isRunning();
 }
 
 int pumpScheduler_getLastRunDay() {
@@ -213,11 +211,11 @@ bool pumpScheduler_wasRunToday() {
 }
 
 PumpMode pumpScheduler_getMode() {
-  return pumpMode;
+  return pump_isRunning() ? pumpMode : PUMP_MODE_IDLE;
 }
 
 const char* pumpScheduler_getModeName() {
-  switch (pumpMode) {
+  switch (pumpScheduler_getMode()) {
     case PUMP_MODE_AUTO: return "AUTO";
     case PUMP_MODE_TEST: return "TEST";
     case PUMP_MODE_IDLE:
@@ -227,8 +225,8 @@ const char* pumpScheduler_getModeName() {
 
 const char* pumpScheduler_getReasonName() {
   if (restMode_isEnabled()) return "REST OFF";
-  if (pumpRunning && pumpMode == PUMP_MODE_AUTO) return "RUN AUTO";
-  if (pumpRunning && pumpMode == PUMP_MODE_TEST) return "RUN TEST";
+  if (pump_isRunning() && pumpMode == PUMP_MODE_AUTO) return "RUN AUTO";
+  if (pump_isRunning() && pumpMode == PUMP_MODE_TEST) return "RUN TEST";
   if (growMode_isHarvest()) return "HARVEST OFF";
   if (!isTimeSynced()) return "TIME WAIT";
   if (pumpScheduler_isStartupLocked()) return "BOOT LOCK";
@@ -238,7 +236,7 @@ const char* pumpScheduler_getReasonName() {
 }
 
 unsigned long pumpScheduler_getRemainingSeconds() {
-  if (!pumpRunning) return 0;
+  if (!pump_isRunning()) return 0;
 
   unsigned long elapsed = millis() - pumpStartTime;
   if (elapsed >= pumpRuntimeMs) return 0;

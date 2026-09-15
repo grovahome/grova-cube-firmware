@@ -18,7 +18,7 @@ void pumpScheduler_begin();
 void pumpScheduler_loop();
 void pumpScheduler_setAutoScheduleEnabled(bool enabled);
 
-void pumpScheduler_manualStart();
+bool pumpScheduler_manualStart();
 void pumpScheduler_manualStop();
 bool pumpScheduler_startAutoRunSeconds(int seconds);
 bool pumpScheduler_isRunning();

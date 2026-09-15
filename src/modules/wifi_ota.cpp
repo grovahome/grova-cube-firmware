@@ -3,6 +3,7 @@
 #include <ArduinoOTA.h>
 #include <string.h>
 #include "config.h"
+#include "modules/pump.h"
 
 static unsigned long lastReconnect = 0;
 static String ipText = "-";
@@ -35,6 +36,10 @@ void wifiOTA_begin() {
   }
 
   ArduinoOTA.setHostname(OTA_HOSTNAME);
+  ArduinoOTA.onStart([]() {
+    // Also remains inhibited after an OTA error; reboot explicitly to re-arm.
+    pump_inhibit();
+  });
   ArduinoOTA.begin();
 }
 

@@ -455,7 +455,10 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
         makeResponse(responseJson, false, "rest mode active");
         return false;
       }
-      pumpScheduler_manualStart();
+      if (!pumpScheduler_manualStart()) {
+        makeResponse(responseJson, false, "pump busy or safety cutoff unavailable/inhibited");
+        return false;
+      }
       makeResponse(responseJson, true, "pump test started");
       return true;
     }

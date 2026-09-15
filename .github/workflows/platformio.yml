@@ -20,5 +20,8 @@ jobs:
       - name: Install PlatformIO
         run: python -m pip install --upgrade platformio
 
+      - name: Compile pump safety bench tests (no upload or execution)
+        run: pio test -e grova_core_v1 -f test_pump_safety --without-uploading --without-testing
+
       - name: Build firmware
         run: pio run -e grova_core_v1
