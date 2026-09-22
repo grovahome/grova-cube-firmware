@@ -6,6 +6,7 @@
 static Preferences restSettings;
 static bool settingsReady = false;
 static bool restEnabled = false;
+static bool persistedEnabled = false;
 
 void restMode_begin() {
   settingsReady = restSettings.begin("vgrow-rest", false);
@@ -16,6 +17,7 @@ void restMode_begin() {
   }
 
   restEnabled = restSettings.getBool("enabled", false);
+  persistedEnabled = restEnabled;
   Serial.print("Rest mode loaded: ");
   Serial.println(restMode_getName());
 }
@@ -29,17 +31,18 @@ bool restMode_settingsReady() {
 }
 
 bool restMode_setEnabled(bool enabled, bool saveNow) {
-  if (saveNow && !settingsReady) return false;
-  if (restEnabled == enabled) return true;
-
-  restEnabled = enabled;
-  if (saveNow && settingsReady) {
-    restSettings.putBool("enabled", restEnabled);
-    Serial.print("Rest mode saved: ");
-    Serial.println(restMode_getName());
+  // Enter safety immediately, even if storage is unavailable. Leaving it must
+  // first persist successfully. Track RAM-only changes so they are saved later.
+  if (enabled) restEnabled = true;
+  if (saveNow) {
+    if (!settingsReady) return false;
+    if (persistedEnabled != enabled) {
+      if (restSettings.putBool("enabled", enabled) != 1) return false;
+      persistedEnabled = enabled;
+    }
   }
-
-  return settingsReady;
+  restEnabled = enabled;
+  return !saveNow || settingsReady;
 }
 
 const char* restMode_getName() {

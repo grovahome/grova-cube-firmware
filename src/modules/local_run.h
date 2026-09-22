@@ -7,6 +7,7 @@ void localRun_loop();
 bool localRun_settingsReady();
 bool localRun_isActive();
 bool localRun_isPaused();
+bool localRun_isFinished();
 int localRun_getSlot();
 int localRun_getPhaseIndex();
 int localRun_getDay();
@@ -23,4 +24,3 @@ bool localRun_start(int slot, unsigned long startAtSeconds, const char* runId, u
 bool localRun_stop();
 bool localRun_pause(bool paused);
 void localRun_appendJson(String& json);
-

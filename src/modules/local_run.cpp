@@ -4,6 +4,7 @@
 
 #include "modules/climate.h"
 #include "modules/grow_mode.h"
+#include "modules/fan.h"
 #include "modules/light.h"
 #include "modules/local_run.h"
 #include "modules/preset_store.h"
@@ -31,6 +32,23 @@ static uint32_t pumpEventMask = 0;
 static uint32_t appliedPresetChecksum = 0;
 static float totalProgressPct = 0.0;
 static float phaseProgressPct = 0.0;
+enum RunEnd : uint8_t { RUN_NOT_ENDED, RUN_COMPLETED, RUN_STOPPED };
+static RunEnd runEnd = RUN_NOT_ENDED;
+static unsigned long endedAtS = 0;
+static bool terminalPersisted = true;
+static unsigned long lastPersistAttempt = 0;
+
+// One NVS blob prevents a reboot from combining a new active flag with an old
+// run identity or completion marker. Older per-key records are read on upgrade.
+struct StoredRun {
+  uint32_t version;
+  uint32_t startS, pauseS, endS, revision;
+  int32_t slot, phase, day, pumpDate, pumpPhase;
+  uint32_t pumpMask;
+  float totalProgress, phaseProgress;
+  uint8_t active, paused, end;
+  char id[40], name[32], label[24];
+};
 
 static void appendEscapedJsonValue(String& json, const char* value) {
   for (const char* cursor = value; *cursor; cursor++) {
@@ -137,24 +155,88 @@ static void applyPhase(const LocalPresetPhase& phase, int phaseIndex, uint32_t p
   Serial.println(phase.label);
 }
 
-static void saveState() {
-  if (!settingsReady) return;
-  runSettings.putBool("active", runActive);
-  runSettings.putBool("paused", runPaused);
-  runSettings.putChar("slot", static_cast<int8_t>(runSlot));
-  runSettings.putULong("startS", startedAtS);
-  runSettings.putULong("pauseS", pausedAtS);
-  runSettings.putUInt("rev", runRevision);
-  runSettings.putString("runId", runId);
-  runSettings.putInt("pumpDate", pumpEventDateKey);
-  runSettings.putInt("pumpPhase", pumpEventPhaseIndex);
-  runSettings.putUInt("pumpMask", pumpEventMask);
+static bool saveState() {
+  if (!settingsReady) return false;
+  StoredRun saved = {};
+  saved.version = 1;
+  saved.startS = startedAtS; saved.pauseS = pausedAtS; saved.endS = endedAtS;
+  saved.revision = runRevision; saved.slot = runSlot;
+  saved.phase = currentPhaseIndex; saved.day = runDay;
+  saved.pumpDate = pumpEventDateKey; saved.pumpPhase = pumpEventPhaseIndex;
+  saved.pumpMask = pumpEventMask;
+  saved.totalProgress = totalProgressPct; saved.phaseProgress = phaseProgressPct;
+  saved.active = runActive; saved.paused = runPaused; saved.end = runEnd;
+  copyText(saved.id, sizeof(saved.id), runId);
+  copyText(saved.name, sizeof(saved.name), presetName);
+  copyText(saved.label, sizeof(saved.label), phaseLabel);
+  return runSettings.putBytes("state", &saved, sizeof(saved)) == sizeof(saved);
+}
+
+static void parkOutputs() {
+  restMode_setEnabled(true, false);
+  pumpScheduler_setAutoScheduleEnabled(false);
+  pumpScheduler_manualStop();
+  fan_forceOff();
+  light_loop();
+}
+
+static bool persistTerminal() {
+  lastPersistAttempt = millis();
+  const bool runSaved = saveState();
+  const bool restSaved = restMode_setEnabled(true, true);
+  terminalPersisted = runSaved && restSaved;
+  return terminalPersisted;
+}
+
+static bool finishRun(RunEnd reason, unsigned long endTime) {
+  parkOutputs();
+  runActive = false;
+  runPaused = false;
+  pausedAtS = 0;
+  runEnd = reason;
+  endedAtS = endTime;
+  copyText(phaseLabel, sizeof(phaseLabel), reason == RUN_COMPLETED ? "Complete" : "Stopped");
+  if (reason == RUN_COMPLETED) {
+    totalProgressPct = 100.0f;
+    phaseProgressPct = 100.0f;
+  }
+  return persistTerminal();
 }
 
 static void loadState() {
   settingsReady = runSettings.begin("grova-run", false);
   if (!settingsReady) {
     Serial.println("Local run settings unavailable");
+    runEnd = RUN_STOPPED;
+    terminalPersisted = false;
+    return;
+  }
+  if (runSettings.isKey("state")) {
+    StoredRun saved = {};
+    if (runSettings.getBytesLength("state") != sizeof(saved) ||
+        runSettings.getBytes("state", &saved, sizeof(saved)) != sizeof(saved) ||
+        saved.version != 1 || saved.end > RUN_STOPPED ||
+        saved.active > 1 || saved.paused > 1 ||
+        (saved.active && (saved.slot < 0 || saved.slot >= GROVA_PRESET_SLOT_COUNT || saved.startS == 0)) ||
+        !memchr(saved.id, 0, sizeof(saved.id)) ||
+        !memchr(saved.name, 0, sizeof(saved.name)) || !memchr(saved.label, 0, sizeof(saved.label))) {
+      runActive = false;
+      runEnd = RUN_STOPPED;
+      terminalPersisted = false;
+      return;
+    }
+    runEnd = static_cast<RunEnd>(saved.end);
+    runActive = saved.active && runEnd == RUN_NOT_ENDED;
+    runPaused = saved.paused && runActive;
+    runSlot = saved.slot; currentPhaseIndex = saved.phase; runDay = saved.day;
+    startedAtS = saved.startS; pausedAtS = saved.pauseS; endedAtS = saved.endS;
+    runRevision = saved.revision;
+    pumpEventDateKey = saved.pumpDate; pumpEventPhaseIndex = saved.pumpPhase;
+    pumpEventMask = saved.pumpMask;
+    totalProgressPct = saved.totalProgress; phaseProgressPct = saved.phaseProgress;
+    copyText(runId, sizeof(runId), saved.id);
+    copyText(presetName, sizeof(presetName), saved.name);
+    copyText(phaseLabel, sizeof(phaseLabel), saved.label);
     return;
   }
   runActive = runSettings.getBool("active", false);
@@ -207,17 +289,27 @@ void localRun_begin() {
   if (runActive && presetStore_loadSlot(runSlot, preset)) {
     copyText(presetName, sizeof(presetName), preset.name);
   }
-  pumpScheduler_setAutoScheduleEnabled(!runActive);
+  if (runEnd != RUN_NOT_ENDED) {
+    parkOutputs();
+    persistTerminal();
+  } else {
+    pumpScheduler_setAutoScheduleEnabled(!runActive);
+  }
   Serial.print("Local run active: ");
   Serial.println(runActive ? "yes" : "no");
 }
 
 void localRun_loop() {
+  if (runEnd != RUN_NOT_ENDED) {
+    parkOutputs();
+    if (!terminalPersisted && millis() - lastPersistAttempt >= 1000UL) persistTerminal();
+    return;
+  }
   if (!runActive) {
     pumpScheduler_setAutoScheduleEnabled(true);
     return;
   }
-  if (runPaused || restMode_isEnabled()) {
+  if (runPaused) {
     pumpScheduler_setAutoScheduleEnabled(false);
     return;
   }
@@ -238,9 +330,16 @@ void localRun_loop() {
   runDay = static_cast<int>(ageS / 86400UL) + 1;
   totalProgressPct = totalDurationS > 0 ? min(100.0f, (ageS * 100.0f) / totalDurationS) : 0.0f;
   if (!phase) {
-    copyText(phaseLabel, sizeof(phaseLabel), totalDurationS > 0 && ageS >= totalDurationS ? "Complete" : "Waiting");
+    if (totalDurationS > 0 && ageS >= totalDurationS) {
+      currentPhaseIndex = phaseIndex;
+      runDay = totalDurationS / 86400UL;
+      finishRun(RUN_COMPLETED, startedAtS + totalDurationS);
+    } else {
+      copyText(phaseLabel, sizeof(phaseLabel), "Waiting");
+    }
     return;
   }
+  if (restMode_isEnabled()) return;
   unsigned long phaseDurationS = static_cast<unsigned long>(phase->duration_days) * 86400UL;
   phaseProgressPct = phaseDurationS > 0 ? min(100.0f, ((nowS - phaseStartS) * 100.0f) / phaseDurationS) : 0.0f;
   applyPhase(*phase, phaseIndex, preset.checksum);
@@ -250,6 +349,7 @@ void localRun_loop() {
 bool localRun_settingsReady() { return settingsReady; }
 bool localRun_isActive() { return runActive; }
 bool localRun_isPaused() { return runPaused; }
+bool localRun_isFinished() { return runEnd != RUN_NOT_ENDED; }
 int localRun_getSlot() { return runSlot; }
 int localRun_getPhaseIndex() { return currentPhaseIndex; }
 int localRun_getDay() { return runDay; }
@@ -257,8 +357,8 @@ float localRun_getTotalProgressPct() { return totalProgressPct; }
 float localRun_getPhaseProgressPct() { return phaseProgressPct; }
 unsigned long localRun_getStartedAtSeconds() { return startedAtS; }
 unsigned long localRun_getRunAgeSeconds() {
-  unsigned long nowS = getEpochSeconds();
-  if (!runActive || nowS <= startedAtS) return 0;
+  unsigned long nowS = runEnd != RUN_NOT_ENDED ? endedAtS : (runPaused ? pausedAtS : getEpochSeconds());
+  if (startedAtS == 0 || nowS <= startedAtS) return 0;
   return nowS - startedAtS;
 }
 uint32_t localRun_getRevision() { return runRevision; }
@@ -266,6 +366,8 @@ const char* localRun_getRunId() { return runId; }
 const char* localRun_getPresetName() { return presetName; }
 const char* localRun_getPhaseLabel() { return phaseLabel; }
 const char* localRun_getStatusName() {
+  if (runEnd == RUN_COMPLETED) return "completed";
+  if (runEnd == RUN_STOPPED) return "stopped";
   if (!runActive) return "idle";
   if (restMode_isEnabled()) return "rest";
   if (runPaused) return "paused";
@@ -276,12 +378,22 @@ const char* localRun_getStatusName() {
 bool localRun_start(int slot, unsigned long startAtSeconds, const char* newRunId, uint32_t revision) {
   if (!settingsReady) return false;
   if (revision > 0 && revision < runRevision) return false;
+  if (revision > 0 && revision == runRevision) {
+    // A repeated delivery must not restart a completed run or reset pump locks.
+    return runActive && newRunId && strcmp(newRunId, runId) == 0 && slot == runSlot;
+  }
   LocalPresetBlob preset;
   if (!presetStore_loadSlot(slot, preset)) return false;
+  const unsigned long start = startAtSeconds > 0 ? startAtSeconds : getEpochSeconds();
+  if (start == 0) return false;
+  parkOutputs();
   runActive = true;
   runPaused = false;
+  runEnd = RUN_NOT_ENDED;
+  endedAtS = 0;
+  terminalPersisted = true;
   runSlot = slot;
-  startedAtS = startAtSeconds > 0 ? startAtSeconds : getEpochSeconds();
+  startedAtS = start;
   pausedAtS = 0;
   runRevision = revision > 0 ? revision : runRevision + 1;
   currentPhaseIndex = -1;
@@ -289,35 +401,27 @@ bool localRun_start(int slot, unsigned long startAtSeconds, const char* newRunId
   pumpEventDateKey = -1;
   pumpEventPhaseIndex = -1;
   pumpEventMask = 0;
+  runDay = 0;
+  totalProgressPct = 0;
+  phaseProgressPct = 0;
   copyText(runId, sizeof(runId), newRunId && strlen(newRunId) ? newRunId : "local-run");
   copyText(presetName, sizeof(presetName), preset.name);
   copyText(phaseLabel, sizeof(phaseLabel), "Starting");
   pumpScheduler_setAutoScheduleEnabled(false);
-  saveState();
+  if (!saveState() || !restMode_setEnabled(false, true)) {
+    finishRun(RUN_STOPPED, getEpochSeconds());
+    return false;
+  }
   localRun_loop();
   return true;
 }
 
 bool localRun_stop() {
-  if (!settingsReady) return false;
-  runActive = false;
-  runPaused = false;
-  runSlot = -1;
-  startedAtS = 0;
-  pausedAtS = 0;
-  currentPhaseIndex = -1;
-  appliedPresetChecksum = 0;
-  runDay = 0;
-  totalProgressPct = 0;
-  phaseProgressPct = 0;
-  pumpEventDateKey = -1;
-  pumpEventPhaseIndex = -1;
-  pumpEventMask = 0;
-  copyText(phaseLabel, sizeof(phaseLabel), "");
-  pumpScheduler_setAutoScheduleEnabled(true);
-  pumpScheduler_manualStop();
-  saveState();
-  return true;
+  if (runEnd != RUN_NOT_ENDED) {
+    parkOutputs();
+    return persistTerminal();
+  }
+  return finishRun(RUN_STOPPED, getEpochSeconds());
 }
 
 bool localRun_pause(bool paused) {
@@ -340,6 +444,9 @@ bool localRun_pause(bool paused) {
 
 void localRun_appendJson(String& json) {
   json += "\"local_run\":{";
+  appendJsonBool(json, "completion_rest", true);
+  appendJsonBool(json, "terminal_persisted", terminalPersisted);
+  appendJsonInt(json, "ended_at_s", endedAtS);
   appendJsonBool(json, "active", runActive);
   appendJsonBool(json, "paused", runPaused);
   appendJsonString(json, "status", localRun_getStatusName());

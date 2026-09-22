@@ -296,6 +296,10 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
                              strcmp(mode, "MAN_OFF") == 0 ||
                              strcmp(mode, "OFF") == 0;
     if (manualLight && restMode_isEnabled()) {
+      if (localRun_isFinished()) {
+        makeResponse(responseJson, false, "run ended; start a new run to leave rest mode");
+        return false;
+      }
       restMode_setEnabled(false, true);
     }
 
@@ -335,6 +339,10 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
     int fan = 0;
     extractInt(requestBody, "fan", fan);
     if (restMode_isEnabled()) {
+      if (localRun_isFinished()) {
+        makeResponse(responseJson, false, "run ended; start a new run to leave rest mode");
+        return false;
+      }
       restMode_setEnabled(false, true);
     }
     if (!fan_setManual(fan, percent)) {
@@ -364,6 +372,10 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
       return false;
     }
 
+    if (!enabled && localRun_isFinished()) {
+      makeResponse(responseJson, false, "run ended; start a new run to leave rest mode");
+      return false;
+    }
     if (!restMode_setEnabled(enabled, true)) {
       makeResponse(responseJson, false, "rest mode settings unavailable");
       return false;
@@ -583,6 +595,12 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
   }
 
   if (strcmp(command, "STOP_LOCAL_RUN") == 0) {
+    char expectedRunId[40] = "";
+    if (extractString(requestBody, "run_id", expectedRunId, sizeof(expectedRunId)) &&
+        strcmp(expectedRunId, localRun_getRunId()) != 0) {
+      makeResponse(responseJson, false, "run id mismatch");
+      return false;
+    }
     if (!localRun_stop()) {
       makeResponse(responseJson, false, "local run stop failed");
       return false;
