@@ -8,6 +8,7 @@
 #include "modules/alarms.h"
 #include "modules/climate.h"
 #include "modules/control.h"
+#include "modules/command_deadline.h"
 #include "modules/fan.h"
 #include "modules/fan_control.h"
 #include "modules/grow_mode.h"
@@ -546,7 +547,13 @@ static void handleCommand(char* topic, byte* payload, unsigned int length) {
   extractString(body, "cmd_id", cmdId, sizeof(cmdId));
 
   String response;
-  bool ok = control_handleJson(body, response);
+  static RecentCommandIds recentCommands;
+  bool ok = false;
+  if (recentCommands.accept(cmdId)) {
+    ok = control_handleJson(body, response);
+  } else {
+    response = "{\"ok\":false,\"message\":\"duplicate command id\"}";
+  }
   String ack = buildAckJson(cmdId, ok, response);
   mqtt.publish(ackTopic, ack.c_str());
   publishTelemetry();

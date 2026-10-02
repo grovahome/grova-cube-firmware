@@ -5,6 +5,7 @@ import subprocess
 import tempfile
 
 SCENARIOS = (
+    "deadline", "pause_write_failure", "resume_write_failure", "pause_clock_failure",
     "boundary", "manual_stop", "reboot_completed", "reboot_stopped", "pause_resume",
     "rest_elapsed", "future_start", "offline_time_wait", "new_explicit_start",
     "save_failure_retry", "power_loss_between_run_and_rest_save", "start_save_failure", "legacy_migration",

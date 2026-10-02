@@ -3,6 +3,7 @@
 #include <string.h>
 #include "modules/climate.h"
 #include "modules/control.h"
+#include "modules/command_deadline.h"
 #include "modules/fan.h"
 #include "modules/fan_policy.h"
 #include "modules/grow_mode.h"
@@ -263,6 +264,22 @@ bool control_handleJson(const String& requestBody, String& responseJson) {
   }
 
   normalizeToken(command);
+
+  unsigned long expiry = 0;
+  if (requestBody.indexOf("\"expires_at_s\"") >= 0 &&
+      (!extractUnsignedLong(requestBody, "expires_at_s", expiry) || expiry == 0 ||
+       !commandDeadlineAllows(expiry, isTimeSynced(), getEpochSeconds()))) {
+    makeResponse(responseJson, false, "command expired or clock unavailable");
+    return false;
+  }
+  if (strcmp(command, "PAUSE_LOCAL_RUN") == 0 || strcmp(command, "RESUME_LOCAL_RUN") == 0) {
+    char expectedRunId[40] = "";
+    if (extractString(requestBody, "run_id", expectedRunId, sizeof(expectedRunId)) &&
+        strcmp(expectedRunId, localRun_getRunId()) != 0) {
+      makeResponse(responseJson, false, "run id mismatch");
+      return false;
+    }
+  }
 
   if (strcmp(command, "SET_GROW_MODE") == 0) {
     char mode[20];

@@ -2,6 +2,11 @@
 
 # GROVA CORE
 
+Current engineering status (2026-10-02): active firmware targets PCB v1 / Cube 002.
+Cube 001 is frozen; Founder firmware starts after hardware arrival and V1 freeze.
+See [run completion and deployed validation](docs/local-run-lifecycle.md) and
+[command safety development](docs/command-safety.md) for installed versus pending changes.
+
 ### Local-first climate automation for grow spaces, greenhouses and environmental control.
 
 Built for makers, growers and automation builders who want to own their infrastructure,

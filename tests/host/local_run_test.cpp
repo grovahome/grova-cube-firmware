@@ -7,6 +7,7 @@
 #include "modules/preset_store.h"
 #include "modules/rest_mode.h"
 #include "modules/grow_mode.h"
+#include "modules/command_deadline.h"
 
 static unsigned long nowS = 1800000000UL;
 static unsigned long nowMs = 0;
@@ -56,7 +57,30 @@ int main(int argc, char** argv) {
     phase.day_hum_pct = phase.night_hum_pct = 60;
   }
   boot();
-  if (scenario == "boundary") {
+  if (scenario == "deadline") {
+    assert(commandDeadlineAllows(0, false, 0));
+    assert(commandDeadlineAllows(101, true, 100));
+    assert(!commandDeadlineAllows(100, true, 100));
+    assert(!commandDeadlineAllows(99, true, 100));
+    assert(!commandDeadlineAllows(101, false, 0));
+    RecentCommandIds ids;
+    assert(ids.accept("pump-1")); assert(!ids.accept("pump-1"));
+    assert(ids.accept("pump-2")); assert(ids.accept(""));
+  } else if (scenario == "pause_write_failure") {
+    start(); testNvs::failWrites = true;
+    assert(!localRun_pause(true)); parked("stopped");
+    testNvs::failWrites = false; step(1); boot(); parked("stopped");
+  } else if (scenario == "resume_write_failure") {
+    start(); step(3600); assert(localRun_pause(true)); step(100);
+    testNvs::failWrites = true; assert(!localRun_pause(false));
+    assert(localRun_isPaused()); assert(localRun_getRunAgeSeconds() == 3600);
+    testNvs::failWrites = false; boot(); assert(localRun_isPaused());
+    assert(localRun_pause(false)); assert(localRun_getRunAgeSeconds() == 3600);
+  } else if (scenario == "pause_clock_failure") {
+    start(); synced = false; assert(!localRun_pause(true));
+    synced = true; assert(localRun_pause(true));
+    synced = false; assert(!localRun_pause(false)); assert(localRun_isPaused());
+  } else if (scenario == "boundary") {
     start(); step(86400); assert(localRun_getPhaseIndex() == 1);
     step(86399); assert(localRun_isActive());
     pumpOn = lightOn = fanOn = true;

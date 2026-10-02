@@ -426,7 +426,12 @@ bool localRun_stop() {
 
 bool localRun_pause(bool paused) {
   if (!settingsReady || !runActive) return false;
+  if (paused == runPaused) return true;
+  if (!isTimeSynced()) return false;
   unsigned long nowS = getEpochSeconds();
+  if (nowS == 0 || (!paused && (pausedAtS == 0 || nowS < pausedAtS))) return false;
+  const unsigned long previousStart = startedAtS;
+  const unsigned long previousPause = pausedAtS;
   if (paused && !runPaused) {
     pausedAtS = nowS;
     pumpScheduler_manualStop();
@@ -437,7 +442,15 @@ bool localRun_pause(bool paused) {
     pausedAtS = 0;
   }
   runPaused = paused;
-  saveState();
+  if (!saveState()) {
+    startedAtS = previousStart;
+    pausedAtS = previousPause;
+    runPaused = !paused;
+    // A failed resume stays paused. A failed pause parks the whole run and
+    // retries terminal persistence rather than silently continuing watering.
+    if (paused) finishRun(RUN_STOPPED, nowS);
+    return false;
+  }
   if (!runPaused) localRun_loop();
   return true;
 }

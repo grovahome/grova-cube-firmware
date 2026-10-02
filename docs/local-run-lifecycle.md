@@ -46,19 +46,23 @@ python tests/host/run_tests.py
 ```
 
 Requires a C++17 compiler (`--compiler PATH`; add `--zig` for Zig).
-The 13 scenarios cover the final boundary, manual stop, reboot, pause/resume,
+The 17 scenarios cover command deadlines, failed pause/resume writes, missing
+time during pause/resume, the final boundary, manual stop, reboot, pause/resume,
 Rest expiry, future starts, missing time, explicit restart, failed writes,
 power loss between run/Rest writes and legacy storage migration.
 CI runs these tests before the regular firmware build.
 
 Internal dashboard tests: `python -B -m unittest discover -s apps/grova-dashboard/tests -v`.
-The 14 tests cover telemetry reconciliation, persistence, ACK failures and races.
+The dashboard tests cover telemetry reconciliation, persistence, queue expiry,
+pause/resume failures, ACK failures and races.
 
 The host tests and application build passed during implementation. OTA was
 installed on Cube 002 on 2026-09-22. After reboot, its status reported
 `completion_rest: true`, healthy/settings OK, Rest enabled, pump/light off and
 both fans at 0%. Cube 001 was not updated. The dashboard changes are committed
-only in the local internal repository; server deployment is separate.
+only in the local internal repository and were deployed to the server on
+2026-09-22. Dashboard health, MQTT connectivity and both cubes were verified.
+The newer [command-safety changes](command-safety.md) are not deployed yet.
 
 A physical end-to-end completion test is still pending. On Cube 002, verify a short test run
 ends with pump/light/fans off, remains in Rest after reboot and only starts again
