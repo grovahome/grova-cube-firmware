@@ -62,7 +62,9 @@ installed on Cube 002 on 2026-09-22. After reboot, its status reported
 both fans at 0%. Cube 001 was not updated. The dashboard changes are committed
 only in the local internal repository and were deployed to the server on
 2026-09-22. Dashboard health, MQTT connectivity and both cubes were verified.
-The newer [command-safety changes](command-safety.md) are not deployed yet.
+The newer [command-safety changes](command-safety.md), firmware `2bafac6` and
+dashboard `1586d9e`, were deployed on 2026-10-02. Post-rollout health, MQTT and
+Rest/output status checks passed; physical acceptance tests remain open.
 
 A physical end-to-end completion test is still pending. On Cube 002, verify a short test run
 ends with pump/light/fans off, remains in Rest after reboot and only starts again

@@ -1,8 +1,8 @@
 # Command freshness and pause/resume persistence
 
-Development status: 2026-10-02; not yet deployed. These changes are versioned on
-`grova-core-v1` as `Reject stale commands and persist pause transitions`.
-Last deployed firmware is `d8f3243` (Cube 002 OTA 2026-09-22). The historical v1.1.0
+Deployment status: 2026-10-02. Firmware `2bafac6` was pushed on `grova-core-v1`
+and OTA-installed on Cube 002. Dashboard commit `1586d9e` was deployed to the
+local server after all 23 backend tests passed there. The historical v1.1.0
 tag is unchanged. Only PCB v1 / Cube 002 receives work on this line.
 
 ## Command contract
@@ -39,4 +39,7 @@ Run `python tests/host/run_tests.py`, then `pio run -e grova_core_v1`.
 On 2026-10-02 all 17 host scenarios and the application build passed (55,760
 bytes RAM, 1,014,949 bytes flash). The internal dashboard suite passed 23 tests.
 Physical completion/reboot/offline/new-start and pump-cutoff timing tests remain
-open; no hardware validation or OTA was performed for this change.
+open. Post-OTA status confirmed the Oct 2 build, healthy/settings OK, valid time,
+Rest enabled, and pump/light/both fans off. The dashboard restarted healthy with
+MQTT connected and both cubes online. These status checks do not replace physical
+acceptance tests. Cube 001 firmware was not updated.
