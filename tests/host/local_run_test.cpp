@@ -2,6 +2,7 @@
 // physical modules are simulated; no duplicate implementation of run logic.
 #include <cassert>
 #include <iostream>
+#include <stdexcept>
 #include "Preferences.h"
 #include "modules/local_run.h"
 #include "modules/preset_store.h"
@@ -14,6 +15,7 @@ static unsigned long nowMs = 0;
 static bool synced = true, scheduleEnabled = true;
 static bool pumpOn = false, lightOn = false, fanOn = false;
 static int pumpStarts = 0;
+static bool presetAvailable = true, refusePump = false, crashBeforePump = false;
 static LocalPresetBlob preset = {};
 unsigned long millis() { return nowMs; }
 bool isTimeSynced() { return synced; }
@@ -21,7 +23,7 @@ unsigned long getEpochSeconds() { return synced ? nowS : 0; }
 int getDateKey() { return nowS / 86400UL; }
 int getHour() { return 8; }
 int getMinute() { return 45; }
-bool presetStore_loadSlot(int slot, LocalPresetBlob& out) { out = preset; return slot == 0; }
+bool presetStore_loadSlot(int slot, LocalPresetBlob& out) { out = preset; return slot == 0 && presetAvailable; }
 bool growMode_set(GrowMode, bool) { return true; }
 bool climate_setTargets(float, float, int, int) { return true; }
 bool light_setSchedule(int, int) { return true; }
@@ -31,7 +33,11 @@ void light_loop() { if (restMode_isEnabled()) lightOn = false; }
 void fan_forceOff() { fanOn = false; }
 void pumpScheduler_setAutoScheduleEnabled(bool enabled) { scheduleEnabled = enabled; }
 void pumpScheduler_manualStop() { pumpOn = false; }
-bool pumpScheduler_startAutoRunSeconds(int) { ++pumpStarts; pumpOn = true; return true; }
+bool pumpScheduler_startAutoRunSeconds(int) {
+  if (crashBeforePump) throw std::runtime_error("power loss before output");
+  if (refusePump) return false;
+  ++pumpStarts; pumpOn = true; return true;
+}
 
 static void boot() { restMode_begin(); localRun_begin(); }
 static void step(unsigned long seconds) { nowS += seconds; nowMs += 2000; localRun_loop(); }
@@ -57,7 +63,46 @@ int main(int argc, char** argv) {
     phase.day_hum_pct = phase.night_hum_pct = 60;
   }
   boot();
-  if (scenario == "deadline") {
+  if (scenario == "pump_next_day") {
+    preset.phases[0].duration_days = 2;
+    start(); preset.phases[0].pump_enabled = true; preset.phases[0].pump_event_count = 1;
+    preset.phases[0].pump_events[0] = {1, 8, 45, 5};
+    step(1); assert(pumpStarts == 1); pumpOn = false;
+    boot(); step(1); assert(pumpStarts == 1);
+    step(86400); assert(pumpStarts == 2); pumpOn = false;
+    boot(); step(1); assert(pumpStarts == 2);
+  } else if (scenario == "pump_reservation_failure" || scenario == "pump_reboot_lock" ||
+      scenario == "pump_crash_before_output" || scenario == "pump_rejected_start") {
+    start();
+    preset.phases[0].pump_enabled = true;
+    preset.phases[0].pump_event_count = 1;
+    preset.phases[0].pump_events[0] = {1, 8, 45, 5};
+    if (scenario == "pump_reservation_failure") {
+      testNvs::failWrites = true; step(1); parked("stopped"); assert(pumpStarts == 0);
+      testNvs::failWrites = false; step(1); boot(); parked("stopped");
+      assert(std::string(localRun_getPhaseLabel()) == "Pump state write failed");
+    } else {
+      crashBeforePump = scenario == "pump_crash_before_output";
+      refusePump = scenario == "pump_rejected_start";
+      try { step(1); } catch (const std::runtime_error&) { assert(crashBeforePump); }
+      const int expectedStarts = scenario == "pump_reboot_lock" ? 1 : 0;
+      assert(pumpStarts == expectedStarts);
+      crashBeforePump = refusePump = false; pumpOn = false;
+      boot(); step(1); assert(pumpStarts == expectedStarts);
+      step(86400); // New phase has no events and must not repeat the old event.
+      assert(pumpStarts == expectedStarts);
+    }
+  } else if (scenario == "missing_preset" || scenario == "missing_preset_boot" || scenario == "missing_preset_paused") {
+    start(); pumpOn = lightOn = fanOn = true;
+    if (scenario == "missing_preset_paused") assert(localRun_pause(true));
+    presetAvailable = false; synced = false;
+    if (scenario == "missing_preset_boot") boot(); else localRun_loop();
+    parked("stopped"); assert(pumpStarts == 0);
+    assert(std::string(localRun_getPhaseLabel()) == "Preset unavailable");
+    boot(); parked("stopped");
+    String json; localRun_appendJson(json);
+    assert(std::string(json.c_str()).find("\"stop_reason\":\"Preset unavailable\"") != std::string::npos);
+  } else if (scenario == "deadline") {
     assert(commandDeadlineAllows(0, false, 0));
     assert(commandDeadlineAllows(101, true, 100));
     assert(!commandDeadlineAllows(100, true, 100));

@@ -21,6 +21,30 @@ Scope: Cube 002, PCB v1, `grova_core_v1`. Legacy Cube 001 stays frozen.
 
 ## Persistence and telemetry
 
+### Development update 2026-10-06 (not deployed)
+
+- Pump events are reserved in the run-state blob before the output is started.
+  A failed reservation stops the run in Rest Mode, reports `Pump state write failed`,
+  and retries terminal persistence. No pump start occurs on a failed write.
+- Reservation is intentionally at-most-once: power loss after reservation but
+  before output, or rejection by the pump's safety checks, can skip that dose.
+  The event is not retried automatically. The next day's event remains eligible.
+- Missing, unreadable or invalid presets stop the run with `Preset unavailable`.
+  This check also runs at boot, while paused and before time synchronization.
+  Preset checksum/format validation remains owned by the preset store.
+- Fault stops use status `stopped` and persistent phase detail. Telemetry adds
+  `stop_reason`; the dashboard retains and displays it after reconciliation.
+- The server preserves confirmed completion when a manual Stop ACK arrives later.
+  ACK storage now accepts only responses for registered requests, uses monotonic
+  expiry, and caps concurrent requests at 128. First ACK wins; timeout/error paths
+  remove both request registration and any stored response.
+
+Validation on 2026-10-06: 25 firmware host scenarios, 33 backend tests, JS syntax
+and the application build passed. RAM 55,760 bytes; flash 1,015,109 bytes.
+Tests simulate unavailable/corrupt-preset load failure through the preset-store
+interface; they do not inject corruption into a real Cube's flash storage.
+No new OTA, server deployment or physical acceptance test was performed.
+
 Run state is saved as one versioned Preferences blob. Existing per-key records
 are read when no blob exists. The terminal record is written before the separate
 Rest setting, so reboot between those writes still restores Rest Mode.
@@ -46,7 +70,8 @@ python tests/host/run_tests.py
 ```
 
 Requires a C++17 compiler (`--compiler PATH`; add `--zig` for Zig).
-The 17 scenarios cover command deadlines, failed pause/resume writes, missing
+The 25 scenarios cover pump event reservation/failure/reboot/next-day behaviour,
+unavailable presets, command deadlines, failed pause/resume writes, missing
 time during pause/resume, the final boundary, manual stop, reboot, pause/resume,
 Rest expiry, future starts, missing time, explicit restart, failed writes,
 power loss between run/Rest writes and legacy storage migration.

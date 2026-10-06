@@ -5,6 +5,9 @@ import subprocess
 import tempfile
 
 SCENARIOS = (
+    "pump_next_day",
+    "pump_reservation_failure", "pump_reboot_lock", "pump_crash_before_output", "pump_rejected_start",
+    "missing_preset", "missing_preset_boot", "missing_preset_paused",
     "deadline", "pause_write_failure", "resume_write_failure", "pause_clock_failure",
     "boundary", "manual_stop", "reboot_completed", "reboot_stopped", "pause_resume",
     "rest_elapsed", "future_start", "offline_time_wait", "new_explicit_start",

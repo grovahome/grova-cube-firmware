@@ -188,14 +188,14 @@ static bool persistTerminal() {
   return terminalPersisted;
 }
 
-static bool finishRun(RunEnd reason, unsigned long endTime) {
+static bool finishRun(RunEnd reason, unsigned long endTime, const char* detail = nullptr) {
   parkOutputs();
   runActive = false;
   runPaused = false;
   pausedAtS = 0;
   runEnd = reason;
   endedAtS = endTime;
-  copyText(phaseLabel, sizeof(phaseLabel), reason == RUN_COMPLETED ? "Complete" : "Stopped");
+  copyText(phaseLabel, sizeof(phaseLabel), detail ? detail : (reason == RUN_COMPLETED ? "Complete" : "Stopped"));
   if (reason == RUN_COMPLETED) {
     totalProgressPct = 100.0f;
     phaseProgressPct = 100.0f;
@@ -261,7 +261,6 @@ static void runPumpEvents(const LocalPresetPhase& phase, int phaseIndex) {
     pumpEventDateKey = dateKey;
     pumpEventPhaseIndex = phaseIndex;
     pumpEventMask = 0;
-    saveState();
   }
 
   for (uint8_t index = 0; index < phase.pump_event_count; index++) {
@@ -272,9 +271,14 @@ static void runPumpEvents(const LocalPresetPhase& phase, int phaseIndex) {
       continue;
     }
     if (getHour() == event.hour && getMinute() == event.minute) {
+      // Reserve durably before touching the output. A crash or rejected start
+      // may skip watering, but cannot replay a possibly delivered dose.
+      pumpEventMask |= (1UL << index);
+      if (!saveState()) {
+        finishRun(RUN_STOPPED, getEpochSeconds(), "Pump state write failed");
+        return;
+      }
       if (pumpScheduler_startAutoRunSeconds(event.duration_s)) {
-        pumpEventMask |= (1UL << index);
-        saveState();
         Serial.print("Local run pump event started ");
         Serial.println(index + 1);
       }
@@ -286,8 +290,12 @@ static void runPumpEvents(const LocalPresetPhase& phase, int phaseIndex) {
 void localRun_begin() {
   loadState();
   LocalPresetBlob preset;
-  if (runActive && presetStore_loadSlot(runSlot, preset)) {
-    copyText(presetName, sizeof(presetName), preset.name);
+  if (runActive) {
+    if (presetStore_loadSlot(runSlot, preset)) {
+      copyText(presetName, sizeof(presetName), preset.name);
+    } else {
+      finishRun(RUN_STOPPED, getEpochSeconds(), "Preset unavailable");
+    }
   }
   if (runEnd != RUN_NOT_ENDED) {
     parkOutputs();
@@ -309,17 +317,13 @@ void localRun_loop() {
     pumpScheduler_setAutoScheduleEnabled(true);
     return;
   }
-  if (runPaused) {
-    pumpScheduler_setAutoScheduleEnabled(false);
-    return;
-  }
   pumpScheduler_setAutoScheduleEnabled(false);
-  if (!isTimeSynced()) return;
   LocalPresetBlob preset;
   if (!presetStore_loadSlot(runSlot, preset)) {
-    copyText(phaseLabel, sizeof(phaseLabel), "Missing preset");
+    finishRun(RUN_STOPPED, getEpochSeconds(), "Preset unavailable");
     return;
   }
+  if (runPaused || !isTimeSynced()) return;
   copyText(presetName, sizeof(presetName), preset.name);
   unsigned long nowS = getEpochSeconds();
   unsigned long phaseStartS = 0;
@@ -463,6 +467,7 @@ void localRun_appendJson(String& json) {
   appendJsonBool(json, "active", runActive);
   appendJsonBool(json, "paused", runPaused);
   appendJsonString(json, "status", localRun_getStatusName());
+  appendJsonString(json, "stop_reason", runEnd == RUN_STOPPED && strcmp(phaseLabel, "Stopped") != 0 ? phaseLabel : "");
   appendJsonInt(json, "slot", runSlot);
   appendJsonString(json, "run_id", runId);
   appendJsonInt(json, "revision", runRevision);
