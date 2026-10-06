@@ -25,6 +25,7 @@
 #include "modules/time_sync.h"
 #include "modules/ui.h"
 #include "modules/wifi_ota.h"
+#include "modules/wifi_web.h"
 
 static WebServer server(80);
 static bool serverStarted = false;
@@ -68,7 +69,7 @@ static const char STATUS_PAGE[] PROGMEM = R"HTML(
 <main>
   <header>
     <div>
-      <h1>vGrow Status</h1>
+      <h1>vGrow Status</h1><a href="/wifi">WLAN einrichten</a>
       <div class="sub" id="updated">waiting for data</div>
     </div>
     <div class="pill" id="health">...</div>
@@ -365,6 +366,7 @@ static void appendJsonFloat(String& json, const char* key, float value, int deci
 }
 
 static void handleRoot() {
+  if (wifiWeb_setupRequest(server)) { wifiWeb_page(server); return; }
   server.send_P(200, "text/html", STATUS_PAGE);
 }
 
@@ -560,6 +562,7 @@ static void handleStatus() {
 }
 
 static void handleControl() {
+  if (wifiWeb_setupRequest(server)) { server.send(403, "application/json", "{\"ok\":false,\"message\":\"Setup network: controls disabled\"}"); return; }
   String body = server.arg("plain");
   String response;
   bool ok = control_handleJson(body, response);
@@ -578,6 +581,7 @@ static void handleConfig() {
 }
 
 static void handleConfigPost() {
+  if (wifiWeb_setupRequest(server)) { server.send(403, "application/json", "{\"ok\":false,\"message\":\"Setup network: controls disabled\"}"); return; }
   String body = server.arg("plain");
   String response;
   bool ok;
@@ -600,10 +604,7 @@ static void handleLocalPresets() {
 }
 
 void webStatus_begin() {
-  if (strlen(WIFI_SSID) == 0) {
-    Serial.println("Web status disabled");
-    return;
-  }
+  wifiWeb_register(server);
 
   server.on("/", HTTP_GET, handleRoot);
   server.on("/api/status", HTTP_GET, handleStatus);
@@ -612,12 +613,16 @@ void webStatus_begin() {
   server.on("/api/v1/local-presets", HTTP_GET, handleLocalPresets);
   server.on("/api/v1/config", HTTP_GET, handleConfig);
   server.on("/api/v1/config", HTTP_POST, handleConfigPost);
+  server.onNotFound([]() {
+    if (wifiWeb_setupRequest(server) && server.method() == HTTP_GET) wifiWeb_page(server);
+    else server.send(404, "text/plain", "Not found");
+  });
   server.begin();
   serverStarted = true;
   Serial.println("Web status ready");
 }
 
 void webStatus_loop() {
-  if (!serverStarted || WiFi.status() != WL_CONNECTED) return;
+  if (!serverStarted) return;
   server.handleClient();
 }

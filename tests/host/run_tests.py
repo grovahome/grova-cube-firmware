@@ -14,6 +14,13 @@ SCENARIOS = (
     "save_failure_retry", "power_loss_between_run_and_rest_save", "start_save_failure", "legacy_migration",
 )
 
+WIFI_SCENARIOS = (
+    "first_boot", "legacy_fallback", "saved_precedence", "success_and_ap_close",
+    "failed_trial_preserves_old", "storage_failure", "power_loss_during_trial", "dhcp_required",
+    "first_save_failure", "corrupt_record", "recovery_without_run_reset", "input_and_scan",
+    "millis_wrap", "ap_failure", "setup_key_write_failure", "key_failure_preserves_saved",
+)
+
 
 def main():
     parser = argparse.ArgumentParser()
@@ -29,7 +36,22 @@ def main():
         subprocess.run(command, cwd=root, check=True)
         for scenario in SCENARIOS:
             subprocess.run([str(binary), scenario], cwd=root, check=True)
+        wifi_binary = Path(directory) / "wifi_setup_tests.exe"
+        command = [args.compiler] + (["c++"] if args.zig else [])
+        command += ["-std=c++17", "-Wall", "-Wextra", "-Itests/host/wifi_include", "-Itests/host/include", "-Isrc", "-Iinclude",
+                    "tests/host/wifi_setup_test.cpp", "src/modules/wifi_ota.cpp", "src/modules/rest_mode.cpp", "-o", str(wifi_binary)]
+        subprocess.run(command, cwd=root, check=True)
+        for scenario in WIFI_SCENARIOS:
+            subprocess.run([str(wifi_binary), scenario], cwd=root, check=True)
+        web_binary = Path(directory) / "wifi_web_tests.exe"
+        command = [args.compiler] + (["c++"] if args.zig else [])
+        command += ["-std=c++17", "-Wall", "-Wextra", "-Itests/host/wifi_include", "-Itests/host/include", "-Isrc", "-Iinclude",
+                    "tests/host/wifi_web_test.cpp", "src/modules/wifi_web.cpp", "src/modules/wifi_ota.cpp",
+                    "src/modules/rest_mode.cpp", "-o", str(web_binary)]
+        subprocess.run(command, cwd=root, check=True)
+        subprocess.run([str(web_binary)], cwd=root, check=True)
     print(f"{len(SCENARIOS)} firmware lifecycle scenarios passed")
+    print(f"{len(WIFI_SCENARIOS)} Wi-Fi setup scenarios passed")
 
 
 if __name__ == "__main__":

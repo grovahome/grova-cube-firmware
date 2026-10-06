@@ -5,9 +5,11 @@
 #include <sstream>
 #include <string>
 #include <type_traits>
+#include <cstdio>
 using std::min;
 using std::max;
 unsigned long millis();
+#define PROGMEM
 class String {
   std::string value;
 public:
@@ -18,6 +20,10 @@ public:
     value = stream.str();
   }
   const char* c_str() const { return value.c_str(); }
+  bool operator==(const char* text) const { return value == text; }
+  bool operator!=(const char* text) const { return value != text; }
+  size_t length() const { return value.length(); }
+  char operator[](size_t i) const { return value[i]; }
   String& operator+=(const char* text) { value += text; return *this; }
   String& operator+=(char text) { value += text; return *this; }
   String& operator+=(const String& text) { value += text.value; return *this; }

@@ -16,6 +16,7 @@
 #include "modules/runtime_config.h"
 #include "modules/time_sync.h"
 #include "modules/ui.h"
+#include "modules/wifi_ota.h"
 
 static void normalizeToken(char* value) {
   for (size_t i = 0; value[i] != '\0'; i++) {
@@ -257,6 +258,10 @@ static bool setLightModeByName(const char* mode) {
 }
 
 bool control_handleJson(const String& requestBody, String& responseJson) {
+  if (wifiOTA_requiresSetup()) {
+    makeResponse(responseJson, false, "WiFi setup required; outputs parked");
+    return false;
+  }
   char command[32];
   if (!extractString(requestBody, "cmd", command, sizeof(command))) {
     makeResponse(responseJson, false, "missing cmd");

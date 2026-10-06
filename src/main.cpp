@@ -40,6 +40,8 @@ void setup() {
 
   // Network + OTA
   wifiOTA_begin();
+  restMode_begin();
+  if (wifiOTA_requiresSetup()) restMode_setEnabled(true, true);
 
   // Time (NTP)
   time_begin();
@@ -48,7 +50,6 @@ void setup() {
   stability_begin();
 
   // System modules
-  restMode_begin();
   presetStore_begin();
   runtimeConfig_begin();
   outputs_begin();
@@ -94,7 +95,11 @@ void loop() {
   stability_loop();
 
   // Local offline grow automation
-  localRun_loop();
+  if (wifiOTA_requiresSetup()) {
+    restMode_setEnabled(true, false);
+    pumpScheduler_setAutoScheduleEnabled(false);
+    pumpScheduler_manualStop();
+  } else localRun_loop();
 
   // Target values based on light phase
   climate_loop();
@@ -109,8 +114,10 @@ void loop() {
   // Fan control
   fan_loop();
 
-  ui_loop();
-  encoder_loop();
+  if (!wifiOTA_requiresSetup()) {
+    ui_loop();
+    encoder_loop();
+  }
 
   // Display
   display_loop(

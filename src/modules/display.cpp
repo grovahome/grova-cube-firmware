@@ -279,8 +279,8 @@ static void drawSystemPage() {
   drawLine(2, "FW ");
   display.print(GROVA_FIRMWARE_VERSION);
 
-  drawLine(3, "Build ");
-  display.print(GROVA_BUILD_TIME);
+  drawLine(3, "Setup PW ");
+  display.print(wifiOTA_setupPassword());
 
   drawLine(4, "Time ");
   display.print(isTimeSynced() ? "OK " : "-- ");
@@ -344,6 +344,19 @@ bool display_wakeFromUser() {
 
 void display_loop(float temp, float hum, int fanPercent, bool lightOn) {
   if (!displayReady) return;
+  if (wifiOTA_setupActive()) {
+    display_wakeFromUser();
+    if (millis() - lastUpdate < DISPLAY_UPDATE_MS) return;
+    lastUpdate = millis();
+    display.clearDisplay(); display.setTextSize(1); display.setTextColor(SSD1306_WHITE);
+    display.setCursor(0, 0); display.print("GROVA WLAN Setup");
+    display.setCursor(0, 12); display.print("WLAN "); display.print(wifiOTA_setupSSID());
+    display.setCursor(0, 24); display.print("PW "); display.print(wifiOTA_setupPassword());
+    display.setCursor(0, 36); display.print("IP "); display.print(wifiOTA_setupIP());
+    display.setCursor(0, 48);
+    display.print(wifiOTA_isConnected() && !wifiOTA_isTesting() ? wifiOTA_getIP() : wifiOTA_setupState());
+    display.display(); return;
+  }
 
   if (!displaySleeping && millis() - lastActivity >= DISPLAY_SLEEP_MS) {
     display.clearDisplay();
