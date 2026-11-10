@@ -78,7 +78,7 @@ one:
 3. SCD41
 4. BME280, when present and humidity is available
 
-In the PCB/Founder firmware line the SHT41/SHT4x and AHT20/AHTx0 drivers are
+In the current PCB v1 firmware line the SHT41/SHT4x and AHT20/AHTx0 drivers are
 compiled in by default. If a supported climate sensor is connected and
 initializes successfully, it becomes the active temperature/humidity source
 according to the priority above. If it is not connected, the cube continues with

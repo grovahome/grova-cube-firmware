@@ -1,10 +1,14 @@
 # GROVA Firmware Profiles
 
-Status date: 2026-07-31
+The PCB v1 software line is frozen at tag `grova-core-v1-final`.
+See [V1 freeze record](v1-freeze.md) for scope and validation limits.
 
-The active firmware line now targets only the current GROVA PCB v1 / Founder
-Edition hardware. Legacy hand-wired DHT hardware is frozen and is no longer
-updated from this source line.
+Status date: 2026-11-10
+
+The active firmware line targets only the current GROVA PCB v1 hardware. Legacy
+hand-wired DHT hardware is frozen and is no longer updated from this source
+line. Founder Edition firmware development starts only after real hardware is
+available and the final V1 state has been frozen and tagged.
 
 Credentials stay local in `include/secrets.h`. Each cube must set its own
 `MQTT_CUBE_ID`/device name.
@@ -14,14 +18,14 @@ Legacy DHT hardware remains documented for traceability only:
 ```text
 Last commit intended to support legacy DHT hardware: 11eacaf Add optional SHT41 sensor support
 Last stable release tag remains: v1.1.0 -> 0917d42
-Current source line after this cleanup: PCB v1 / Founder Edition only
+Current source line after this cleanup: current PCB v1 only
 ```
 
 RTC support is included in the shared firmware line, but it is disabled by
 default because the current active cubes do not have RTC modules fitted yet.
 
-SHT41/SHT4x and AHT20/AHTx0 temperature/humidity support is compiled into
-PCB/Founder builds by default and remains optional at runtime. If a supported
+SHT41/SHT4x and AHT20/AHTx0 temperature/humidity support is compiled into the
+PCB v1 build by default and remains optional at runtime. If a supported
 sensor is connected and initializes successfully, it can become the active
 temperature/humidity source according to the sensor priority below.
 
@@ -38,6 +42,26 @@ temperature/humidity source according to the sensor priority below.
 
 The cube ID is part of MQTT topics, payloads, ACK matching, dashboard state,
 history, and per-cube commands. Each physical cube must use a unique ID.
+
+## Board Profile And Future Split
+
+```text
+Active build environment: grova_core_v1
+Active selector: include/board_profile.h
+Current V1 profile: include/boards/grova_core_v1.h
+Profile commit: 7272854 Extract GROVA PCB v1 board profile
+```
+
+The V1 profile owns the existing board identity, output pins, fan/tacho pins,
+encoder pins, system-I2C pins, and hardware capabilities. Shared `config.h`
+contains hardware-independent settings. Optional ignored `include/board_config.h`
+overrides remain supported for an individual V1 cube.
+
+There is no Founder profile, ESP32-S3 code, or second PlatformIO environment in
+this branch. When Founder hardware arrives, the final V1 state will be tagged
+and a separate Founder branch will be created from it. Shared sensor discovery,
+control policies, APIs, MQTT schema, and persistence may evolve in both lines;
+the physical board profile and hardware drivers remain branch-specific.
 
 ## PCB v1 Expansion Headers
 
@@ -222,7 +246,7 @@ order:
 4. BME280 humidity/temperature fallback, when Bosch is enabled and present
 ```
 
-For PCB/Founder builds, all planned I2C sensor families are compiled in by
+For the current PCB v1 build, all planned I2C sensor families are compiled in by
 default. Missing sensors are normal. The cube reports unavailable channels as
 `null` and continues with the available modules.
 
@@ -249,8 +273,14 @@ include/secrets.h
 include/board_config.h
   Optional local hardware profile override. Ignored by Git.
 
+include/board_profile.h
+  Versioned selector for the active branch-specific profile.
+
+include/boards/grova_core_v1.h
+  Versioned PCB v1 identity, pin defaults, and capabilities.
+
 include/board_config.example.h
-  Versioned example for the active PCB v1 / Founder Edition profile.
+  Versioned example for optional per-cube V1 overrides.
   Includes optional RTC defaults and runtime I2C sensor detection.
 ```
 

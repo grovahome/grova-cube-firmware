@@ -49,7 +49,7 @@ Typical local overrides in `include/secrets.h`:
 
 ## Optional I2C Sensors
 
-The active firmware target is GROVA PCB v1 / Founder Edition. All planned I2C
+The active firmware target is the current GROVA PCB v1. All planned I2C
 sensor families are compiled in by default and remain optional at runtime. If a
 known sensor is connected on the I2C bus and initializes successfully, the cube
 uses it without user code changes.
@@ -69,7 +69,11 @@ Current profile:
 
 | Environment | Purpose |
 | --- | --- |
-| `grova_core_v1` | Current PCB v1 / Founder Edition build |
+| `grova_core_v1` | Current PCB v1 build; the only active target |
+
+The selected pin map and capabilities are defined by `include/board_profile.h`
+and `include/boards/grova_core_v1.h`. There is deliberately no Founder/ESP32-S3
+build profile until the real Founder board is available.
 
 See [firmware-profiles.md](firmware-profiles.md) for detailed hardware profile notes.
 

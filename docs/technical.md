@@ -49,7 +49,7 @@ modules therefore do not depend directly on AHT20, SHT41, SCD41, BME/BMP,
 VEML7700, or LTR390 drivers. The fan controller currently consumes
 `climate.temperature_c` and `climate.humidity_pct` through this registry.
 
-For PCB/Founder builds, the planned I2C sensor families are compiled in by
+For the current PCB v1 build, the planned I2C sensor families are compiled in by
 default and detected at runtime. The user should only need to connect a known
 module and restart the cube or wait for a rescan.
 
@@ -300,9 +300,16 @@ Telemetry exposes `time_source` plus `rtc.enabled`, `rtc.present`, `rtc.valid`, 
 
 ## Hardware Profiles
 
-The active built-in defaults target GROVA PCB v1 / Founder Edition. Legacy DHT
-hardware is frozen at commit `11eacaf` and should not receive updates from the
-current source line.
+The active built-in defaults target the current GROVA PCB v1 only. The board
+selector is `include/board_profile.h`; it currently includes the versioned
+`include/boards/grova_core_v1.h` profile containing physical pins, identity, and
+capabilities. Legacy DHT hardware is frozen at commit `11eacaf` and should not
+receive updates from the current source line.
+
+No Founder/ESP32-S3 profile or second build target exists yet. When real Founder
+hardware arrives, the final V1 state will be frozen/tagged and a separate branch
+will replace the board-specific profile and drivers while retaining useful
+shared sensor, control, API, MQTT, and persistence modules.
 
 See [firmware-profiles.md](firmware-profiles.md) and [hardware/README.md](hardware/README.md) for the current hardware reference.
 
