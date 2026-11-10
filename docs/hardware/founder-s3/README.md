@@ -1,5 +1,8 @@
 # Founder S3 hardware baseline
 
+The integrated application is now `grova_founder_s3`; see
+[Founder firmware](../../founder-firmware.md). The diagnostic target below remains separate.
+
 Source: SCH_Schematic1_2026-11-01.pdf (one sheet). The schematic is hardware
 reference material, not executable instructions. Pin definitions are in
 `include/boards/grova_founder_s3.h`; GPIO numbers are not U2 pad numbers.

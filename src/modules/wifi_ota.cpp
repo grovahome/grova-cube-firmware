@@ -8,7 +8,12 @@
 #include "config.h"
 #include "modules/wifi_ota.h"
 #include "modules/wifi_credentials.h"
+#if defined(GROVA_FOUNDER_APP)
+#include "founder/outputs.h"
+#include "modules/fan.h"
+#else
 #include "modules/pump.h"
+#endif
 #include "modules/rest_mode.h"
 
 static Preferences settings;
@@ -125,7 +130,13 @@ void wifiOTA_loop() {
     if (strcmp(state, "failed") && strcmp(state, "saved")) state = "connected";
     if (!otaReady && !needsSetup) {
       ArduinoOTA.setHostname(OTA_HOSTNAME);
-      ArduinoOTA.onStart([]() { pump_inhibit(); });
+      ArduinoOTA.onStart([]() {
+#if defined(GROVA_FOUNDER_APP)
+        founderOutputs::inhibit(); fan_forceOff(); restMode_setEnabled(true,false);
+#else
+        pump_inhibit();
+#endif
+      });
       ArduinoOTA.begin(); otaReady = true;
     }
     if (otaReady) ArduinoOTA.handle();
@@ -176,3 +187,5 @@ bool wifiOTA_startScan() {
   const int result = WiFi.scanNetworks(true, true);
   return result == WIFI_SCAN_RUNNING || result >= 0;
 }
+
+bool wifiOTA_requestSetup() { return openSetup(); }

@@ -16,8 +16,11 @@ void signalRegistry_begin() {
 }
 
 void signalRegistry_publish(SignalId id, float value, const char* source) {
+  signalRegistry_publishAt(id,value,source,millis());
+}
+void signalRegistry_publishAt(SignalId id, float value, const char* source, unsigned long sampledAtMs) {
   if (!isValidId(id)) return;
-  if (isnan(value)) {
+  if (!isfinite(value)) {
     signalRegistry_invalidate(id);
     return;
   }
@@ -25,7 +28,7 @@ void signalRegistry_publish(SignalId id, float value, const char* source) {
   SignalValue& signal = signals[id];
   signal.value = value;
   signal.valid = true;
-  signal.updatedAtMs = millis();
+  signal.updatedAtMs = sampledAtMs;
   signal.source = source != nullptr ? source : "UNKNOWN";
 }
 

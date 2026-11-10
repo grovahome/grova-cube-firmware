@@ -2,13 +2,13 @@
 
 # GROVA CORE
 
-Current engineering status (2026-11-10): this branch prepares the new
-ESP32-S3 Founder PCB. Start with the isolated diagnostic target
-`pio run -e grova_founder_s3_bringup` and the
-[hardware baseline and bring-up limits](docs/hardware/founder-s3/README.md).
-It is not yet the complete automation firmware and has not been uploaded.
-The retired PCB v1 baseline remains on `grova-core-v1`; its freeze tag is unchanged.
-Older V1 documentation below describes the previous application.
+Current engineering status (2026-11-10): this branch ports the existing
+functions to the new ESP32-S3 Founder PCB with neutral output channels.
+Build the integrated application with `pio run -e grova_founder_s3`.
+See [Founder firmware, architecture and acceptance](docs/founder-firmware.md)
+and the [schematic/pinout](docs/hardware/founder-s3/README.md).
+The firmware builds but has not been tested on the arriving hardware.
+V1 stays frozen on its own branch; historical V1 documentation follows.
 
 ### Local-first climate automation for grow spaces, greenhouses and environmental control.
 

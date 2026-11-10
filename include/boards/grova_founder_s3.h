@@ -24,3 +24,18 @@ constexpr unsigned char RTC_ADDRESS = 0x51; // RV-3032; detection only for now.
 constexpr int MUX_CHANNELS = 8;
 // No pump/light role mapping. GPIO18 is unconnected in this schematic.
 }
+
+#if defined(GROVA_FOUNDER_APP)
+#define FAN_PWM 10
+#define FAN2_PWM 11
+#define FAN_TACHO 12
+#define FAN2_TACHO 13
+#define FAN2_ENABLED 1
+#define FAN_TACHO_ENABLED 1
+#define FAN2_TACHO_ENABLED 1
+#define OLED_SDA 8
+#define OLED_SCL 9
+#define GROVA_HARDWARE_VERSION GROVA_BOARD_PROFILE_NAME
+#define GROVA_MQTT_ENABLED 0
+#define OTA_HOSTNAME "grova-founder"
+#endif

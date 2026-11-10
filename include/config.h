@@ -1,7 +1,7 @@
 #pragma once
 
 // ===== WLAN =====
-#if __has_include("secrets.h")
+#if !defined(GROVA_FOUNDER_APP) && __has_include("secrets.h")
   #include "secrets.h"
 #else
   #define WIFI_SSID ""
@@ -10,12 +10,12 @@
 
 // Optional local hardware profile. Copy board_config.example.h to
 // board_config.h and adjust it per physical cube. The file is ignored by Git.
-#if __has_include("board_config.h")
+#if !defined(GROVA_FOUNDER_APP) && __has_include("board_config.h")
   #include "board_config.h"
 #endif
 
 // Physical pins and hardware capabilities live in the selected board profile.
-// The current firmware line selects only the existing GROVA PCB v1 profile.
+// Build selection chooses the frozen V1 or the new Founder S3 profile.
 #include "board_profile.h"
 
 // ===== OTA =====

@@ -13,12 +13,14 @@ unsigned long millis();
 class String {
   std::string value;
 public:
-  String(const char* text = "") : value(text) {}
+  String(const char* text = "") : value(text ? text : "") {}
   String(float number, int decimals) {
     std::ostringstream stream;
     stream.setf(std::ios::fixed); stream.precision(decimals); stream << number;
     value = stream.str();
   }
+  bool concat(const char* text) { value += text; return true; }
+  void remove(size_t index) { value.erase(index); }
   const char* c_str() const { return value.c_str(); }
   bool operator==(const char* text) const { return value == text; }
   bool operator!=(const char* text) const { return value != text; }

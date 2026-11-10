@@ -31,3 +31,12 @@ jobs:
 
       - name: Build Founder S3 diagnostic firmware
         run: pio run -e grova_founder_s3_bringup
+
+      - name: Build Founder S3 application
+        run: pio run -e grova_founder_s3
+
+      - name: Test Founder device services and commands on host
+        run: python tests/founder/run_tests.py
+
+      - name: Check embedded web JavaScript
+        run: python tests/founder/check_web.py

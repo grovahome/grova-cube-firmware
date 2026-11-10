@@ -27,3 +27,6 @@ unsigned long signalRegistry_ageMs(SignalId id);
 const char* signalRegistry_name(SignalId id);
 const char* signalRegistry_unit(SignalId id);
 bool signalRegistry_idFromName(const char* name, SignalId& id);
+
+// Preserve the actual hardware sample time when a device service publishes.
+void signalRegistry_publishAt(SignalId id, float value, const char* source, unsigned long sampledAtMs);

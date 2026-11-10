@@ -17,3 +17,6 @@ const char* wifiOTA_setupError();
 const char* wifiOTA_savedSSID();
 bool wifiOTA_submit(const char* ssid, const char* password);
 bool wifiOTA_startScan();
+
+// Open credential recovery without erasing the last validated network.
+bool wifiOTA_requestSetup();

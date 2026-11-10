@@ -77,8 +77,8 @@ static bool authorize(WebServer& server) {
 }
 
 void wifiWeb_register(WebServer& server) {
-  static const char* headers[] = {"X-GROVA-Setup-Key"};
-  server.collectHeaders(headers, 1);
+  static const char* headers[] = {"X-GROVA-Setup-Key", "Content-Type"};
+  server.collectHeaders(headers, 2);
   server.on("/wifi", HTTP_GET, [&server]() { wifiWeb_page(server); });
   server.on("/api/v1/wifi", HTTP_GET, [&server]() {
     server.sendHeader("Cache-Control", "no-store");
