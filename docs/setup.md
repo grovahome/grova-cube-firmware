@@ -28,7 +28,9 @@ Copy the example secrets file:
 cp include/secrets.example.h include/secrets.h
 ```
 
-Fill in your local Wi-Fi, MQTT and cube identity values in `include/secrets.h`.
+Set your MQTT and cube identity values in `include/secrets.h`. For a new cube,
+leave the compiled Wi-Fi values empty and follow [local Wi-Fi setup](wifi-setup.md).
+Existing devices may still use compiled Wi-Fi credentials as a fallback.
 
 Do not commit real credentials. `include/secrets.h` is intentionally excluded from version control.
 
@@ -95,9 +97,10 @@ C:\Users\Kai\.platformio\penv\Scripts\pio.exe run -e grova_core_v1
 C:\Users\Kai\.platformio\penv\Scripts\python.exe C:\Users\Kai\.platformio\packages\framework-arduinoespressif32\tools\espota.py -i <cube-ip> -p 3232 -f .pio\build\grova_core_v1\firmware.bin
 ```
 
-Before OTA, verify that the local ignored `include/secrets.h` exists and
-contains the correct Wi-Fi credentials. A build without local secrets will boot
-without Wi-Fi and cannot be recovered over OTA.
+Before OTA, verify the target cube ID and current network address. Valid saved
+Wi-Fi credentials survive OTA. Without saved or compiled credentials the cube
+starts a protected setup AP; its OLED or device leaflet supplies the setup key.
+Complete network setup before attempting another OTA.
 
 Do not run firmware updates against the frozen legacy DHT cube from this source
 line.

@@ -21,7 +21,10 @@ Scope: Cube 002, PCB v1, `grova_core_v1`. Legacy Cube 001 stays frozen.
 
 ## Persistence and telemetry
 
-### Development update 2026-10-06 (not deployed)
+### October safeguards and deployment status
+
+The firmware changes below shipped on Cube 002 in `e58eb6d` on 2026-10-06.
+The dashboard changes shipped on 2026-11-10. Physical acceptance remains open.
 
 - Pump events are reserved in the run-state blob before the output is started.
   A failed reservation stops the run in Rest Mode, reports `Pump state write failed`,
@@ -43,7 +46,7 @@ Validation on 2026-10-06: 25 firmware host scenarios, 33 backend tests, JS synta
 and the application build passed. RAM 55,760 bytes; flash 1,015,109 bytes.
 Tests simulate unavailable/corrupt-preset load failure through the preset-store
 interface; they do not inject corruption into a real Cube's flash storage.
-No new OTA, server deployment or physical acceptance test was performed.
+These implementation tests preceded rollout; they did not exercise physical outputs.
 
 Run state is saved as one versioned Preferences blob. Existing per-key records
 are read when no blob exists. The terminal record is written before the separate
