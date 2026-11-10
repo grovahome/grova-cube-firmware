@@ -36,3 +36,13 @@ failure behaviour. Automated checks do not replace these measurements.
 The installed Cube 002 release remains `e58eb6d`; this tag does not install a
 new binary. See the internal GROVA `docs/software-validation.md` for deployment
 evidence and the authoritative installed-version record.
+
+## CI toolchain correction after freeze
+
+The first freeze CI runs passed the host lifecycle, Wi-Fi and HTTP tests but
+failed the application build: the unpinned Espressif platform resolved to 8.0.0
+(Arduino 3.x), which removed the V1 LEDC APIs. `platformio.ini` now pins
+`espressif32@6.13.0`, matching the locally validated Arduino 2.x toolchain.
+This changes build configuration only; the application source and the existing
+`grova-core-v1-final` tag remain unchanged. Use the branch including this
+correction to rebuild V1 with the intended platform.
