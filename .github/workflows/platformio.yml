@@ -28,3 +28,6 @@ jobs:
 
       - name: Build firmware
         run: pio run -e grova_core_v1
+
+      - name: Build Founder S3 diagnostic firmware
+        run: pio run -e grova_founder_s3_bringup

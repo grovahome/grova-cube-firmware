@@ -2,10 +2,13 @@
 
 # GROVA CORE
 
-Current engineering status (2026-10-02): active firmware targets PCB v1 / Cube 002.
-Cube 001 is frozen; Founder firmware starts after hardware arrival and V1 freeze.
-See [run completion and deployed validation](docs/local-run-lifecycle.md) and
-[command safety development](docs/command-safety.md) for installed versus pending changes.
+Current engineering status (2026-11-10): this branch prepares the new
+ESP32-S3 Founder PCB. Start with the isolated diagnostic target
+`pio run -e grova_founder_s3_bringup` and the
+[hardware baseline and bring-up limits](docs/hardware/founder-s3/README.md).
+It is not yet the complete automation firmware and has not been uploaded.
+The retired PCB v1 baseline remains on `grova-core-v1`; its freeze tag is unchanged.
+Older V1 documentation below describes the previous application.
 
 ### Local-first climate automation for grow spaces, greenhouses and environmental control.
 
