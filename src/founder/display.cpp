@@ -6,6 +6,7 @@
 #include "boards/grova_founder_s3.h"
 #include "drivers/ssd1317.h"
 #include "founder/app.h"
+#include "founder/boot_animation.h"
 #include "founder/i2c_bus.h"
 #include "modules/fan.h"
 #include "modules/rest_mode.h"
@@ -25,6 +26,8 @@ unsigned offset() {
 }
 static bool ready = false;
 static uint8_t activeAddress = 0;
+static founderBoot::Sequence welcome;
+static bool lastFrameWelcome = false;
 bool present() {
   return ready;
 }
@@ -38,6 +41,7 @@ bool configure(unsigned rotation, unsigned offset) {
   if (displaySettings.putBytes("panel", &packed, sizeof(packed)) != sizeof(packed)) {
     return false;
   }
+  welcome.dismiss();
   rotate = rotation;
   rowOffset = offset;
   oled.setRotation(rotate);
@@ -46,6 +50,10 @@ bool configure(unsigned rotation, unsigned offset) {
   return true;
 }
 void begin() {
+  ready = false;
+  activeAddress = 0;
+  welcome.reset(millis());
+  lastFrameWelcome = false;
   storageReady = displaySettings.begin("founder-oled", false);
   uint16_t packed = 80;
   if (storageReady && displaySettings.getBytesLength("panel") == sizeof(packed)) {
@@ -62,6 +70,9 @@ void begin() {
   drawAt = millis() - 1000;
 }
 void navigate(int delta) {
+  if (delta) {
+    welcome.dismiss();
+  }
   page = (page + delta + 4) % 4;
 }
 void loop() {
@@ -73,10 +84,15 @@ void loop() {
       activeAddress = address;
       if (address) {
         ready = oled.begin(address, rowOffset);
+        if (ready) {
+          welcome.found(millis());
+        }
       }
     }
   }
-  if (!ready || millis() - drawAt < 500) {
+  const bool showingWelcome = welcome.active(millis());
+  const uint32_t interval = showingWelcome ? founderBoot::FrameMs : lastFrameWelcome ? 0 : 500;
+  if (!ready || millis() - drawAt < interval) {
     return;
   }
   drawAt = millis();
@@ -89,6 +105,15 @@ void loop() {
     return;
   }
   oled.clearDisplay();
+  if (showingWelcome) {
+    founderBoot::draw(oled, welcome.elapsed(millis()));
+    lastFrameWelcome = true;
+    if (!oled.display()) {
+      ready = false;
+    }
+    return;
+  }
+  lastFrameWelcome = false;
   oled.setTextSize(1);
   oled.setTextColor(1);
   oled.setCursor(0, 0);

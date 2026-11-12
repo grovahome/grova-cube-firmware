@@ -241,3 +241,28 @@ saved state, corrupt/unavailable storage, editor revision conflicts and lost
 control/status responses. The preview now starts empty; demo assignments are
 explicitly separate. Profile limits and missing monitoring are visible in the
 UI/catalog. These checks do not close any physical acceptance item.
+
+## OLED welcome animation
+
+The integrated Founder target draws a 2.2-second monochrome G/leaf mark, staged
+GROVA wordmark, CORE subtitle and eased progress bar once per boot. It uses a
+small code-defined bitmap/font and the existing SSD1317 canvas; no image files,
+NVS completion flag, animation delay loop or output commands are added. The bar
+is decorative and does not certify hardware readiness. It fills shortly before
+the welcome finishes, then normal status or Wi-Fi setup credentials take over.
+The display is primed before networking starts; subsequent frames are scheduled
+from the regular loop at a nominal 100 ms interval. Actual I2C timing remains a
+hardware check. Both logical 128x64 and 64x128 orientations are supported.
+
+Encoder navigation skips the welcome, changing panel configuration cancels it,
+and reconnecting an OLED later does not replay it. An OLED first found more
+than eight seconds after display initialization goes directly to normal status.
+The existing SSD1317 initialization wait remains unchanged.
+
+Host tests cover frame bounds/progress/completion in portrait and landscape,
+clock wrap, cancellation and late detection. A separate harness compiles the
+production display service with deterministic canvas/I2C adapters and verifies
+frame cadence, Wi-Fi handoff, user skip, disconnect/recovery and rotation change.
+`tests/founder/run_tests.py --boot-frames path.json` exports the actual renderer
+frames for a browser/GIF preview; it does not read or control a connected board.
+The welcome is not yet optically verified on the physical SSD1317 module.

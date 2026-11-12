@@ -24,6 +24,7 @@ void setup() {
   founderDevices::begin();
   founderInputs::begin();
   founderDisplay::begin();
+  founderDisplay::loop();  // Show the first welcome frame before networking starts.
   wifiOTA_begin();
   time_begin();
   fan_begin();

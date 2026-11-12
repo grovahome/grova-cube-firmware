@@ -1,9 +1,17 @@
 """Exercise production Founder drivers with a deterministic bus and GPIO adapter."""
 from pathlib import Path
 import argparse,subprocess,tempfile
-p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);p.add_argument('--blank-output',type=Path);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);p.add_argument('--blank-output',type=Path);p.add_argument('--boot-frames',type=Path);a=p.parse_args()
 root=Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
+    boot_binary=Path(temp)/'boot_tests.exe'
+    boot_command=[a.compiler]+(['c++'] if a.zig else [])
+    subprocess.run(boot_command+['-std=c++17','-Wall','-Wextra','-Isrc','tests/founder/boot_test.cpp','-o',str(boot_binary)],cwd=root,check=True)
+    subprocess.run([str(boot_binary)]+([str(a.boot_frames)] if a.boot_frames else []),cwd=root,check=True)
+    display_binary=Path(temp)/'display_tests.exe'
+    display_command=[a.compiler]+(['c++'] if a.zig else [])
+    subprocess.run(display_command+['-std=c++17','-Wall','-Wextra','-Itests/founder/include','-Itests/host/include','-Isrc','-Iinclude','-I.pio/libdeps/grova_founder_s3/ArduinoJson/src','tests/founder/display_test.cpp','src/founder/display.cpp','src/founder/i2c_bus.cpp','src/modules/signal_registry.cpp','-o',str(display_binary)],cwd=root,check=True)
+    subprocess.run([str(display_binary)],cwd=root,check=True)
     binary=Path(temp)/'founder_tests.exe'
     command=[a.compiler]+(['c++'] if a.zig else [])
     command+=['-std=c++17','-Wall','-Wextra','-Itests/founder/include','-Isrc','-Iinclude','tests/founder/test.cpp','src/founder/i2c_bus.cpp','src/founder/rtc.cpp','src/founder/outputs.cpp','src/founder/timed_digital.cpp','src/modules/signal_registry.cpp','-o',str(binary)]
