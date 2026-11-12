@@ -92,3 +92,32 @@ rotation is 0..3, offset 0..95. The default offset 80 is provisional from a
 Record actual findings, including any failed step. Software tests do not close
 these physical checks. ADC/OneWire/RS485/safety contact functions and the future
 automation engine are not enabled by this first-start software.
+
+## Observed ROM bring-up, 2026-11-12
+
+User confirmed USB-only supply with all three H2 contacts bridged (temporary,
+not an accepted dual-supply configuration; no external supply may be connected
+with that bridge). Windows now enumerates Espressif VID 303A / PID 1001 as COM7
+and USB JTAG/serial debug, repeatedly disconnecting during normal ROM boot.
+Passive serial capture with DTR/RTS initially deasserted showed:
+
+```text
+ESP-ROM:esp32s3-20210327
+boot:0xc (SPI_FAST_FLASH_BOOT)
+invalid header: 0xffffffff
+rst:0x7 (TG0WDT_SYS_RST)
+```
+
+ROM cannot read a valid bootloader header; a never-programmed module is the
+leading explanation, not proof that the whole flash is erased. The prepared
+GROVA firmware has not been uploaded.
+
+A read-only `esptool 4.11.0 --before usb_reset --after no_reset --no-stub flash_id`
+succeeded on COM7. Reported ESP32-S3 QFN56 rev 0.2, embedded PSRAM 8 MB AP_3v3,
+40 MHz crystal, 16 MB quad flash and 3.3 V flash eFuse setting; MAC
+`7c:4f:ad:b7:f0:60`. The diagnostic entered USB Serial/JTAG ROM download mode and
+left the chip there. It did not write/erase flash, load the RAM flasher stub or
+change eFuses. This demonstrates automatic USB entry on this board; manual
+BOOT/RESET recovery with the GPIO46/R58 pull-up is still not validated.
+Rail measurements, power-path correction, firmware first flash and peripheral
+acceptance remain open.
