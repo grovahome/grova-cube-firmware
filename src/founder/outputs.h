@@ -5,6 +5,7 @@ void preinit();
 void begin();
 void interlock(bool rest, bool setup);
 void inhibit();
+void stopAll();
 bool inhibited();
 bool ready();
 bool set(const char* name, float percent);  // Explicit unassigned channel test only.

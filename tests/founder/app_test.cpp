@@ -136,8 +136,11 @@ void fan_forceOff() {}
 bool fanPolicy_settingsReady() {
   return true;
 }
-bool fan_setManual(int, int, bool) {
-  return true;
+static int manualFans[2] = {};
+static bool failFanSave = false;
+bool fan_setManual(int fan, int percent, bool) {
+  manualFans[fan - 1] = percent;
+  return !failFanSave;
 }
 bool fan_setAuto(int, bool) {
   return true;
@@ -284,6 +287,28 @@ int main(int argc, char**) {
   if (argc > 1) {
     std::cout << founderApp::status().c_str() << "\n";
   }
+  // Stop-all cancels devices and fan requests without changing the release state.
+  assert(founderApp::setRest(false));
+  assert(run(R"({"cmd":"run_device","id":"dev1","runtime_ms":100,"event_id":"global-stop"})"));
+  assert(run(R"({"cmd":"set_device","id":"dev2","percent":60})"));
+  manualFans[0] = 50;
+  manualFans[1] = 70;
+  assert(run(R"({"cmd":"stop_all"})"));
+  assert(!restMode_isEnabled());
+  assert(founderOutputs::applied(0) == 0 && founderOutputs::applied(1) == 0 &&
+         founderOutputs::applied(3) == 0);
+  assert(manualFans[0] == 0 && manualFans[1] == 0);
+  manualFans[0] = 80;
+  manualFans[1] = 40;
+  assert(founderApp::setRest(true));
+  assert(founderApp::setRest(false));
+  assert(manualFans[0] == 0 && manualFans[1] == 0);
+  failFanSave = true;
+  assert(!run(R"({"cmd":"stop_all"})"));
+  assert(restMode_isEnabled());  // Failed durable fan stop falls back to lock.
+  assert(!founderApp::setRest(false));
+  assert(restMode_isEnabled());
+  failFanSave = false;
   // Corrupt configuration never leaves old output ownership active.
   testNvs::data["founder-devices/configuration"] = {'x'};
   founderEquipment::begin();

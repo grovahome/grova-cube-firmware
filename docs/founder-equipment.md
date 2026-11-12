@@ -97,3 +97,42 @@ Pending hardware checks: 5/12 V load compatibility and current limits, physical
 pulse cutoff, every channel's off state through reset/setup/OTA, 0-10 V range
 and zero behavior, optional light power switching, and actual device-specific
 failure behavior. These tests do not close the separate first-board checklist.
+
+## General board UI (2026-11-12)
+
+The ESP web app has three views: overview, devices/sensors and settings. Overview
+shows named device cards (including the two existing dedicated PWM fan controls)
+and current measurements with readable labels. Controls expand per device;
+timed durations are entered in seconds and converted to integer milliseconds.
+Assignment is edited separately, with unoccupied slots collapsed and only fields
+relevant to the selected profile visible. Supported I2C sensors are listed with
+readiness and their actual mux channel number (0..7; system bus separate).
+
+WLAN, clock and display are settings. MQTT, existing fan rules/targets and raw
+output diagnostics are under Advanced. No fixed grow phases or application-wide
+modes are presented on the overview; general automation is still deferred.
+
+The UI calls the existing Rest interlock "Ausgänge gesperrt". Internal Rest
+storage and `set_rest_mode` API stay compatible. Every lock/release request also
+clears both saved fan demands to manual zero; releasing must not implicitly
+resume a previous fan setpoint or rule. Existing fan rule configuration remains
+stored and can be explicitly selected under Advanced after release. If saving
+the cleared demands fails, release is rejected and the board stays locked.
+
+`stop_all` cancels assigned-device requests, switches off all generic output
+channels (including free commissioning channels), saves both fans as manual zero
+and forces the fan drivers off. It preserves the existing lock state on success.
+A failed fan-mode save falls back to the lock. It is not an independent electrical
+emergency stop and does not certify a physical fan stop at zero PWM.
+
+When the browser cannot refresh status, activation, assignment save, release and
+global stop are disabled and the output state is marked unknown. Previously
+received values may remain visible; the UI does not claim that a communication
+failure stopped the physical loads.
+
+Validation: production Founder API/driver tests cover global stop, saved fan
+zero demands, release without restarting old requests and fail-closed storage
+errors. Desktop/mobile browser simulation covers navigation, assignment payloads,
+profile-specific hidden fields, draft retention, timed start in seconds, global
+stop, assigned output lockout and loss-of-connection controls. No hardware was
+flashed or physically tested by these checks.

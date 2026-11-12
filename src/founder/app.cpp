@@ -60,13 +60,22 @@ bool setRest(bool enabled) {
   if (!enabled && (wifiOTA_requiresSetup() || wifiOTA_isTesting() || founderOutputs::inhibited())) {
     return false;
   }
-  bool ok = restMode_setEnabled(enabled, true);
-  founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
-  if (enabled || !ok) {
+  if (enabled) {
+    restMode_setEnabled(true, false);
+    founderOutputs::interlock(true, wifiOTA_requiresSetup());
     founderEquipment::stopAll();
     fan_forceOff();
   }
-  return ok;
+  // Clearing the lock must never resume a stored fan demand or rule implicitly.
+  bool first = fan_setManual(1, 0, true);
+  bool second = fan_setManual(2, 0, true);
+  bool ok = restMode_setEnabled(enabled || !first || !second, true);
+  founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
+  if (enabled || !ok || !first || !second) {
+    founderEquipment::stopAll();
+    fan_forceOff();
+  }
+  return ok && first && second;
 }
 String status() {
   JsonDocument j;
@@ -207,6 +216,17 @@ bool command(const String& body, String& response, bool remote) {
   bool ok = false;
   if (!strcmp(cmd, "set_rest_mode") && j["enabled"].is<bool>()) {
     ok = setRest(j["enabled"].as<bool>());
+  } else if (!strcmp(cmd, "stop_all")) {
+    founderEquipment::stopAll();
+    founderOutputs::stopAll();
+    fan_forceOff();
+    bool first = fan_setManual(1, 0, true);
+    bool second = fan_setManual(2, 0, true);
+    fan_forceOff();
+    ok = first && second;
+    if (!ok) {
+      setRest(true);
+    }
   } else if (!strcmp(cmd, "configure_equipment") && !remote) {
     String message;
     ok = founderEquipment::configure(j.as<JsonObjectConst>(), message);

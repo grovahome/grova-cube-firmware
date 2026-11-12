@@ -60,6 +60,9 @@ void interlock(bool rest, bool setup) {
     off();
   }
 }
+void stopAll() {
+  off();
+}
 void inhibit() {
   policy.ota = true;
   off();
