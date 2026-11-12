@@ -110,3 +110,16 @@ manual-stop persistence, clock loss, write failure and retained UI drafts.
 This supersedes the old software-only assertion that no automation is supported;
 manual requests still do not resume. Native PWM fan policy UI remains separate.
 No physical outputs have been tested or switched for these offline checks.
+
+
+### Configurable watering recovery and durable planned-run evidence
+
+Pulse plans can skip or catch up the latest missed occurrence within 5/15/30/60
+minutes. The old no-catch-up-only checkpoint is superseded. A version-2 journal
+records the last planned event's actual software command phases; a reserved or
+started event found on reboot is explicitly uncertain and is never rerun.
+Completion is recorded only after software cutoff observation and a successful
+NVS write; water delivery remains unmeasured. Creation baselines exclude events
+from before the plan existed. Extra process-restart/fault-injection and browser
+tests cover these contracts. Installation and exact binary/commit are recorded
+in the subsequent first-start entry and internal software-validation record.

@@ -56,11 +56,26 @@ a GPIO. An interrupted or uncertain start stays consumed; neither reboot,
 repeated loops, saved-plan edits nor a backward clock step repeats that event.
 A ledger write/read failure blocks operation and turns outputs off.
 
-Current missed-event policy: only the scheduled current minute is eligible;
-missed impulses are not accumulated or caught up. A bounded single catch-up is
-a separate product decision, not silently implemented. The next future event
-can run normally. This avoids duplicate watering but does not guarantee a crop
-receives a missed dose after an extended power outage.
+Missed-event handling is selectable per pulse device: skip (default), or catch
+up once within 5/15/30/60 minutes. Only the latest due occurrence is considered;
+there is never a queue of accumulated doses. Previously consumed/started,
+skipped or uncertain events are not repeated. This also applies when resuming
+from Pause, so the UI explicitly exposes the catch-up choice. Occurrences before
+plan creation are excluded; when time was unknown at setup a baseline is saved
+once valid time becomes available. This does not guarantee a crop receives a
+missed dose after a long outage or a short catch-up window.
+
+The version-2 checksummed journal separately stores reservation, command start,
+normal completion, explicit interruption, uncertain restart, rejected start and
+skipped event. Name/output, scheduled date/minute, requested duration and command
+timestamps are saved. Completion requires the software output to be off after
+its monotonic deadline and a successful final journal write. A reboot with a
+reserved/started record becomes INTERRUPTED_UNKNOWN, never COMPLETED, and has
+unknown elapsed time. GPIO commands are not proof of actual water delivery.
+A failed reservation never starts the output; failed start/completion writes
+force OFF and a blocked state. The legacy high-water ledger migrates without
+inventing successful runs (LEGACY_UNKNOWN). Only the last planned event per
+logical device slot is retained, not an unlimited log or manual-run history.
 
 Pump boot lock remains 10 minutes; max runtime is 10 seconds or a lower saved
 limit. The existing timer ISR cutoff bypasses the normal app loop. This is not
@@ -88,3 +103,10 @@ first Rest-release write. Neither may arm outputs after reboot. The shared Rest
 store now writes an explicitly requested first value even if it equals its
 default, so an acknowledged release has a real persistent record. Legacy host
 lifecycle and WLAN tests still pass.
+
+
+Additional validation covers: durable completion across a fresh process,
+simulated power loss immediately after reservation and before GPIO, failed
+start/completion journal writes, explicit interruption without replay, migration
+of version-1 history without claiming completion, year/leap-day rollover and
+persisted catch-up choice / uncertain-run presentation in the browser.

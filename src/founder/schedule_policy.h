@@ -8,7 +8,8 @@ struct Slot {
 };
 struct Plan {
   bool enabled = false;
-  uint8_t count = 0;
+  uint8_t count = 0, catchUpMinutes = 0;
+  uint32_t sinceToken = UINT32_MAX;
   Slot slots[MaxSlots];
 };
 inline bool contains(const Slot& s, unsigned minute) {
@@ -16,7 +17,8 @@ inline bool contains(const Slot& s, unsigned minute) {
                          : minute >= s.start || minute < s.end;
 }
 inline bool valid(const Plan& p, bool pulse, unsigned maxRuntime) {
-  if (p.count > MaxSlots || (p.enabled && !p.count)) {
+  if (p.count > MaxSlots || (p.enabled && !p.count) || p.catchUpMinutes > 60 ||
+      (!pulse && p.catchUpMinutes)) {
     return false;
   }
   for (unsigned i = 0; i < p.count; ++i) {
@@ -59,5 +61,31 @@ inline unsigned percent(const Plan& p, unsigned minute) {
 }
 inline uint32_t token(unsigned dateKey, unsigned minute) {
   return dateKey * 1440U + minute;
+}
+inline unsigned previousDate(unsigned date) {
+  if (date % 1000) {
+    return date - 1;
+  }
+  const unsigned year = date / 1000 - 1;
+  const bool leap = year % 4 == 0 && (year % 100 != 0 || year % 400 == 0);
+  return year * 1000 + (leap ? 365 : 364);
+}
+struct Occurrence {
+  uint32_t token = 0;
+  unsigned slot = 0, ageMinutes = 0;
+};
+inline Occurrence latest(const Plan& plan, unsigned date, unsigned minute) {
+  Occurrence result;
+  for (unsigned n = 0; n < plan.count; ++n) {
+    const unsigned at = plan.slots[n].start;
+    const bool yesterday = at > minute;
+    const unsigned stamp = token(yesterday ? previousDate(date) : date, at);
+    if (stamp > result.token) {
+      result.token = stamp;
+      result.slot = n;
+      result.ageMinutes = yesterday ? minute + 1440 - at : minute - at;
+    }
+  }
+  return result;
 }
 }  // namespace founderSchedule

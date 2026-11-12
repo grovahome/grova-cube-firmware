@@ -37,5 +37,18 @@ int main() {
   assert(valid(p, true, 1000));
   assert(token(2026001, 480) < token(2026001, 481));
   assert(token(2026001, 1439) < token(2026002, 0));
+  Plan catchup;
+  catchup.enabled = true;
+  catchup.count = 2;
+  catchup.catchUpMinutes = 30;
+  catchup.slots[0] = {480, 0, 500, 100};
+  catchup.slots[1] = {490, 0, 500, 100};
+  assert(valid(catchup, true, 500));
+  assert(latest(catchup, 2026001, 500).slot == 1);
+  assert(latest(catchup, 2026001, 500).ageMinutes == 10);
+  assert(previousDate(2026000) == 2025364 && previousDate(2025000) == 2024365);
+  assert(latest(catchup, 2026000, 0).token == token(2025364, 490));
+  catchup.catchUpMinutes = 61;
+  assert(!valid(catchup, true, 500));
   std::cout << "Daily plan windows, midnight, overlap, boundaries and pulse limits passed\n";
 }

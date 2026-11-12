@@ -63,18 +63,68 @@ struct Ledger {
   uint32_t checksum;
 };
 static Ledger ledger;
-struct PlanLedger {
+enum class RunState : uint32_t {
+  None,
+  Reserved,
+  Started,
+  Completed,
+  InterruptedUnknown,
+  StartFailed,
+  Skipped,
+  LegacyUnknown,
+  Interrupted
+};
+struct RunRecord {
+  uint32_t token = 0, state = 0, requestedMs = 0, elapsedMs = 0;
+  uint32_t commandStartedAt = 0, recordedAt = 0, output = 0;
+  char name[40] = {};
+};
+struct LegacyPlanLedger {
   uint32_t schema = 1, token[Count] = {}, checksum = 0;
 };
+struct PlanLedger {
+  uint32_t schema = 2, token[Count] = {};
+  RunRecord last[Count];
+  uint32_t checksum = 0;
+};
 static PlanLedger planLedger;
-static bool plansOk = true;
-static uint32_t planChecksum(const PlanLedger& l) {
+static bool plansOk = true, activeRuns[Count] = {};
+static uint32_t activeAt[Count] = {};
+static uint32_t bytesChecksum(const void* ptr, size_t length) {
   uint32_t h = 2166136261UL;
-  const auto* b = reinterpret_cast<const uint8_t*>(&l);
-  for (size_t n = 0; n < offsetof(PlanLedger, checksum); ++n) {
+  const auto* b = static_cast<const uint8_t*>(ptr);
+  for (size_t n = 0; n < length; ++n) {
     h = (h ^ b[n]) * 16777619UL;
   }
   return h;
+}
+static uint32_t planChecksum(const PlanLedger& l) {
+  return bytesChecksum(&l, offsetof(PlanLedger, checksum));
+}
+static bool savePlanLedger(PlanLedger next) {
+  next.checksum = planChecksum(next);
+  if (settings.putBytes("plan-ledger", &next, sizeof(next)) != sizeof(next)) {
+    plansOk = false;
+    return false;
+  }
+  planLedger = next;
+  return true;
+}
+static const char* runStateName(uint32_t state) {
+  static const char* names[] = {
+      "NONE",         "RESERVED", "STARTED",        "COMPLETED",  "INTERRUPTED_UNKNOWN",
+      "START_FAILED", "SKIPPED",  "LEGACY_UNKNOWN", "INTERRUPTED"};
+  return state <= unsigned(RunState::Interrupted) ? names[state] : "INVALID";
+}
+static bool finishRun(unsigned i, RunState state) {
+  PlanLedger next = planLedger;
+  auto& record = next.last[i];
+  record.state = unsigned(state);
+  record.recordedAt = getEpochSeconds();
+  const uint32_t elapsed = uint32_t(millis() - activeAt[i]);
+  record.elapsedMs = elapsed < record.requestedMs ? elapsed : record.requestedMs;
+  activeRuns[i] = false;
+  return savePlanLedger(next);
 }
 static uint32_t checksum(const Ledger& l) {
   const auto* bytes = reinterpret_cast<const uint8_t*>(&l);
@@ -116,6 +166,21 @@ static bool parsePlan(JsonVariantConst value, Device& device, String& error) {
   }
   auto& plan = device.plan;
   plan.enabled = value["enabled"];
+  if (!value["since_token"].isNull()) {
+    if (!value["since_token"].is<uint32_t>()) {
+      error = "Invalid plan baseline";
+      return false;
+    }
+    plan.sinceToken = value["since_token"];
+  }
+  if (!value["catch_up_minutes"].isNull()) {
+    if (!device.profile->timed || !value["catch_up_minutes"].is<unsigned>() ||
+        value["catch_up_minutes"].as<unsigned>() > 60) {
+      error = "Catch-up applies only to pulse devices, 0..60 minutes";
+      return false;
+    }
+    plan.catchUpMinutes = value["catch_up_minutes"];
+  }
   for (JsonObjectConst item : value["slots"].as<JsonArrayConst>()) {
     if (!item["start_minute"].is<unsigned>() || item["start_minute"].as<unsigned>() >= 1440) {
       error = "Invalid start time";
@@ -152,6 +217,10 @@ static bool parsePlan(JsonVariantConst value, Device& device, String& error) {
 static void appendPlan(JsonObject row, const Device& device) {
   auto p = row["plan"].to<JsonObject>();
   p["enabled"] = device.plan.enabled;
+  if (device.profile->timed) {
+    p["catch_up_minutes"] = device.plan.catchUpMinutes;
+    p["since_token"] = device.plan.sinceToken;
+  }
   auto slots = p["slots"].to<JsonArray>();
   for (unsigned n = 0; n < device.plan.count; ++n) {
     const auto& s = device.plan.slots[n];
@@ -270,6 +339,9 @@ static void apply(const Device (&next)[Count]) {
 void begin() {
   planLedger = PlanLedger{};
   plansOk = true;
+  for (unsigned i = 0; i < Count; ++i) {
+    activeRuns[i] = false;
+  }
   Device empty[Count];
   apply(empty);
   revision = 0;
@@ -311,12 +383,56 @@ void begin() {
     fanPorts[1] = initialFans[1];
   }
   if (storage && settings.isKey("plan-ledger")) {
-    PlanLedger saved;
-    plansOk = settings.getBytesLength("plan-ledger") == sizeof(saved) &&
-              settings.getBytes("plan-ledger", &saved, sizeof(saved)) == sizeof(saved) &&
-              saved.schema == 1 && saved.checksum == planChecksum(saved);
+    bool rewrite = false;
+    if (settings.getBytesLength("plan-ledger") == sizeof(LegacyPlanLedger)) {
+      LegacyPlanLedger old;
+      plansOk = settings.getBytes("plan-ledger", &old, sizeof(old)) == sizeof(old) &&
+                old.schema == 1 &&
+                old.checksum == bytesChecksum(&old, offsetof(LegacyPlanLedger, checksum));
+      if (plansOk) {
+        for (unsigned i = 0; i < Count; ++i) {
+          planLedger.token[i] = old.token[i];
+          planLedger.last[i].token = old.token[i];
+          if (old.token[i]) {
+            planLedger.last[i].state = unsigned(RunState::LegacyUnknown);
+          }
+        }
+        rewrite = true;
+      }
+    } else {
+      PlanLedger saved;
+      plansOk = settings.getBytesLength("plan-ledger") == sizeof(saved) &&
+                settings.getBytes("plan-ledger", &saved, sizeof(saved)) == sizeof(saved) &&
+                saved.schema == 2 && saved.checksum == planChecksum(saved);
+      if (plansOk) {
+        for (unsigned i = 0; i < Count; ++i) {
+          const auto& r = saved.last[i];
+          if (r.state > unsigned(RunState::Interrupted) || r.token != saved.token[i] ||
+              r.name[39] != 0 || r.output >= 5 || r.requestedMs > 10000 ||
+              r.elapsedMs > r.requestedMs ||
+              (r.state == unsigned(RunState::None) && r.token != 0) ||
+              (r.state == unsigned(RunState::Completed) &&
+               (!r.requestedMs || r.elapsedMs != r.requestedMs || !r.commandStartedAt))) {
+            plansOk = false;
+          }
+        }
+        if (plansOk) {
+          planLedger = saved;
+        }
+      }
+    }
     if (plansOk) {
-      planLedger = saved;
+      for (auto& r : planLedger.last) {
+        if (r.state == unsigned(RunState::Reserved) || r.state == unsigned(RunState::Started)) {
+          // Start-before-power-loss cannot prove a full run. Never report completion.
+          r.state = unsigned(RunState::InterruptedUnknown);
+          r.recordedAt = getEpochSeconds();
+          rewrite = true;
+        }
+      }
+      if (rewrite) {
+        savePlanLedger(planLedger);
+      }
     }
   }
   if (storage && settings.isKey("events")) {
@@ -353,29 +469,11 @@ bool hasAssignments() {
 bool settingsReady() {
   return storage && configOk && eventsOk && plansOk;
 }
-bool configure(JsonObjectConst request, String& message) {
-  if (!storage || !restMode_isEnabled()) {
-    message = "Device assignment requires Rest and available storage";
-    return false;
-  }
-  if (!request["expected_revision"].isNull() &&
-      (!request["expected_revision"].is<uint32_t>() ||
-       request["expected_revision"].as<uint32_t>() != revision)) {
-    message = "Configuration changed; reload assignments before saving";
-    return false;
-  }
-  if (revision == UINT32_MAX) {
-    message = "Configuration revision exhausted";
-    return false;
-  }
-  Device next[Count];
-  FanPort nextFans[2] = {fanPorts[0], fanPorts[1]};
-  if (!parseFans(request, nextFans, message) || !parse(request, next, message)) {
-    return false;
-  }
+static void serializeConfiguration(const Device (&next)[Count], const FanPort (&nextFans)[2],
+                                   uint32_t version, String& bytes) {
   JsonDocument root;
   root["schema"] = 1;
-  root["revision"] = revision + 1;
+  root["revision"] = version;
   auto fans = root["fan_ports"].to<JsonArray>();
   for (const auto& fan : nextFans) {
     auto row = fans.add<JsonObject>();
@@ -405,8 +503,49 @@ bool configure(JsonObjectConst request, String& message) {
       }
     }
   }
-  String bytes;
   serializeJson(root, bytes);
+}
+bool configure(JsonObjectConst request, String& message) {
+  if (!storage || !restMode_isEnabled()) {
+    message = "Device assignment requires Rest and available storage";
+    return false;
+  }
+  if (!request["expected_revision"].isNull() &&
+      (!request["expected_revision"].is<uint32_t>() ||
+       request["expected_revision"].as<uint32_t>() != revision)) {
+    message = "Configuration changed; reload assignments before saving";
+    return false;
+  }
+  if (revision == UINT32_MAX) {
+    message = "Configuration revision exhausted";
+    return false;
+  }
+  Device next[Count];
+  FanPort nextFans[2] = {fanPorts[0], fanPorts[1]};
+  if (!parseFans(request, nextFans, message) || !parse(request, next, message)) {
+    return false;
+  }
+  for (unsigned i = 0; i < Count; ++i) {
+    if (!next[i].profile || !next[i].profile->timed) {
+      continue;
+    }
+    const auto& old = devices[i];
+    bool unchanged = old.profile == next[i].profile && old.output == next[i].output &&
+                     old.maxRuntime == next[i].maxRuntime &&
+                     old.plan.enabled == next[i].plan.enabled &&
+                     old.plan.count == next[i].plan.count;
+    for (unsigned n = 0; unchanged && n < next[i].plan.count; ++n) {
+      unchanged = old.plan.slots[n].start == next[i].plan.slots[n].start &&
+                  old.plan.slots[n].runtimeMs == next[i].plan.slots[n].runtimeMs;
+    }
+    next[i].plan.sinceToken =
+        unchanged ? old.plan.sinceToken
+                  : (isTimeSynced() && getDateKey() >= 0
+                         ? founderSchedule::token(getDateKey(), getHour() * 60 + getMinute())
+                         : UINT32_MAX);
+  }
+  String bytes;
+  serializeConfiguration(next, nextFans, revision + 1, bytes);
   if (bytes.length() > 4096 ||
       settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
     message = "Device assignment was not saved; previous assignment remains";
@@ -558,8 +697,40 @@ void loop() {
                        founderOutputs::ready() && isTimeSynced();
   const unsigned minute = unsigned(getHour() * 60 + getMinute());
   const int date = getDateKey();
+  if (allowed && minute < 1440 && date >= 0) {
+    bool baselineChanged = false;
+    for (auto& d : devices) {
+      if (d.profile && d.profile->timed && d.plan.enabled && d.plan.sinceToken == UINT32_MAX) {
+        d.plan.sinceToken = founderSchedule::token(date, minute);
+        baselineChanged = true;
+      }
+    }
+    if (baselineChanged) {
+      String bytes;
+      serializeConfiguration(devices, fanPorts, revision, bytes);
+      if (bytes.length() > 4096 ||
+          settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
+        plansOk = false;
+        stopAll();
+        restMode_setEnabled(true, true);
+        return;
+      }
+    }
+  }
   for (unsigned i = 0; i < Count; ++i) {
     const auto& d = devices[i];
+    if (activeRuns[i]) {
+      const bool on = d.profile && founderOutputs::applied(d.output) > 0;
+      if (!allowed || !on) {
+        const bool complete =
+            allowed && !on && uint32_t(millis() - activeAt[i]) >= planLedger.last[i].requestedMs;
+        if (!finishRun(i, complete ? RunState::Completed : RunState::Interrupted)) {
+          stopAll();
+          restMode_setEnabled(true, true);
+          return;
+        }
+      }
+    }
     if (!d.profile || !d.plan.enabled) {
       continue;
     }
@@ -569,47 +740,76 @@ void loop() {
       continue;
     }
     if (!d.profile->timed) {
-      unsigned value = founderSchedule::percent(d.plan, minute);
-      if (founderOutputs::applied(d.output) != value) {
-        if (drive(i, value)) {
-          requested[i] = value;
-        }
+      const unsigned value = founderSchedule::percent(d.plan, minute);
+      if (founderOutputs::applied(d.output) != value && drive(i, value)) {
+        requested[i] = value;
       }
       continue;
     }
     if (millis() < d.profile->startupLockMs || founderOutputs::applied(d.output) > 0) {
       continue;
     }
-    for (unsigned n = 0; n < d.plan.count; ++n) {
-      const auto& slot = d.plan.slots[n];
-      const uint32_t token = founderSchedule::token(unsigned(date), minute);
-      // Only the current scheduled minute, no accumulated or restart catch-up.
-      if (slot.start != minute || token <= planLedger.token[i]) {
-        continue;
-      }
-      PlanLedger next = planLedger;
-      next.token[i] = token;
-      next.checksum = planChecksum(next);
-      // Reserve before any GPIO start. Failed start remains consumed.
-      if (settings.putBytes("plan-ledger", &next, sizeof(next)) != sizeof(next)) {
-        plansOk = false;
-        stopAll();
-        restMode_setEnabled(true, true);
-        return;
-      }
-      planLedger = next;
-      if (founderOutputs::pulseDevice(i, d.output, slot.runtimeMs)) {
-        requested[i] = 100;
-      }
+    const auto due = founderSchedule::latest(d.plan, unsigned(date), minute);
+    if (!due.token || due.token < d.plan.sinceToken || due.token <= planLedger.token[i]) {
+      continue;
+    }
+    const auto& slot = d.plan.slots[due.slot];
+    PlanLedger next = planLedger;
+    next.token[i] = due.token;
+    next.last[i] = RunRecord{};
+    auto& record = next.last[i];
+    record.token = due.token;
+    record.requestedMs = slot.runtimeMs;
+    record.output = d.output;
+    strcpy(record.name, d.name);
+    record.recordedAt = getEpochSeconds();
+    const bool eligible = due.ageMinutes <= d.plan.catchUpMinutes;
+    record.state = unsigned(eligible ? RunState::Reserved : RunState::Skipped);
+    // Consume only the latest occurrence; never replay a queue of missed doses.
+    if (!savePlanLedger(next)) {
+      stopAll();
+      restMode_setEnabled(true, true);
+      return;
+    }
+    if (!eligible) {
+      continue;
+    }
+    activeAt[i] = millis();
+    const bool started = founderOutputs::pulseDevice(i, d.output, slot.runtimeMs);
+    next = planLedger;
+    next.last[i].state = unsigned(started ? RunState::Started : RunState::StartFailed);
+    next.last[i].commandStartedAt = started ? getEpochSeconds() : 0;
+    next.last[i].recordedAt = getEpochSeconds();
+    activeRuns[i] = started;
+    if (!savePlanLedger(next)) {
+      stopAll();
+      restMode_setEnabled(true, true);
+      return;
+    }
+    if (started) {
+      requested[i] = 100;
     }
   }
 }
 void stopAll() {
+  // Physical OFF precedes history writes, which may take time or fail.
   for (unsigned i = 0; i < Count; ++i) {
     if (devices[i].profile) {
       drive(i, 0);
       requested[i] = 0;
     }
+  }
+  for (unsigned i = 0; i < Count; ++i) {
+    if (activeRuns[i]) {
+      if (plansOk) {
+        finishRun(i, RunState::Interrupted);
+      } else {
+        activeRuns[i] = false;
+      }
+    }
+  }
+  if (!plansOk) {
+    restMode_setEnabled(true, true);
   }
 }
 void appendJson(String& out) {
@@ -686,6 +886,31 @@ void appendJson(String& out) {
       row["profile"] = d.profile->id;
       row["output"] = channels()[d.output].id;
       appendPlan(row, d);
+      if (d.profile->timed) {
+        const auto& r = planLedger.last[i];
+        auto last = row["last_run"].to<JsonObject>();
+        last["state"] = runStateName(r.state);
+        last["scheduled_date_key"] = r.token / 1440;
+        last["scheduled_minute"] = r.token % 1440;
+        last["requested_ms"] = r.requestedMs;
+        if (r.state == unsigned(RunState::Completed) ||
+            r.state == unsigned(RunState::Interrupted) || r.state == unsigned(RunState::Skipped) ||
+            r.state == unsigned(RunState::StartFailed)) {
+          last["command_elapsed_ms"] = r.elapsedMs;
+        } else {
+          last["command_elapsed_ms"] = nullptr;
+        }
+        last["durable"] = plansOk;
+        last["command_started_at_s"] = r.commandStartedAt;
+        last["recorded_at_s"] = r.recordedAt;
+        last["name"] = r.name;
+        if (r.state == unsigned(RunState::None) || r.state == unsigned(RunState::LegacyUnknown)) {
+          last["output"] = nullptr;
+        } else {
+          last["output"] = channels()[r.output].id;
+        }
+        last["water_delivery_verified"] = false;
+      }
       if (!d.profile->analog) {
         row["voltage"] = d.voltage;
       }

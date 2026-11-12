@@ -50,6 +50,14 @@ const {chromium}=require(args['--playwright']||'playwright');
   // Pump UI has pulse duration, no continuous ON window.
   await page.locator('#connectorSelect').selectOption('OUT5_1');await page.locator('#port_OUT5_1_active').check();await page.locator('#port_OUT5_1_profile').selectOption('pump');await page.locator('#port_OUT5_1_plan_enabled').check();
   assert.equal(await page.locator('#port_OUT5_1_plan_slots .plan-end').count(),0);assert.equal(await page.locator('#port_OUT5_1_plan_slots .plan-duration').count(),1);
+  await page.locator('#port_OUT5_1_catchup').selectOption('30');await page.locator('#saveEquipment').click();await idle();
+  assert.equal(d.equipment.find(e=>e.profile==='pump').plan.catch_up_minutes,30);
+  await page.reload();await page.waitForSelector('#port_OUT5_1_active',{state:'attached'});await idle();
+  assert.equal(await page.locator('#port_OUT5_1_catchup').inputValue(),'30');
+  const pump=d.equipment.find(e=>e.profile==='pump');pump.last_run={state:'INTERRUPTED_UNKNOWN',scheduled_date_key:2026001,scheduled_minute:480,durable:true};
+  await page.evaluate(()=>refresh());await page.locator('#nav-overview').click();
+  assert((await page.locator('#'+pump.id+'_history').innerText()).includes('Abschluss unklar'));
+  assert(!(await page.locator('#'+pump.id+'_history').innerText()).includes('regulär beendet'));
   for(const tab of ['overview','manage','settings']){await page.setViewportSize({width:390,height:844});await page.evaluate(t=>showView(t),tab);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
   assert.deepEqual(errors,[]);console.log('Schedule UI passed: output → light → two windows → save/reload, overlap rejection, active edit, removal, pulse UI and mobile layout');
  }finally{await browser.close();}

@@ -40,7 +40,7 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     for args in [('--driver-failure',),('--app-storage-failure',),('--storage-failure',),('--empty-config',),('--empty-ledger',),('--profile-matrix',),('--reboot-save',str(snapshot)),('--reboot-load',str(snapshot))]:
         subprocess.run([str(api_binary),*args],cwd=root,check=True)
     plan_snapshot=Path(temp)/'plan-nvs.bin'
-    for mode in ['--plan-integration','--plan-save','--plan-load','--plan-no-intent-load','--plan-corrupt-intent-load','--plan-paused-save','--plan-paused-load','--plan-release-fail-save','--plan-release-fail-load','--plan-corrupt']:
+    for mode in ['--plan-integration','--plan-save','--plan-load','--plan-no-intent-load','--plan-corrupt-intent-load','--plan-paused-save','--plan-paused-load','--plan-release-fail-save','--plan-release-fail-load','--plan-corrupt','--plan-history-save','--plan-history-load','--plan-reserved-save','--plan-reserved-load','--plan-journal-faults','--plan-history-stop','--plan-journal-migration']:
         subprocess.run([str(api_binary),mode,str(plan_snapshot)],cwd=root,check=True)
     print('Blank boot, unavailable/corrupt storage and fresh-process restart passed')
 

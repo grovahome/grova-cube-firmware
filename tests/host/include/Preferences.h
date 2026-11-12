@@ -2,9 +2,11 @@
 #include "Arduino.h"
 #include <map>
 #include <vector>
+#include <functional>
 namespace testNvs {
 inline std::map<std::string, std::vector<uint8_t>> data;
 inline bool failWrites = false;
+inline std::function<void(const std::string&)> afterWrite;
 inline std::string failBegin;
 inline std::string failKey;
 }
@@ -28,7 +30,7 @@ public:
   size_t putBytes(const char* k, const void* input, size_t size) {
     if (testNvs::failWrites || testNvs::failKey == key(k)) return 0;
     const auto* bytes = static_cast<const uint8_t*>(input);
-    testNvs::data[key(k)] = std::vector<uint8_t>(bytes, bytes + size); return size;
+    testNvs::data[key(k)] = std::vector<uint8_t>(bytes, bytes + size); if(testNvs::afterWrite)testNvs::afterWrite(key(k)); return size;
   }
   size_t putBool(const char* k, bool value) { return putBytes(k, &value, sizeof(value)); }
   bool getBool(const char* k, bool value = false) { return read(k, value); }
