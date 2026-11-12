@@ -4,6 +4,8 @@
 #include <vector>
 struct FakeWire {
   bool sht[8] = {}, badCrc = false;
+  bool oled=true,failOledData=false;
+  size_t oledBytes=0;
   bool mux = true, rtc = true, failMask = false;
   int failRegister = -1;
   uint8_t mask = 0, address = 0, pointer = 0;
@@ -20,6 +22,11 @@ struct FakeWire {
     tx.push_back(b);
   }
   int endTransmission(bool = true) {
+    if(address==0x3C){
+      if(!oled || (failOledData&&!tx.empty()&&tx[0]==0x40))return 4;
+      if(!tx.empty()&&tx[0]==0x40)oledBytes+=tx.size()-1;
+      return 0;
+    }
     if (address == 0x70) {
       if (!mux || failMask) {
         return 4;
@@ -94,3 +101,5 @@ struct FakeWire {
   }
 };
 inline FakeWire Wire;
+
+using TwoWire=FakeWire;

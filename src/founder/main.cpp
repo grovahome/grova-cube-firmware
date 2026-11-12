@@ -7,6 +7,7 @@
 #include "founder/inputs.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
+#include "founder/serial.h"
 #include "founder/web.h"
 #include "modules/fan.h"
 #include "modules/rest_mode.h"
@@ -52,6 +53,7 @@ void loop() {
   founderDisplay::navigate(input.pageDelta);
   founderDisplay::loop();
   founderWeb::loop();
+  founderSerial::loop();
   founderNetwork::loop();
   delay(5);
 }

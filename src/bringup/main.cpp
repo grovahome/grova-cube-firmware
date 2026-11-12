@@ -1,10 +1,10 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <Adafruit_SSD1306.h>
+#include "drivers/ssd1317.h"
 #include "boards/grova_founder_s3.h"
 
 // This target intentionally has no actuator commands, Wi-Fi, OTA, MQTT or runs.
-static Adafruit_SSD1306 oled(128, 64, &Wire, -1);
+static GrovaSSD1317 oled;
 static bool oledReady = false;
 static bool rootDevices[128] = {};
 static bool muxReady = false;
@@ -76,9 +76,9 @@ void setup() {
   scanBus();
   const uint8_t oledAddress = rootDevices[0x3C] ? 0x3C : (rootDevices[0x3D] ? 0x3D : 0);
   if (oledAddress) {
-    oledReady = oled.begin(SSD1306_SWITCHCAPVCC, oledAddress, true, false);
+    oledReady = oled.begin(oledAddress);
     if (oledReady) {
-      oled.clearDisplay(); oled.setTextSize(1); oled.setTextColor(SSD1306_WHITE);
+      oled.clearDisplay(); oled.setTextSize(1); oled.setTextColor(1);
       oled.setCursor(0, 0); oled.println("GROVA Founder S3");
       oled.println("BRING-UP / NO RUN"); oled.println("Outputs: LOW");
       oled.println(rootDevices[founder::RTC_ADDRESS] ? "RV3032 ACK: yes" : "RV3032 ACK: no");

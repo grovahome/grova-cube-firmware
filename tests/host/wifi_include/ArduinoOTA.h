@@ -1,7 +1,8 @@
 #pragma once
 struct FakeOTA {
   int begins = 0;
-  void setHostname(const char*) {}
+  std::string hostname;
+  void setHostname(const char* name) { hostname=name; }
   template<class T> void onStart(T) {}
   void begin() { ++begins; }
   void handle() {}

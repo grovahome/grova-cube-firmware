@@ -7,6 +7,8 @@ functions to the new ESP32-S3 Founder PCB with neutral output channels.
 Build the integrated application with `pio run -e grova_founder_s3`.
 See [Founder firmware, architecture and acceptance](docs/founder-firmware.md)
 and the [schematic/pinout](docs/hardware/founder-s3/README.md).
+For the arriving board use the [first-start guide](docs/founder-first-start.md)
+(SSD1317 OLED, USB setup fallback and initial flash steps).
 The firmware builds but has not been tested on the arriving hardware.
 V1 stays frozen on its own branch; historical V1 documentation follows.
 

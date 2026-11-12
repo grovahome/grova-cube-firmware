@@ -12,3 +12,6 @@ include/secrets.h
 .DS_Store
 Thumbs.db
 include/board_config.h
+
+# Generated first-flash package, never source.
+/dist/founder-s3/

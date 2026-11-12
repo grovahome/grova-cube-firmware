@@ -3,8 +3,10 @@
 #include <Preferences.h>
 
 #include "boards/grova_founder_s3.h"
+#include "device_identity.h"
 #include "firmware_info.h"
 #include "founder/devices.h"
+#include "founder/display.h"
 #include "founder/i2c_bus.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
@@ -38,8 +40,9 @@ static bool validTargets(const Targets& t) {
          t.temperature >= -20 && t.temperature <= 60 && t.humidity >= 0 && t.humidity <= 100;
 }
 void settingsBegin() {
-  snprintf(identity, sizeof(identity), "grova-core-%06lX",
-           static_cast<unsigned long>(ESP.getEfuseMac() & 0xffffff));
+  char suffix[13];
+  grovaMacSuffix(ESP.getEfuseMac(), suffix);
+  snprintf(identity, sizeof(identity), "grova-core-%s", suffix);
   settingsReady = prefs.begin("founder-app", false);
   if (settingsReady && prefs.getBytesLength("targets") == sizeof(targets)) {
     Targets stored;
@@ -78,9 +81,17 @@ String status() {
   j["psram_bytes"] = ESP.getPsramSize();
   bool settingsOk = settingsReady && restMode_settingsReady() && time_settingsReady() &&
                     fanPolicy_settingsReady() && wifiOTA_storageReady();
-  j["warning"] = !settingsOk ? "SETTINGS" : fan_hasTachoFault() ? "FAN_FAULT" : "OK";
+  j["warning"] = !settingsOk                ? "SETTINGS"
+                 : !founderOutputs::ready() ? "OUTPUT_INIT"
+                 : fan_hasTachoFault()      ? "FAN_FAULT"
+                                            : "OK";
   j["settings_ok"] = settingsOk;
-  j["healthy"] = settingsOk && !fan_hasTachoFault();
+  j["outputs_ready"] = founderOutputs::ready();
+  j["oled_present"] = founderDisplay::present();
+  j["display"]["controller"] = "SSD1317";
+  j["display"]["rotation"] = founderDisplay::rotation();
+  j["display"]["offset"] = founderDisplay::offset();
+  j["healthy"] = settingsOk && founderOutputs::ready() && !fan_hasTachoFault();
   j["wifi_connected"] = wifiOTA_isConnected();
   j["ip"] = wifiOTA_getIP();
   j["mqtt_connected"] = founderNetwork::connected();
@@ -236,6 +247,9 @@ bool command(const String& body, String& response, bool remote) {
     if (ok) {
       targets = next;
     }
+  } else if (!strcmp(cmd, "set_display_config") && j["rotation"].is<unsigned>() &&
+             j["offset"].is<unsigned>()) {
+    ok = founderDisplay::configure(j["rotation"], j["offset"]);
   } else if (!strcmp(cmd, "set_rtc_config") && j["enabled"].is<bool>()) {
     ok = rtc_setEnabled(j["enabled"]);
   } else if (!strcmp(cmd, "set_mqtt_config") && !remote) {

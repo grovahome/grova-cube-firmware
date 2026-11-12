@@ -24,6 +24,10 @@ static void off() {
 }
 void preinit() {
   policy = Policy{};
+  for (int i = 0; i < 5; ++i) {
+    values[i] = 0;
+  }
+  pwmReady[0] = pwmReady[1] = false;
   for (int pin : pins) {
     digitalWrite(pin, LOW);
     pinMode(pin, OUTPUT);
@@ -53,6 +57,9 @@ void interlock(bool rest, bool setup) {
 void inhibit() {
   policy.ota = true;
   off();
+}
+bool ready() {
+  return policy.ready;
 }
 bool inhibited() {
   return policy.ota;
@@ -88,7 +95,7 @@ void appendJson(String& j) {
       j += String(values[i] / 10.0f, 2);
     }
     j += " ,\"ready\":";
-    j += (i < 3 || pwmReady[i - 3]) ? "true" : "false";
+    j += policy.ready ? "true" : "false";
     j += '}';
   }
   j += ']';

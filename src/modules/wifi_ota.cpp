@@ -10,6 +10,7 @@
 #include "modules/wifi_credentials.h"
 #if defined(GROVA_FOUNDER_APP)
 #include "founder/outputs.h"
+#include "device_identity.h"
 #include "modules/fan.h"
 #else
 #include "modules/pump.h"
@@ -73,7 +74,13 @@ void wifiOTA_begin() {
   WiFi.persistent(false); // Only validated credential blobs own persistence.
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(false);
+#if defined(GROVA_FOUNDER_APP)
+  char suffix[13];
+  grovaMacSuffix(ESP.getEfuseMac(), suffix);
+  snprintf(setupName, sizeof(setupName), "GROVA-%s", suffix);
+#else
   snprintf(setupName, sizeof(setupName), "GROVA-%06lX", static_cast<unsigned long>(ESP.getEfuseMac() & 0xffffff));
+#endif
   memset(setupKey, 0, sizeof(setupKey));
   bool keyValid = storageReady && settings.getBytesLength("setup-key") == sizeof(setupKey) &&
     settings.getBytes("setup-key", setupKey, sizeof(setupKey)) == sizeof(setupKey) && setupKey[12] == 0;
@@ -129,7 +136,11 @@ void wifiOTA_loop() {
     ipText = WiFi.localIP().toString();
     if (strcmp(state, "failed") && strcmp(state, "saved")) state = "connected";
     if (!otaReady && !needsSetup) {
+#if defined(GROVA_FOUNDER_APP)
+      ArduinoOTA.setHostname(setupName);
+#else
       ArduinoOTA.setHostname(OTA_HOSTNAME);
+#endif
       ArduinoOTA.onStart([]() {
 #if defined(GROVA_FOUNDER_APP)
         founderOutputs::inhibit(); fan_forceOff(); restMode_setEnabled(true,false);

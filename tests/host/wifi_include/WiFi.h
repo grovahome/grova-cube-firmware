@@ -34,5 +34,5 @@ struct FakeWiFi {
   int scanNetworks(bool, bool) { scan = WIFI_SCAN_RUNNING; return scan; }
 };
 inline FakeWiFi WiFi;
-struct FakeESP { uint64_t getEfuseMac() { return 0x123456abcdefULL; } };
+struct FakeESP { uint64_t mac=0x123456abcdefULL; uint64_t getEfuseMac() { return mac; } };
 inline FakeESP ESP;

@@ -1,6 +1,6 @@
 # Founder ESP32-S3 application
 
-Status: 2026-11-10. Development branch `codex/founder-pcb-bringup`, based on
+Status: 2026-11-12. Development branch `codex/founder-pcb-bringup`, based on
 corrected V1 baseline `5725652`. The V1 branch and freeze tag are unchanged.
 No S3 upload, physical acceptance or dashboard deployment has been performed.
 
@@ -51,8 +51,11 @@ After joining the LAN, open the board IP for the neutral webapp: signals,
 devices, both fans, three switch outputs, two 0-10V setpoints, RTC, targets and
 MQTT configuration. CONFIG held for five seconds enters Rest and opens setup
 without deleting the last validated WLAN. Encoder rotation/click navigates four
-OLED information pages; it does not activate outputs. OLED assumes SSD1306
-128x64, probes 0x3C/0x3D on root and retries initialization if missing.
+OLED information pages; it does not activate outputs. OLED uses the user-confirmed SSD1317 and a 128 SEG x 64 COM framebuffer,
+probes 0x3C/0x3D on root and retries after missing/failed transfers. Rotation
+0..3 and COM offset 0..95 are persistent settings. The provisional default
+(rotation 0, offset 80) follows a manufacturer 64-MUX reference panel; exact
+module mapping remains to be verified on the supplied display.
 
 The application always boots in Rest and clears all five output commands.
 Leaving Rest requires an explicit command and successful Rest persistence.
@@ -107,12 +110,15 @@ GET `/api/v1/status` (alias `/api/status`) returns neutral capabilities,
 per-instance device data, six abstract signals, fan status and generic outputs.
 POST `/api/v1/control` requires JSON and is disabled on the setup interface.
 Commands: `set_rest_mode`, `set_output`, `set_fan_manual`, `set_fan_auto`,
-`set_fan_policy`, `set_targets`, `set_rtc_config`, `set_mqtt_config` (HTTP only).
+`set_fan_policy`, `set_targets`, `set_display_config`, `set_rtc_config`,
+`set_mqtt_config` (HTTP only).
 Old pump/light/grow commands are rejected, not redirected to a guessed channel.
 
 The optional broker is configured locally (host, port, user, password). Empty
 host disables MQTT. Broker password and WLAN setup key are absent from status.
-The device ID is MAC-derived and does not impersonate Cube 001 or 002.
+The device ID, setup SSID and OTA hostname use all six factory MAC bytes.
+The older low-24-bit suffix could select only shared manufacturer bytes; the
+S3 path now avoids that collision and does not impersonate Cube 001 or 002.
 Topics remain `grova/v1/cubes/<id>/{telemetry,command,ack,availability}`.
 Remote commands require `cmd_id` (max 47 chars), nonzero `expires_at_s` and a
 usable clock; expired or repeated IDs are rejected. Deduplication is bounded to
@@ -161,3 +167,48 @@ as active interlocks. No new automation engine or old pump role is enabled.
 - CI now includes all three builds, Founder host checks and JS syntax; these
   workflow additions have not yet run remotely because this branch is local.
 - No new firmware was uploaded; the internal GROVA working copy was untouched.
+
+## First-board preparation 2026-11-12
+
+The user confirmed controller SSD1317 and display size 64x128. A dedicated
+controller driver replaces the SSD1306 assumption in both S3 targets; the V1
+OLED driver is unchanged. The graphics canvas is converted to SSD1317 page
+bytes, uses bounded I2C packets and checks ACKs on initialization and updates.
+Offset/rotation are explicitly configurable because the controller alone does
+not identify panel wiring. ACK means reachable/initialized, not optical proof.
+
+References for controller/panel development:
+- [Solomon Systech SSD1317 controller datasheet](https://www.displayfuture.com/Display/datasheet/controller/SSD1317.pdf)
+- [Wisevision 64x128 SSD1317 panel reference, section 4.4](https://www.jx-wisevision.com/uploads/SPEC-X154-6428TSWXG01-H13-VER-A.pdf)
+These are reference documents; the supplied module's vendor/part number has
+not yet been established. The controller driver does not generate panel VPP;
+the attached module must supply its own required OLED power circuitry.
+
+USB console commands (newline terminated):
+- `status`: full diagnostics without passwords, including OLED/driver readiness.
+- `setup`: enter Rest, open recovery AP and print its existing setup credentials
+  explicitly on the local physical USB console. Does not erase saved WLAN.
+- `display 0 80`: save rotation/offset even before WLAN provisioning works.
+  Rotations 1/3 provide portrait layout; choose the actual physical orientation.
+
+A failed analogue PWM initialization now also fails reported output readiness
+and overall health; positive generic output commands remain blocked. Hardware
+readiness is not a measured output voltage. The firmware still does not claim
+that every connected four-wire fan stops physically at a zero PWM request.
+
+`python tools/package_founder.py` builds the integrated target and writes an
+ignored `dist/founder-s3/` first-flash package with component addresses and
+SHA-256 hashes. It does not communicate with or flash any board. The merged
+image starts at 0x0 and overwrites the intervening NVS range; reserve it for the
+first flash of a blank board. Use normal PlatformIO application upload/OTA for
+subsequent configured-device updates. See [today's bring-up guide](founder-first-start.md).
+
+Validation on 2026-11-12: all three PlatformIO builds passed (integrated S3:
+62,052 bytes RAM / 954,709 bytes flash). Existing 25 lifecycle and 16 Wi-Fi
+scenarios plus Wi-Fi HTTP checks passed. Founder host checks additionally
+exercise actual SSD1317 packet transmission failures and canvas conversion,
+full-MAC name collisions through the S3 Wi-Fi/OTA path, display parameter bounds
+and failed PWM initialization. Browser simulation passed for missing OLED,
+SSD1317 setting commands, output readiness blocking, Rest and mobile layout.
+All physical checks, especially the exact OLED panel mapping and GPIO46 reset
+behaviour, remain OPEN. No device was uploaded to by these checks.

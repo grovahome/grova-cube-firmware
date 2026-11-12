@@ -163,6 +163,9 @@ int main() {
   assert(founderApp::setRest(true));
   assert(!run(R"({"cmd":"set_output","output":"OUT12_1","state":true})"));
   assert(!run(R"({"cmd":"set_rest_mode","enabled":"false"})"));
+  assert(run(R"({"cmd":"set_display_config","rotation":1,"offset":80})"));
+  assert(!run(R"({"cmd":"set_display_config","rotation":4,"offset":80})"));
+  assert(!run(R"({"cmd":"set_display_config","rotation":0,"offset":96})"));
   assert(!run(R"({"cmd":"set_grow_mode","mode":"GROWTH"})"));
   assert(!run(R"({"cmd":"pump_test","action":"start"})"));
   assert(run(R"({"cmd":"set_rest_mode","enabled":false})"));
@@ -212,3 +215,18 @@ int main() {
   std::cout << "Founder production command parsing, deadlines, duplicate suppression, storage "
                "rollback and status JSON passed\n";
 }
+
+namespace founderDisplay {
+bool present() {
+  return true;
+}
+unsigned rotation() {
+  return 0;
+}
+unsigned offset() {
+  return 80;
+}
+bool configure(unsigned r, unsigned o) {
+  return r <= 3 && o <= 95;
+}
+}  // namespace founderDisplay

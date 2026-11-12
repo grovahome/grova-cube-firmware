@@ -51,8 +51,8 @@ No load roles are assigned. RGB is commanded off.
 USB serial commands: `s` prints memory and raw input levels; `i` scans the
 system bus and each mux channel, then isolates all mux channels again.
 Root-address collisions cannot be resolved by this scan. Detection by ACK does
-not validate device identity. OLED initialization assumes SSD1306 128x64 and
-must be visually verified. RV-3032 is detected only; clock read/write, battery
+not validate device identity. The current S3 targets use SSD1317 (128 SEG x 64 COM); panel rotation and
+offset must be visually verified. RV-3032 is detected only; clock read/write, battery
 validity and NTP synchronization are not implemented yet.
 
 ## Hardware checks and remaining work

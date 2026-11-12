@@ -1,9 +1,10 @@
 #include "founder/display.h"
 
-#include <Adafruit_SSD1306.h>
+#include <Preferences.h>
 #include <Wire.h>
 
 #include "boards/grova_founder_s3.h"
+#include "drivers/ssd1317.h"
 #include "founder/app.h"
 #include "founder/i2c_bus.h"
 #include "modules/fan.h"
@@ -12,11 +13,51 @@
 #include "modules/time_sync.h"
 #include "modules/wifi_ota.h"
 namespace founderDisplay {
-static Adafruit_SSD1306 oled(128, 64, &Wire, -1);
+static GrovaSSD1317 oled;
+static Preferences displaySettings;
+static bool storageReady = false;
+static unsigned rotate = 0, rowOffset = 80;
+unsigned rotation() {
+  return rotate;
+}
+unsigned offset() {
+  return rowOffset;
+}
 static bool ready = false;
+static uint8_t activeAddress = 0;
+bool present() {
+  return ready;
+}
 static int page = 0;
 static uint32_t drawAt = 0, probeAt = 0;
+bool configure(unsigned rotation, unsigned offset) {
+  if (rotation > 3 || offset > 95 || !storageReady) {
+    return false;
+  }
+  uint16_t packed = (rotation << 8) | offset;
+  if (displaySettings.putBytes("panel", &packed, sizeof(packed)) != sizeof(packed)) {
+    return false;
+  }
+  rotate = rotation;
+  rowOffset = offset;
+  oled.setRotation(rotate);
+  ready = false;
+  probeAt = millis() - 10000;
+  return true;
+}
 void begin() {
+  storageReady = displaySettings.begin("founder-oled", false);
+  uint16_t packed = 80;
+  if (storageReady && displaySettings.getBytesLength("panel") == sizeof(packed)) {
+    uint16_t stored = 0;
+    if (displaySettings.getBytes("panel", &stored, sizeof(stored)) == sizeof(stored) &&
+        (stored >> 8) <= 3 && (stored & 255) <= 95) {
+      packed = stored;
+    }
+  }
+  rotate = packed >> 8;
+  rowOffset = packed & 255;
+  oled.setRotation(rotate);
   probeAt = millis() - 10000;
   drawAt = millis() - 1000;
 }
@@ -29,8 +70,9 @@ void loop() {
     founderBus::Scope bus;
     if (bus) {
       uint8_t address = founderBus::probe(0x3C) ? 0x3C : founderBus::probe(0x3D) ? 0x3D : 0;
+      activeAddress = address;
       if (address) {
-        ready = oled.begin(SSD1306_SWITCHCAPVCC, address, true, false);
+        ready = oled.begin(address, rowOffset);
       }
     }
   }
@@ -42,9 +84,13 @@ void loop() {
   if (!bus) {
     return;
   }
+  if (!founderBus::probe(activeAddress)) {
+    ready = false;
+    return;
+  }
   oled.clearDisplay();
   oled.setTextSize(1);
-  oled.setTextColor(SSD1306_WHITE);
+  oled.setTextColor(1);
   oled.setCursor(0, 0);
   if (wifiOTA_setupActive()) {
     oled.println("GROVA Wi-Fi Setup");
@@ -90,6 +136,8 @@ void loop() {
       oled.println(founderApp::deviceId());
     }
   }
-  oled.display();
+  if (!oled.display()) {
+    ready = false;
+  }
 }
 }  // namespace founderDisplay

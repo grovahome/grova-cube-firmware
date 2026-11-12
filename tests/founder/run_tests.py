@@ -21,3 +21,9 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     device_command+=['-std=c++17','-Wall','-Wextra','-Itests/founder/include','-Isrc','-Iinclude','tests/founder/devices_test.cpp','src/founder/devices.cpp','src/founder/i2c_bus.cpp','src/modules/signal_registry.cpp','-o',str(device_binary)]
     subprocess.run(device_command,cwd=root,check=True)
     subprocess.run([str(device_binary)],cwd=root,check=True)
+
+    wifi_binary=Path(temp)/'founder_wifi_tests.exe'
+    wifi_command=[a.compiler]+(['c++'] if a.zig else [])
+    wifi_command+=['-std=c++17','-DGROVA_FOUNDER_APP=1','-Itests/host/wifi_include','-Itests/host/include','-Isrc','-Iinclude','tests/founder/wifi_identity_test.cpp','tests/founder/wifi_glue.cpp','src/modules/wifi_ota.cpp','src/modules/rest_mode.cpp','-o',str(wifi_binary)]
+    subprocess.run(wifi_command,cwd=root,check=True)
+    subprocess.run([str(wifi_binary)],cwd=root,check=True)
