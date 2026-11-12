@@ -309,6 +309,29 @@ int main(int argc, char**) {
   assert(!founderApp::setRest(false));
   assert(restMode_isEnabled());
   failFanSave = false;
+  assert(!run(R"({"cmd":"set_fan_manual","fan":1,"percent":50})"));
+  assert(!run(R"({"cmd":"set_fan_auto","fan":1})"));
+  assert(!run(R"({"cmd":"configure_equipment","equipment":[],"fan_ports":[true,false]})"));
+  assert(run(
+      R"({"cmd":"configure_equipment","equipment":[],"fan_ports":[{"enabled":true,"name":"Zuluft"},{"enabled":false,"name":"Abluft"}]})"));
+  assert(founderEquipment::fanEnabled(1) && !founderEquipment::fanEnabled(2));
+  assert(founderEquipment::hasAssignments());
+  founderEquipment::begin();
+  assert(founderEquipment::fanEnabled(1));
+  testNvs::failKey = "founder-devices/configuration";
+  assert(!run(
+      R"({"cmd":"configure_equipment","equipment":[],"fan_ports":[{"enabled":false,"name":"Zuluft"},{"enabled":false,"name":"Abluft"}]})"));
+  assert(founderEquipment::fanEnabled(1));
+  testNvs::failKey = "";
+  assert(founderApp::setRest(false));
+  assert(run(R"({"cmd":"set_fan_manual","fan":1,"percent":50})"));
+  assert(!run(R"({"cmd":"set_fan_manual","fan":2,"percent":50})"));
+  assert(founderApp::setRest(true));
+  assert(run(
+      R"({"cmd":"configure_equipment","equipment":[],"fan_ports":[{"enabled":false,"name":"Zuluft"},{"enabled":false,"name":"Abluft"}]})"));
+  assert(!founderEquipment::hasAssignments());
+  founderEquipment::begin();
+  assert(!founderEquipment::fanEnabled(1));
   // Corrupt configuration never leaves old output ownership active.
   testNvs::data["founder-devices/configuration"] = {'x'};
   founderEquipment::begin();

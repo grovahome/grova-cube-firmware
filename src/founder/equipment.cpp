@@ -15,6 +15,33 @@ struct Device {
   unsigned voltage = 0, maxRuntime = 0;
 };
 static Device devices[Count];
+static bool cleanText(const char*, size_t);
+struct FanPort {
+  bool enabled = false;
+  char name[40] = {};
+};
+static FanPort fanPorts[2];
+static bool parseFans(JsonObjectConst root, FanPort (&next)[2], String& error) {
+  if (root["fan_ports"].isNull()) {
+    return true;
+  }
+  if (!root["fan_ports"].is<JsonArrayConst>() || root["fan_ports"].size() != 2) {
+    error = "Expected two fixed fan ports";
+    return false;
+  }
+  for (unsigned i = 0; i < 2; ++i) {
+    auto row = root["fan_ports"][i];
+    if (!row["enabled"].is<bool>() || !row["name"].is<const char*>() ||
+        !cleanText(row["name"], 39)) {
+      error = "Invalid fan port configuration";
+      return false;
+    }
+    next[i].enabled = row["enabled"];
+    strcpy(next[i].name, row["name"]);
+  }
+  return true;
+}
+
 static Preferences settings;
 static bool storage = false, configOk = false, eventsOk = false;
 static uint32_t revision = 0;
@@ -158,6 +185,11 @@ void begin() {
   Device empty[Count];
   apply(empty);
   revision = 0;
+  fanPorts[0] = FanPort{};
+  fanPorts[1] = FanPort{};
+  strcpy(fanPorts[0].name, "Lüfter 1");
+  strcpy(fanPorts[1].name, "Lüfter 2");
+  FanPort initialFans[2] = {fanPorts[0], fanPorts[1]};
   storage = settings.begin("founder-devices", false);
   configOk = storage;
   eventsOk = storage;
@@ -174,7 +206,8 @@ void begin() {
       bytes[size] = 0;
       configOk = !deserializeJson(root, bytes) && root["schema"].is<unsigned>() &&
                  root["schema"].as<unsigned>() == 1 && root["revision"].is<uint32_t>() &&
-                 parse(root.as<JsonObjectConst>(), initial, error);
+                 parse(root.as<JsonObjectConst>(), initial, error) &&
+                 parseFans(root.as<JsonObjectConst>(), initialFans, error);
     }
     if (configOk) {
       revision = root["revision"];
@@ -185,6 +218,8 @@ void begin() {
   }
   if (configOk) {
     apply(initial);
+    fanPorts[0] = initialFans[0];
+    fanPorts[1] = initialFans[1];
   }
   if (storage && settings.getBytesLength("events")) {
     Ledger saved;
@@ -203,7 +238,13 @@ void begin() {
     }
   }
 }
+bool fanEnabled(unsigned fan) {
+  return fan >= 1 && fan <= 2 && fanPorts[fan - 1].enabled && settingsReady();
+}
 bool hasAssignments() {
+  if (fanPorts[0].enabled || fanPorts[1].enabled) {
+    return true;
+  }
   for (const auto& d : devices) {
     if (d.profile) {
       return true;
@@ -224,12 +265,19 @@ bool configure(JsonObjectConst request, String& message) {
     return false;
   }
   Device next[Count];
-  if (!parse(request, next, message)) {
+  FanPort nextFans[2] = {fanPorts[0], fanPorts[1]};
+  if (!parseFans(request, nextFans, message) || !parse(request, next, message)) {
     return false;
   }
   JsonDocument root;
   root["schema"] = 1;
   root["revision"] = revision + 1;
+  auto fans = root["fan_ports"].to<JsonArray>();
+  for (const auto& fan : nextFans) {
+    auto row = fans.add<JsonObject>();
+    row["enabled"] = fan.enabled;
+    row["name"] = fan.name;
+  }
   JsonArray list = root["equipment"].to<JsonArray>();
   for (unsigned i = 0; i < Count; ++i) {
     if (next[i].profile) {
@@ -259,6 +307,8 @@ bool configure(JsonObjectConst request, String& message) {
     return false;
   }
   apply(next);
+  fanPorts[0] = nextFans[0];
+  fanPorts[1] = nextFans[1];
   ++revision;
   configOk = true;
   message = "Device assignment saved; all outputs off";
@@ -392,6 +442,12 @@ void appendJson(String& out) {
   JsonDocument root;
   root["equipment_settings_ok"] = settingsReady();
   root["equipment_revision"] = revision;
+  auto fans = root["fan_ports"].to<JsonArray>();
+  for (const auto& fan : fanPorts) {
+    auto row = fans.add<JsonObject>();
+    row["enabled"] = fan.enabled;
+    row["name"] = fan.name;
+  }
   auto catalog = root["device_catalog"].to<JsonArray>();
   unsigned count;
   const auto* all = profiles(count);

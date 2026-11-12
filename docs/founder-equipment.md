@@ -136,3 +136,44 @@ errors. Desktop/mobile browser simulation covers navigation, assignment payloads
 profile-specific hidden fields, draft retention, timed start in seconds, global
 stop, assigned output lockout and loss-of-connection controls. No hardware was
 flashed or physically tested by these checks.
+
+## Fixed output occupation (2026-11-12)
+
+The latest editor replaces arbitrary device-slot selection with the real board
+connectors, in this order: 12 V output 1, 12 V output 2, 5 V output, the two
+0-10 V outputs, and both dedicated PWM/tacho fan connectors. Each connector has
+an occupation checkbox. Only occupied connectors show device properties.
+Electrical voltage and connection type cannot be edited or reassigned: the
+client derives `voltage` / `power_voltage` from the board capabilities, and the
+firmware still independently rejects incorrect voltage, type or duplicate claims.
+Compatible device profiles are filtered by that fixed connector's capability.
+
+Occupation is configuration, not an on command. Edits require the output lock.
+Unchecking a connector hides its properties in the draft. After **Belegung
+übernehmen** saves successfully, its device disappears from the overview and
+its assignment is removed persistently. A failed save preserves the previous
+active configuration; merely toggling or navigating never applies an unsaved
+draft. Unchanged device IDs are preserved internally when saving, while newly
+occupied connectors receive free internal IDs; these slots are no longer user
+choices. Runtime limits are entered in seconds and transmitted as milliseconds.
+
+Optional switched power for a 0-10 V light still consumes a real 5/12 V connector.
+That connector is visibly linked to the controlling 0-10 V device and cannot be
+independently occupied; its voltage also comes from board metadata. Removing
+the control-device assignment releases its paired power connector.
+
+PWM fan occupation and names are persisted in the same atomic configuration
+record as the other assignments (`fan_ports`: two enabled/name objects). The
+fan control implementation remains the existing PWM/tacho service. Disabled
+fan ports are hidden on the overview and reject positive manual, auto and
+policy commands. Zero/stop requests remain possible. An older configuration
+without `fan_ports` restores both as unoccupied; the user must explicitly occupy
+connected fans. A config command omitting `fan_ports` preserves the currently
+loaded fan-port assignments. No additional hardware interface is introduced.
+
+Validation: production host tests cover fixed voltage/type enforcement, native
+fan activation/deactivation, disabled-port command rejection, durable reload and
+failed-save rollback. Browser simulation covers all seven fixed connectors,
+absence of voltage selectors, correct 5/12 V payloads, optional power reservation,
+removal only after successful save, new assignments, named PWM fans, disabled
+editing while unlocked and mobile layout. Physical acceptance stays open.
