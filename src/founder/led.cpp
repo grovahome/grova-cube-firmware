@@ -3,6 +3,7 @@
 #include <cstring>
 #include "boards/grova_founder_s3.h"
 #include "founder/led_policy.h"
+#include "founder/app.h"
 #include "founder/outputs.h"
 #include "modules/rest_mode.h"
 #include "modules/wifi_ota.h"
@@ -26,7 +27,7 @@ void loop() {
   if (uint32_t(now - frameAt) < 100) return;
   frameAt = now;
   const bool connected = wifiOTA_isConnected();
-  const bool error = !wifiOTA_storageReady() || !founderOutputs::ready() ||
+  const bool error = founderApp::hasFault() ||
       (!connected && strlen(wifiOTA_setupError()) != 0);
   const Color next = policy.color(now, {error, wifiOTA_setupActive(), wifiOTA_isTesting(), connected});
   if (!same(previous, next)) {

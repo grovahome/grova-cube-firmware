@@ -2,7 +2,10 @@
 
 Status: 2026-11-12. Development branch `codex/founder-pcb-bringup`, based on
 corrected V1 baseline `5725652`. The V1 branch and freeze tag are unchanged.
-No S3 upload, physical acceptance or dashboard deployment has been performed.
+The previous checkpoint was installed and Wi-Fi/LED/RTC checks are recorded in
+[First start](founder-first-start.md). The new [daily plans](founder-daily-plans.md)
+are prepared in source only: controller disconnected, no new flash or physical
+output acceptance. The internal dashboard deployment is unchanged.
 
 ## Build and separation
 

@@ -9,5 +9,8 @@ bool fanEnabled(unsigned fan);
 bool configure(JsonObjectConst request, String& message);
 bool operate(JsonObjectConst request, String& message);
 void stopAll();
+void loop();
+bool hasPlans();
+bool planEnabled(const char* id);
 void appendJson(String& json);
 }  // namespace founderEquipment

@@ -1,15 +1,18 @@
 # Founder device assignment
 
-Status: implemented for manual operation on the existing Founder PCB interfaces.
-Physical board acceptance remains OPEN. No automation engine is introduced.
+Status: manual controls and persistent daily device plans are implemented.
+Physical output acceptance remains OPEN. See [daily plans](founder-daily-plans.md)
+for the current save/resume and pump-execution contract; the new plans are not
+yet installed on the disconnected board.
 
 ## Separation of responsibilities
 
 1. Board profile: pins and electrical output capabilities, without application roles.
 2. Device catalog: supported connection types, commands and protection limits.
 3. Assignment: a named device owns one compatible output (optionally two for light).
-4. Device implementation: converts manual device commands into protected output requests.
-5. Future automation: will request device actions through the same implementations.
+4. Device implementation: translates validated requests into protected outputs.
+5. Daily planner: supplies window setpoints or durably reserved bounded pulses.
+6. Future sensor/phase automation can supply the same abstract device requests.
 
 The switched 5 V and 12 V channels can support the same device functions. Their
 supply voltage must match the actual load; assignment never converts voltage.
@@ -54,8 +57,10 @@ filtered in the form; the firmware independently validates every request.
 Assignment is saved only in Rest Mode and only via the local control API.
 The complete mapping is validated for duplicate slots, duplicate output claims,
 output type, voltage and profile limits, then saved as one versioned NVS record.
-Only a successful save replaces the active mapping. All outputs are then off.
-A reboot restores the mapping but never restores an active device request.
+Only a successful save replaces the active mapping; reassigning first turns outputs off.
+The UI pauses before save and explicitly enables selected plans afterwards. A reboot
+restores mapping and may resume enabled plans after readiness/time checks; manual
+ON requests are not replayed. Explicit Pause remains durable.
 Invalid stored mappings leave every channel unassigned and report a settings error.
 
 Device commands are `set_device`, `run_device`, `stop_device`. Timed starts require
@@ -110,7 +115,7 @@ readiness and their actual mux channel number (0..7; system bus separate).
 
 WLAN, clock and display are settings. MQTT, existing fan rules/targets and raw
 output diagnostics are under Advanced. No fixed grow phases or application-wide
-modes are presented on the overview; general automation is still deferred.
+modes are presented on the overview; daily plans are now available; sensor/phase automation remains deferred.
 
 The UI calls the existing Rest interlock "Ausgänge gesperrt". Internal Rest
 storage and `set_rest_mode` API stay compatible. Every lock/release request also
@@ -121,7 +126,7 @@ the cleared demands fails, release is rejected and the board stays locked.
 
 `stop_all` cancels assigned-device requests, switches off all generic output
 channels (including free commissioning channels), saves both fans as manual zero
-and forces the fan drivers off. It preserves the existing lock state on success.
+and forces the fan drivers off. It durably enters Pause, preventing a plan from restarting a stopped device.
 A failed fan-mode save falls back to the lock. It is not an independent electrical
 emergency stop and does not certify a physical fan stop at zero PWM.
 

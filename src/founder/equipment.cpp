@@ -3,9 +3,14 @@
 #include <Preferences.h>
 #include <stddef.h>
 
+#include <memory>
+#include <new>
+
 #include "founder/device_profiles.h"
 #include "founder/outputs.h"
+#include "founder/schedule_policy.h"
 #include "modules/rest_mode.h"
+#include "modules/time_sync.h"
 #include "modules/wifi_ota.h"
 namespace founderEquipment {
 struct Device {
@@ -13,6 +18,7 @@ struct Device {
   char name[40] = {};
   int output = -1, power = -1;
   unsigned voltage = 0, maxRuntime = 0;
+  founderSchedule::Plan plan;
 };
 static Device devices[Count];
 static bool cleanText(const char*, size_t);
@@ -57,6 +63,19 @@ struct Ledger {
   uint32_t checksum;
 };
 static Ledger ledger;
+struct PlanLedger {
+  uint32_t schema = 1, token[Count] = {}, checksum = 0;
+};
+static PlanLedger planLedger;
+static bool plansOk = true;
+static uint32_t planChecksum(const PlanLedger& l) {
+  uint32_t h = 2166136261UL;
+  const auto* b = reinterpret_cast<const uint8_t*>(&l);
+  for (size_t n = 0; n < offsetof(PlanLedger, checksum); ++n) {
+    h = (h ^ b[n]) * 16777619UL;
+  }
+  return h;
+}
 static uint32_t checksum(const Ledger& l) {
   const auto* bytes = reinterpret_cast<const uint8_t*>(&l);
   uint32_t hash = 2166136261UL;
@@ -85,6 +104,66 @@ static int slot(const char* id) {
   return id && strlen(id) == 4 && !strncmp(id, "dev", 3) && id[3] >= '1' && id[3] <= '5'
              ? id[3] - '1'
              : -1;
+}
+static bool parsePlan(JsonVariantConst value, Device& device, String& error) {
+  if (value.isNull()) {
+    return true;  // Existing configurations remain manual.
+  }
+  if (!value.is<JsonObjectConst>() || !value["enabled"].is<bool>() ||
+      !value["slots"].is<JsonArrayConst>() || value["slots"].size() > founderSchedule::MaxSlots) {
+    error = "Invalid daily plan";
+    return false;
+  }
+  auto& plan = device.plan;
+  plan.enabled = value["enabled"];
+  for (JsonObjectConst item : value["slots"].as<JsonArrayConst>()) {
+    if (!item["start_minute"].is<unsigned>() || item["start_minute"].as<unsigned>() >= 1440) {
+      error = "Invalid start time";
+      return false;
+    }
+    auto& slot = plan.slots[plan.count++];
+    slot.start = item["start_minute"];
+    if (device.profile->timed) {
+      if (!item["runtime_ms"].is<unsigned>() ||
+          item["runtime_ms"].as<unsigned>() > device.maxRuntime || !item["end_minute"].isNull() ||
+          !item["percent"].isNull()) {
+        error = "Invalid pulse plan";
+        return false;
+      }
+      slot.runtimeMs = item["runtime_ms"];
+    } else {
+      if (!item["end_minute"].is<unsigned>() || item["end_minute"].as<unsigned>() > 1440 ||
+          !item["percent"].is<unsigned>() || item["percent"].as<unsigned>() > 100 ||
+          (!device.profile->analog && item["percent"].as<unsigned>() != 100) ||
+          !item["runtime_ms"].isNull()) {
+        error = "Invalid on/off window";
+        return false;
+      }
+      slot.end = item["end_minute"];
+      slot.percent = item["percent"];
+    }
+  }
+  if (!founderSchedule::valid(plan, device.profile->timed, device.maxRuntime)) {
+    error = "Daily plan is empty, overlapping or exceeds runtime limits";
+    return false;
+  }
+  return true;
+}
+static void appendPlan(JsonObject row, const Device& device) {
+  auto p = row["plan"].to<JsonObject>();
+  p["enabled"] = device.plan.enabled;
+  auto slots = p["slots"].to<JsonArray>();
+  for (unsigned n = 0; n < device.plan.count; ++n) {
+    const auto& s = device.plan.slots[n];
+    auto item = slots.add<JsonObject>();
+    item["start_minute"] = s.start;
+    if (device.profile->timed) {
+      item["runtime_ms"] = s.runtimeMs;
+    } else {
+      item["end_minute"] = s.end;
+      item["percent"] = s.percent;
+    }
+  }
 }
 static bool parse(JsonObjectConst root, Device (&next)[Count], String& error) {
   if (!root["equipment"].is<JsonArrayConst>() || root["equipment"].size() > Count) {
@@ -143,6 +222,9 @@ static bool parse(JsonObjectConst root, Device (&next)[Count], String& error) {
       error = "Runtime applies only to timed devices";
       return false;
     }
+    if (!parsePlan(row["plan"], device, error)) {
+      return false;
+    }
     used[out] = true;
     slots[i] = true;
     if (!row["power_output"].isNull()) {
@@ -186,6 +268,8 @@ static void apply(const Device (&next)[Count]) {
   }
 }
 void begin() {
+  planLedger = PlanLedger{};
+  plansOk = true;
   Device empty[Count];
   apply(empty);
   revision = 0;
@@ -202,13 +286,14 @@ void begin() {
   Device initial[Count];
   if (storage && settings.isKey("configuration")) {
     size_t size = settings.getBytesLength("configuration");
-    char bytes[4097];
+    std::unique_ptr<char[]> bytes(new (std::nothrow) char[4097]);
     JsonDocument root;
     String error;
-    configOk = size > 0 && size <= 4096 && settings.getBytes("configuration", bytes, size) == size;
+    configOk = bool(bytes) && size > 0 && size <= 4096 &&
+               settings.getBytes("configuration", bytes.get(), size) == size;
     if (configOk) {
       bytes[size] = 0;
-      configOk = !deserializeJson(root, bytes) && root["schema"].is<unsigned>() &&
+      configOk = !deserializeJson(root, bytes.get()) && root["schema"].is<unsigned>() &&
                  root["schema"].as<unsigned>() == 1 && root["revision"].is<uint32_t>() &&
                  parse(root.as<JsonObjectConst>(), initial, error) &&
                  parseFans(root.as<JsonObjectConst>(), initialFans, error);
@@ -224,6 +309,15 @@ void begin() {
     apply(initial);
     fanPorts[0] = initialFans[0];
     fanPorts[1] = initialFans[1];
+  }
+  if (storage && settings.isKey("plan-ledger")) {
+    PlanLedger saved;
+    plansOk = settings.getBytesLength("plan-ledger") == sizeof(saved) &&
+              settings.getBytes("plan-ledger", &saved, sizeof(saved)) == sizeof(saved) &&
+              saved.schema == 1 && saved.checksum == planChecksum(saved);
+    if (plansOk) {
+      planLedger = saved;
+    }
   }
   if (storage && settings.isKey("events")) {
     Ledger saved;
@@ -257,7 +351,7 @@ bool hasAssignments() {
   return false;
 }
 bool settingsReady() {
-  return storage && configOk && eventsOk;
+  return storage && configOk && eventsOk && plansOk;
 }
 bool configure(JsonObjectConst request, String& message) {
   if (!storage || !restMode_isEnabled()) {
@@ -298,6 +392,7 @@ bool configure(JsonObjectConst request, String& message) {
       row["profile"] = next[i].profile->id;
       row["name"] = next[i].name;
       row["output"] = channels()[next[i].output].id;
+      appendPlan(row, next[i]);
       if (!next[i].profile->analog) {
         row["voltage"] = next[i].voltage;
       }
@@ -312,7 +407,8 @@ bool configure(JsonObjectConst request, String& message) {
   }
   String bytes;
   serializeJson(root, bytes);
-  if (settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
+  if (bytes.length() > 4096 ||
+      settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
     message = "Device assignment was not saved; previous assignment remains";
     return false;
   }
@@ -376,6 +472,10 @@ bool operate(JsonObjectConst request, String& message) {
   }
   const auto& d = devices[i];
   const char* cmd = request["cmd"] | "";
+  if (d.plan.enabled) {
+    message = "Device is scheduled; pause or edit its plan first";
+    return false;
+  }
   if (!strcmp(cmd, "stop_device")) {
     requested[i] = 0;
     bool ok = drive(i, 0);
@@ -440,6 +540,70 @@ bool operate(JsonObjectConst request, String& message) {
   message = ok ? "Device applied" : "Device output rejected";
   return ok;
 }
+bool planEnabled(const char* id) {
+  int i = slot(id);
+  return i >= 0 && devices[i].profile && devices[i].plan.enabled;
+}
+bool hasPlans() {
+  for (const auto& d : devices) {
+    if (d.profile && d.plan.enabled) {
+      return true;
+    }
+  }
+  return false;
+}
+void loop() {
+  const bool allowed = settingsReady() && !restMode_isEnabled() && !wifiOTA_requiresSetup() &&
+                       !wifiOTA_isTesting() && !founderOutputs::inhibited() &&
+                       founderOutputs::ready() && isTimeSynced();
+  const unsigned minute = unsigned(getHour() * 60 + getMinute());
+  const int date = getDateKey();
+  for (unsigned i = 0; i < Count; ++i) {
+    const auto& d = devices[i];
+    if (!d.profile || !d.plan.enabled) {
+      continue;
+    }
+    if (!allowed || minute >= 1440 || date < 0) {
+      drive(i, 0);
+      requested[i] = 0;
+      continue;
+    }
+    if (!d.profile->timed) {
+      unsigned value = founderSchedule::percent(d.plan, minute);
+      if (founderOutputs::applied(d.output) != value) {
+        if (drive(i, value)) {
+          requested[i] = value;
+        }
+      }
+      continue;
+    }
+    if (millis() < d.profile->startupLockMs || founderOutputs::applied(d.output) > 0) {
+      continue;
+    }
+    for (unsigned n = 0; n < d.plan.count; ++n) {
+      const auto& slot = d.plan.slots[n];
+      const uint32_t token = founderSchedule::token(unsigned(date), minute);
+      // Only the current scheduled minute, no accumulated or restart catch-up.
+      if (slot.start != minute || token <= planLedger.token[i]) {
+        continue;
+      }
+      PlanLedger next = planLedger;
+      next.token[i] = token;
+      next.checksum = planChecksum(next);
+      // Reserve before any GPIO start. Failed start remains consumed.
+      if (settings.putBytes("plan-ledger", &next, sizeof(next)) != sizeof(next)) {
+        plansOk = false;
+        stopAll();
+        restMode_setEnabled(true, true);
+        return;
+      }
+      planLedger = next;
+      if (founderOutputs::pulseDevice(i, d.output, slot.runtimeMs)) {
+        requested[i] = 100;
+      }
+    }
+  }
+}
 void stopAll() {
   for (unsigned i = 0; i < Count; ++i) {
     if (devices[i].profile) {
@@ -494,6 +658,8 @@ void appendJson(String& out) {
       missing.add("tacho_feedback");
     }
     row["physical_acceptance"] = "OPEN";
+    row["plan_kind"] = all[i].timed ? "pulse" : "windows";
+    row["plan_max_slots"] = founderSchedule::MaxSlots;
   }
   auto caps = root["output_capabilities"].to<JsonArray>();
   for (int i = 0; i < 5; ++i) {
@@ -519,6 +685,7 @@ void appendJson(String& out) {
       row["name"] = d.name;
       row["profile"] = d.profile->id;
       row["output"] = channels()[d.output].id;
+      appendPlan(row, d);
       if (!d.profile->analog) {
         row["voltage"] = d.voltage;
       }
@@ -537,6 +704,8 @@ void appendJson(String& out) {
                       : restMode_isEnabled()                  ? "REST"
                       : !settingsReady()                      ? "STORAGE"
                       : !founderOutputs::ready()              ? "OUTPUT_INIT"
+                      : !isTimeSynced() && d.plan.enabled     ? "WAIT_TIME"
+                      : d.plan.enabled                        ? "SCHEDULE"
                       : founderOutputs::applied(d.output) > 0 ? "MANUAL"
                       : requested[i] > 0 && d.profile->timed  ? "RUNTIME_COMPLETE"
                                                               : "OFF";

@@ -57,6 +57,7 @@ void loop() {
   founderWeb::loop();
   founderSerial::loop();
   founderNetwork::loop();
+  founderApp::loop();
   founderLed::loop();
   delay(5);
 }

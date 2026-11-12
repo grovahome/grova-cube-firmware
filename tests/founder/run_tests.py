@@ -4,6 +4,9 @@ import argparse,subprocess,tempfile
 p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);p.add_argument('--blank-output',type=Path);p.add_argument('--boot-frames',type=Path);a=p.parse_args()
 root=Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
+    schedule_binary=Path(temp)/'schedule_tests.exe'
+    subprocess.run([a.compiler]+(['c++'] if a.zig else [])+['-std=c++17','-Wall','-Wextra','-Isrc','tests/founder/schedule_test.cpp','-o',str(schedule_binary)],cwd=root,check=True)
+    subprocess.run([str(schedule_binary)],cwd=root,check=True)
     led_binary=Path(temp)/'led_tests.exe'
     subprocess.run([a.compiler]+(['c++'] if a.zig else [])+['-std=c++17','-Wall','-Wextra','-Isrc','tests/founder/led_test.cpp','-o',str(led_binary)],cwd=root,check=True)
     subprocess.run([str(led_binary)],cwd=root,check=True)
@@ -36,6 +39,9 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     snapshot=Path(temp)/'nvs-snapshot.bin'
     for args in [('--driver-failure',),('--app-storage-failure',),('--storage-failure',),('--empty-config',),('--empty-ledger',),('--profile-matrix',),('--reboot-save',str(snapshot)),('--reboot-load',str(snapshot))]:
         subprocess.run([str(api_binary),*args],cwd=root,check=True)
+    plan_snapshot=Path(temp)/'plan-nvs.bin'
+    for mode in ['--plan-integration','--plan-save','--plan-load','--plan-no-intent-load','--plan-corrupt-intent-load','--plan-paused-save','--plan-paused-load','--plan-release-fail-save','--plan-release-fail-load','--plan-corrupt']:
+        subprocess.run([str(api_binary),mode,str(plan_snapshot)],cwd=root,check=True)
     print('Blank boot, unavailable/corrupt storage and fresh-process restart passed')
 
     device_binary=Path(temp)/'founder_device_tests.exe'

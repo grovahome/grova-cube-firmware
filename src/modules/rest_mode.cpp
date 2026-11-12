@@ -36,7 +36,7 @@ bool restMode_setEnabled(bool enabled, bool saveNow) {
   if (enabled) restEnabled = true;
   if (saveNow) {
     if (!settingsReady) return false;
-    if (persistedEnabled != enabled) {
+    if (persistedEnabled != enabled || !restSettings.isKey("enabled")) {
       if (restSettings.putBool("enabled", enabled) != 1) return false;
       persistedEnabled = enabled;
     }

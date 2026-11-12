@@ -19,6 +19,16 @@
 #include "modules/time_sync.h"
 static bool setup = false, testing = false, clockReady = true;
 static unsigned long nowMs = 1000;
+static unsigned minuteOfDay = 8 * 60;
+int getHour() {
+  return minuteOfDay / 60;
+}
+int getMinute() {
+  return minuteOfDay % 60;
+}
+int getDateKey() {
+  return 2026001;
+}
 unsigned long millis() {
   return nowMs;
 }
@@ -210,9 +220,12 @@ static void loadNvs(const char* path) {
 static const char* rebootConfig =
     R"({"cmd":"configure_equipment","expected_revision":0,"equipment":[{"id":"dev1","name":"Pumpe neu","profile":"pump","output":"OUT5_1","voltage":5,"max_runtime_ms":1000},{"id":"dev2","name":"Licht neu","profile":"light_0_10v","output":"0_10V_OUT_1","power_output":"OUT12_1","power_voltage":12}],"fan_ports":[{"enabled":true,"name":"Zuluft"},{"enabled":false,"name":"Abluft"}]})";
 int main(int argc, char** argv) {
-  if (argc > 2 && !strcmp(argv[1], "--reboot-load")) {
+  if (argc > 2 && (!strcmp(argv[1], "--reboot-load") || !strcmp(argv[1], "--plan-load") ||
+                   !strcmp(argv[1], "--plan-paused-load") || !strcmp(argv[1], "--plan-no-intent-load") || !strcmp(argv[1], "--plan-corrupt-intent-load") || !strcmp(argv[1], "--plan-release-fail-load"))) {
     loadNvs(argv[2]);
   }
+  if (argc > 1 && !strcmp(argv[1],"--plan-no-intent-load")) testNvs::data.erase("founder-app/operation");
+  if (argc > 1 && !strcmp(argv[1],"--plan-corrupt-intent-load")) testNvs::data["founder-app/operation"]={1,2,3};
   if (argc > 1 && !strcmp(argv[1], "--storage-failure")) {
     testNvs::failBegin = "founder-devices";
   }
@@ -233,6 +246,109 @@ int main(int argc, char** argv) {
   founderOutputs::begin();
   founderEquipment::begin();
   signalRegistry_begin();
+  if (argc > 1 && !strncmp(argv[1], "--plan-", 7)) {
+    if (!strcmp(argv[1],"--plan-no-intent-load") || !strcmp(argv[1],"--plan-corrupt-intent-load") || !strcmp(argv[1],"--plan-release-fail-load")) {
+      founderApp::loop(); assert(restMode_isEnabled() && founderOutputs::applied(0)==0 && founderOutputs::applied(1)==0);
+      if (!strcmp(argv[1],"--plan-corrupt-intent-load")) assert(!founderApp::setRest(false));
+      return 0;
+    }
+    const char* config =
+        R"({"cmd":"configure_equipment","start_plans":true,"equipment":[{"id":"dev1","profile":"light_switch","name":"Licht","output":"OUT12_1","voltage":12,"plan":{"enabled":true,"slots":[{"start_minute":480,"end_minute":540,"percent":100},{"start_minute":600,"end_minute":660,"percent":100}]}},{"id":"dev2","profile":"pump","name":"Wasser","output":"OUT5_1","voltage":5,"max_runtime_ms":1000,"plan":{"enabled":true,"slots":[{"start_minute":480,"runtime_ms":500},{"start_minute":481,"runtime_ms":500},{"start_minute":482,"runtime_ms":500}]}}]})";
+    if (!strcmp(argv[1], "--plan-load") || !strcmp(argv[1], "--plan-paused-load")) {
+      assert(restMode_isEnabled() && founderOutputs::applied(0) == 0 &&
+             founderOutputs::applied(1) == 0);
+      clockReady = false;
+      founderApp::loop();
+      assert(restMode_isEnabled());
+      clockReady = true;
+      founderApp::loop();
+      if (!strcmp(argv[1], "--plan-paused-load")) {
+        assert(restMode_isEnabled() && founderOutputs::applied(0) == 0);
+        return 0;
+      }
+      assert(!restMode_isEnabled() && founderOutputs::applied(0) == 100);
+      nowMs = 600000;
+      founderApp::loop();
+      assert(founderOutputs::applied(1) == 0);  // Reserved pulse must not replay.
+      minuteOfDay = 481;
+      founderApp::loop();
+      assert(founderOutputs::applied(1) == 100);
+      nowMs += 500;
+      testTimer::fire();
+      assert(founderOutputs::applied(1) == 0);
+      minuteOfDay = 482;
+      testNvs::failKey = "founder-devices/plan-ledger";
+      founderApp::loop();
+      assert(restMode_isEnabled() && founderOutputs::applied(0) == 0 &&
+             founderOutputs::applied(1) == 0);
+      assert(!founderEquipment::settingsReady());
+      assert(founderApp::hasFault());
+      return 0;
+    }
+    if (!strcmp(argv[1],"--plan-release-fail-save")) {
+      testNvs::failKey="vgrow-rest/enabled";
+      assert(!run(config)); founderApp::loop();
+      assert(restMode_isEnabled() && founderOutputs::applied(0)==0);
+      saveNvs(argv[2]);return 0;
+    }
+    assert(run(config));
+    assert(!restMode_isEnabled());
+    founderApp::loop();
+    assert(founderOutputs::applied(0) == 100 && founderOutputs::applied(1) == 0);
+    if (!strcmp(argv[1], "--plan-integration")) {
+      minuteOfDay = 540;
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 0);
+      minuteOfDay = 600;
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 100);
+      clockReady = false;
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 0);
+      clockReady = true;
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 100);
+      testing = true;
+      restMode_setEnabled(true, false);
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 0);
+      testing = false;
+      founderApp::loop();
+      assert(!restMode_isEnabled() && founderOutputs::applied(0) == 100);
+      assert(!run(R"({"cmd":"set_device","id":"dev1","state":true})"));
+      assert(run(R"({"cmd":"stop_all"})"));
+      founderApp::loop();
+      assert(restMode_isEnabled() && founderOutputs::applied(0) == 0);
+      JsonDocument bad;
+      assert(!deserializeJson(bad, config));
+      bad["equipment"][0]["plan"]["slots"][1]["start_minute"] = 500;
+      String body;
+      serializeJson(bad, body);
+      assert(!run(body.c_str()));
+      assert(statusJson()["equipment"][0]["plan"]["slots"].size() == 2);
+      bad["equipment"][0]["plan"]["slots"][1]["start_minute"] = 600;
+      bad["equipment"][1]["plan"]["slots"][0]["runtime_ms"] = 1001;
+      body = "";
+      serializeJson(bad, body);
+      assert(!run(body.c_str()));
+      return 0;
+    }
+    if (!strcmp(argv[1], "--plan-corrupt")) {
+      assert(founderApp::setRest(true));
+      testNvs::data["founder-devices/plan-ledger"] = {};
+      founderEquipment::begin();
+      assert(!founderEquipment::settingsReady() && !founderApp::setRest(false));
+      return 0;
+    }
+    nowMs = 600000;
+    founderApp::loop();
+    assert(founderOutputs::applied(1) == 100);
+    if (!strcmp(argv[1], "--plan-paused-save")) {
+      assert(run(R"({"cmd":"stop_all"})"));
+    }
+    saveNvs(argv[2]);
+    return 0;
+  }
   if (argc > 1 &&
       (!strcmp(argv[1], "--driver-failure") || !strcmp(argv[1], "--app-storage-failure"))) {
     assert(restMode_isEnabled());
@@ -413,7 +529,7 @@ int main(int argc, char** argv) {
   assert(status["signals"][0]["value"].as<float>() == 22);
   assert(status["signals"][1]["value"].isNull());
   assert(status["environment"]["temperature_c"].as<float>() == 22);
-  assert(!status["automation_supported"].as<bool>());
+  assert(status["automation_supported"].as<bool>());
 
   // Assignment is atomic, local-only, persisted and electrically validated.
   const char* assignment =
@@ -488,14 +604,14 @@ int main(int argc, char** argv) {
   if (argc > 1) {
     std::cout << founderApp::status().c_str() << "\n";
   }
-  // Stop-all cancels devices and fan requests without changing the release state.
+  // Stop-all durably pauses automatic operation so the next loop cannot restart it.
   assert(founderApp::setRest(false));
   assert(run(R"({"cmd":"run_device","id":"dev1","runtime_ms":100,"event_id":"global-stop"})"));
   assert(run(R"({"cmd":"set_device","id":"dev2","percent":60})"));
   manualFans[0] = 50;
   manualFans[1] = 70;
   assert(run(R"({"cmd":"stop_all"})"));
-  assert(!restMode_isEnabled());
+  assert(restMode_isEnabled());
   assert(founderOutputs::applied(0) == 0 && founderOutputs::applied(1) == 0 &&
          founderOutputs::applied(3) == 0);
   assert(manualFans[0] == 0 && manualFans[1] == 0);
@@ -546,7 +662,9 @@ int main(int argc, char** argv) {
 }
 
 namespace founderDisplay {
-const char* controller() { return "SSD1317"; }
+const char* controller() {
+  return "SSD1317";
+}
 bool present() {
   return true;
 }

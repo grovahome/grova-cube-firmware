@@ -334,3 +334,13 @@ LED color order was visually confirmed; RTC battery is fitted and short complete
 main-power interruption yielded valid RTC boot time. Founder firmware is being
 saved on codex/founder-pcb-bringup. Internal GROVA changes remain untouched and
 are not pushed. No final hardware-release or full physical acceptance is implied.
+
+
+### Offline daily-plan development after user unplugged controller
+
+User disconnected the controller and authorized software-only continuation.
+New daily scheduling/save/resume code is described in founder-daily-plans.md.
+It is NOT flashed. Prior installed Wi-Fi/LED/RTC findings remain unchanged.
+Physical outputs remain untested pending WAGO assembly. The GitHub failure of
+ba755b2 was the missing stdint include in the host graphics adapter; correction
+5bbc5d2 completed GitHub Actions successfully before this feature work.

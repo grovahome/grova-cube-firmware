@@ -20,9 +20,9 @@ window.fetch=async(url,opts)=>{
  const p=JSON.parse(opts.body);let ok=true,message='Vorschau aktualisiert';
  if(p.cmd==='configure_equipment'){
   if(p.expected_revision!==previewState.equipment_revision){ok=false;message='Belegung veraltet';}
-  else {previewState.equipment=p.equipment.map(e=>({...e,max_runtime_ms:e.max_runtime_ms||0,startup_remaining_ms:0,remaining_ms:0,applied_percent:0,requested_percent:0,reason:'REST'}));previewState.fan_ports=p.fan_ports;previewState.equipment_revision++;for(const o of previewState.outputs)o.assigned=p.equipment.some(e=>e.output===o.id||e.power_output===o.id);}
+  else {previewState.equipment=p.equipment.map(e=>({...e,max_runtime_ms:e.max_runtime_ms||0,startup_remaining_ms:0,remaining_ms:0,applied_percent:0,requested_percent:0,reason:'REST'}));previewState.fan_ports=p.fan_ports;previewState.equipment_revision++;if(p.start_plans)previewState.rest_mode.enabled=false;for(const o of previewState.outputs)o.assigned=p.equipment.some(e=>e.output===o.id||e.power_output===o.id);}
  }else if(p.cmd==='set_rest_mode')previewState.rest_mode.enabled=p.enabled;
- else if(p.cmd==='stop_all'){}else{ok=false;message='Diese Vorschau führt keine Gerätebefehle aus.';}
+ else if(p.cmd==='stop_all'){previewState.rest_mode.enabled=true;}else{ok=false;message='Diese Vorschau führt keine Gerätebefehle aus.';}
  return {ok,json:async()=>({ok,message})};
 };
 async function previewPreset(value){previewState=structuredClone(previewSnapshots[value]);equipmentDirty=false;equipmentRevision=-1;pendingEquipment=null;await refresh();}

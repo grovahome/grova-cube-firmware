@@ -95,3 +95,18 @@ V1 (no production behavior changes in that target). Existing 25 lifecycle and
 test adapter. Founder driver/app, all seven profiles, fresh-process restart and
 new browser acceptance checks passed. S3 RAM: 63,384 bytes; flash: 1,018,985 bytes.
 No remote CI run or hardware installation was performed.
+
+
+## Daily plans — prepared after hardware disconnect
+
+See [daily plan contract](founder-daily-plans.md). New code is NOT installed.
+The user requested automatic continuation after power loss for scheduled devices;
+boot now temporarily inhibits in RAM and restores only previously enabled plans
+once time/storage/drivers/interlocks permit. Explicit Pause persists.
+
+Added production-host, fresh-process persistence and browser acceptance tests
+for multiple light windows, validated pulse events, durable high-water marks,
+manual-stop persistence, clock loss, write failure and retained UI drafts.
+This supersedes the old software-only assertion that no automation is supported;
+manual requests still do not resume. Native PWM fan policy UI remains separate.
+No physical outputs have been tested or switched for these offline checks.

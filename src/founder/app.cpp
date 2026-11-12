@@ -36,11 +36,17 @@ float getTargetHum() {
 }
 namespace founderApp {
 static RecentCommandIds recent;
+static bool resumePlans = false, resumeFailed = false, intentActive = false, bootReleased = false;
+static constexpr uint32_t IntentRun = 0x47525631, IntentPause = 0x50415553;
 void bootSafetyBegin() {
   founderOutputs::preinit();
   fan_preinit();
   restMode_begin();
-  restMode_setEnabled(true, true);
+  resumeFailed = false;
+  Preferences bootState;
+  bootReleased = bootState.begin("vgrow-rest", true) && !bootState.getBool("enabled", true);
+  resumePlans = intentActive = false;
+  restMode_setEnabled(true, false);
 }
 static bool allSettingsReady() {
   return settingsReady && founderEquipment::settingsReady() && restMode_settingsReady() &&
@@ -56,6 +62,17 @@ void settingsBegin() {
   grovaMacSuffix(ESP.getEfuseMac(), suffix);
   snprintf(identity, sizeof(identity), "grova-core-%s", suffix);
   settingsReady = prefs.begin("founder-app", false);
+  intentActive = resumePlans = false;
+  if (settingsReady && prefs.isKey("operation")) {
+    uint32_t record[2] = {};
+    if (prefs.getBytesLength("operation") != sizeof(record) ||
+        prefs.getBytes("operation", record, sizeof(record)) != sizeof(record) ||
+        (record[0] != IntentRun && record[0] != IntentPause) || record[1] != ~record[0]) {
+      settingsReady = false;
+    } else {
+      intentActive = resumePlans = bootReleased && record[0] == IntentRun;
+    }
+  }
   if (settingsReady && prefs.getBytesLength("targets") == sizeof(targets)) {
     Targets stored;
     if (prefs.getBytes("targets", &stored, sizeof(stored)) == sizeof(stored) &&
@@ -68,26 +85,51 @@ const char* deviceId() {
   return identity;
 }
 bool setRest(bool enabled) {
+  resumePlans = false;
   if (!enabled && (wifiOTA_requiresSetup() || wifiOTA_isTesting() || founderOutputs::inhibited() ||
                    !allSettingsReady() || !founderOutputs::ready())) {
     return false;
   }
   if (enabled) {
+    intentActive = false;
     restMode_setEnabled(true, false);
     founderOutputs::interlock(true, wifiOTA_requiresSetup());
     founderEquipment::stopAll();
     fan_forceOff();
   }
-  // Clearing the lock must never resume a stored fan demand or rule implicitly.
-  bool first = fan_setManual(1, 0, true);
-  bool second = fan_setManual(2, 0, true);
-  bool ok = restMode_setEnabled(enabled || !first || !second, true);
+  const uint32_t marker = enabled ? IntentPause : IntentRun;
+  const uint32_t record[2] = {marker, ~marker};
+  const bool savedIntent =
+      settingsReady && prefs.putBytes("operation", record, sizeof(record)) == sizeof(record);
+  // Desired operation and Rest must BOTH acknowledge release. A torn save stays paused.
+  const bool first = fan_setManual(1, 0, true);
+  const bool second = fan_setManual(2, 0, true);
+  const bool ok = restMode_setEnabled(enabled || !savedIntent || !first || !second, true);
   founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
-  if (enabled || !ok || !first || !second) {
+  if (enabled || !savedIntent || !ok || !first || !second) {
     founderEquipment::stopAll();
     fan_forceOff();
   }
-  return ok && first && second;
+  const bool success = savedIntent && ok && first && second;
+  if (success) {
+    intentActive = !enabled;
+    resumeFailed = false;
+  }
+  return success;
+}
+void loop() {
+  if (intentActive && restMode_isEnabled() && !resumeFailed) {
+    resumePlans = true;
+  }
+  if (resumePlans && founderEquipment::hasPlans() && isTimeSynced() && allSettingsReady() &&
+      founderOutputs::ready() && !founderOutputs::inhibited() && !wifiOTA_requiresSetup() &&
+      !wifiOTA_isTesting()) {
+    resumeFailed = !setRest(false);
+  }
+  founderEquipment::loop();
+}
+bool hasFault() {
+  return resumeFailed || !allSettingsReady() || !founderOutputs::ready() || fan_hasTachoFault();
 }
 String status() {
   JsonDocument j;
@@ -103,7 +145,8 @@ String status() {
   j["flash_bytes"] = ESP.getFlashChipSize();
   j["psram_bytes"] = ESP.getPsramSize();
   bool settingsOk = allSettingsReady();
-  j["warning"] = !settingsOk                ? "SETTINGS"
+  j["warning"] = resumeFailed               ? "RESUME_FAILED"
+                 : !settingsOk              ? "SETTINGS"
                  : !founderOutputs::ready() ? "OUTPUT_INIT"
                  : fan_hasTachoFault()      ? "FAN_FAULT"
                                             : "OK";
@@ -113,7 +156,7 @@ String status() {
   j["display"]["controller"] = founderDisplay::controller();
   j["display"]["rotation"] = founderDisplay::rotation();
   j["display"]["offset"] = founderDisplay::offset();
-  j["healthy"] = settingsOk && founderOutputs::ready() && !fan_hasTachoFault();
+  j["healthy"] = !hasFault();
   j["wifi_connected"] = wifiOTA_isConnected();
   j["ip"] = wifiOTA_getIP();
   j["mqtt_connected"] = founderNetwork::connected();
@@ -121,7 +164,11 @@ String status() {
   j["time_source"] = time_getSourceName();
   j["epoch_s"] = getEpochSeconds();
   j["rest_mode"]["enabled"] = restMode_isEnabled();
-  j["automation_supported"] = false;
+  j["automation_supported"] = true;
+  j["schedule_timezone"] = "Europe/Berlin";
+  j["schedule_resume_pending"] = resumePlans;
+  j["schedule_run_enabled"] = intentActive;
+  j["schedule_resume_error"] = resumeFailed;
   j["output_roles_assigned"] = founderEquipment::hasAssignments();
   j["mux_present"] = founderBus::hasMux();
   j["rtc"]["type"] = "RV-3032";
@@ -227,24 +274,37 @@ bool command(const String& body, String& response, bool remote) {
   if (!strcmp(cmd, "set_rest_mode") && j["enabled"].is<bool>()) {
     ok = setRest(j["enabled"].as<bool>());
   } else if (!strcmp(cmd, "stop_all")) {
+    bool paused = setRest(true);
     founderEquipment::stopAll();
     founderOutputs::stopAll();
     fan_forceOff();
     bool first = fan_setManual(1, 0, true);
     bool second = fan_setManual(2, 0, true);
     fan_forceOff();
-    ok = first && second;
+    ok = paused && first && second;
     if (!ok) {
       setRest(true);
     }
   } else if (!strcmp(cmd, "configure_equipment") && !remote) {
     String message;
+    if (!j["start_plans"].isNull() && !j["start_plans"].is<bool>()) {
+      return result(response, false, "Invalid plan start flag");
+    }
     ok = founderEquipment::configure(j.as<JsonObjectConst>(), message);
+    if (ok && (j["start_plans"] | false) && founderEquipment::hasPlans()) {
+      ok = setRest(false);
+      message = ok ? "Devices and daily plans saved; automatic operation enabled"
+                   : "Saved, but operation remains paused; check storage and interlocks";
+    }
     return result(response, ok, message.c_str());
   } else if (!strcmp(cmd, "set_device") || !strcmp(cmd, "run_device") ||
              !strcmp(cmd, "stop_device")) {
     if (remote && !strcmp(cmd, "run_device") && expiry - getEpochSeconds() > 60) {
       return result(response, false, "Timed command deadline must be within 60 seconds");
+    }
+    if (!strcmp(cmd, "stop_device") && founderEquipment::planEnabled(j["id"] | "")) {
+      bool paused = setRest(true);
+      return result(response, paused, "Automatic operation paused; all outputs off");
     }
     founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
     String message;
