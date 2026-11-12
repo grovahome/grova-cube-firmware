@@ -70,12 +70,16 @@ static bool cleanText(const char* s, size_t limit) {
   if (!s || !*s || strlen(s) > limit) {
     return false;
   }
+  bool nonblank = false;
   for (const char* p = s; *p; ++p) {
+    if (*p != ' ') {
+      nonblank = true;
+    }
     if (uint8_t(*p) < 32) {
       return false;
     }
   }
-  return true;
+  return nonblank;
 }
 static int slot(const char* id) {
   return id && strlen(id) == 4 && !strncmp(id, "dev", 3) && id[3] >= '1' && id[3] <= '5'
@@ -196,12 +200,12 @@ void begin() {
   memset(&ledger, 0, sizeof(ledger));
   ledger.schema = 1;
   Device initial[Count];
-  if (storage && settings.getBytesLength("configuration")) {
+  if (storage && settings.isKey("configuration")) {
     size_t size = settings.getBytesLength("configuration");
     char bytes[4097];
     JsonDocument root;
     String error;
-    configOk = size <= 4096 && settings.getBytes("configuration", bytes, size) == size;
+    configOk = size > 0 && size <= 4096 && settings.getBytes("configuration", bytes, size) == size;
     if (configOk) {
       bytes[size] = 0;
       configOk = !deserializeJson(root, bytes) && root["schema"].is<unsigned>() &&
@@ -221,7 +225,7 @@ void begin() {
     fanPorts[0] = initialFans[0];
     fanPorts[1] = initialFans[1];
   }
-  if (storage && settings.getBytesLength("events")) {
+  if (storage && settings.isKey("events")) {
     Ledger saved;
     eventsOk = settings.getBytesLength("events") == sizeof(saved) &&
                settings.getBytes("events", &saved, sizeof(saved)) == sizeof(saved) &&
@@ -258,6 +262,12 @@ bool settingsReady() {
 bool configure(JsonObjectConst request, String& message) {
   if (!storage || !restMode_isEnabled()) {
     message = "Device assignment requires Rest and available storage";
+    return false;
+  }
+  if (!request["expected_revision"].isNull() &&
+      (!request["expected_revision"].is<uint32_t>() ||
+       request["expected_revision"].as<uint32_t>() != revision)) {
+    message = "Configuration changed; reload assignments before saving";
     return false;
   }
   if (revision == UINT32_MAX) {
@@ -472,6 +482,18 @@ void appendJson(String& out) {
       protection.add("boot_startup_lock");
     }
     row["feedback_required"] = false;
+    auto missing = row["missing_protections"].to<JsonArray>();
+    missing.add("current_monitoring");
+    missing.add("overtemperature_monitoring");
+    if (all[i].kind == Kind::Pump) {
+      missing.add("dry_run_detection");
+      missing.add("flow_monitoring");
+      missing.add("water_level_detection");
+    }
+    if (all[i].kind == Kind::SwitchedFan || all[i].kind == Kind::AnalogFan) {
+      missing.add("tacho_feedback");
+    }
+    row["physical_acceptance"] = "OPEN";
   }
   auto caps = root["output_capabilities"].to<JsonArray>();
   for (int i = 0; i < 5; ++i) {

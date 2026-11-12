@@ -1,7 +1,7 @@
 """Exercise production Founder drivers with a deterministic bus and GPIO adapter."""
 from pathlib import Path
 import argparse,subprocess,tempfile
-p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);a=p.parse_args()
+p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);p.add_argument('--blank-output',type=Path);a=p.parse_args()
 root=Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     binary=Path(temp)/'founder_tests.exe'
@@ -19,6 +19,13 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     result=subprocess.run([str(api_binary)]+(['status'] if a.status_output else []),cwd=root,check=True,text=True,capture_output=bool(a.status_output))
     if a.status_output:
         lines=result.stdout.splitlines();a.status_output.write_text(lines[0],encoding='utf-8');print('\n'.join(lines[1:]))
+
+    blank=subprocess.run([str(api_binary),'--blank'],cwd=root,check=True,text=True,capture_output=True)
+    if a.blank_output:a.blank_output.write_text(blank.stdout.strip(),encoding='utf-8')
+    snapshot=Path(temp)/'nvs-snapshot.bin'
+    for args in [('--driver-failure',),('--app-storage-failure',),('--storage-failure',),('--empty-config',),('--empty-ledger',),('--profile-matrix',),('--reboot-save',str(snapshot)),('--reboot-load',str(snapshot))]:
+        subprocess.run([str(api_binary),*args],cwd=root,check=True)
+    print('Blank boot, unavailable/corrupt storage and fresh-process restart passed')
 
     device_binary=Path(temp)/'founder_device_tests.exe'
     device_command=[a.compiler]+(['c++'] if a.zig else [])

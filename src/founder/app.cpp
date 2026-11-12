@@ -36,6 +36,17 @@ float getTargetHum() {
 }
 namespace founderApp {
 static RecentCommandIds recent;
+void bootSafetyBegin() {
+  founderOutputs::preinit();
+  fan_preinit();
+  restMode_begin();
+  restMode_setEnabled(true, true);
+}
+static bool allSettingsReady() {
+  return settingsReady && founderEquipment::settingsReady() && restMode_settingsReady() &&
+         time_settingsReady() && fanPolicy_settingsReady() && wifiOTA_storageReady();
+}
+
 static bool validTargets(const Targets& t) {
   return t.version == 1 && isfinite(t.temperature) && isfinite(t.humidity) &&
          t.temperature >= -20 && t.temperature <= 60 && t.humidity >= 0 && t.humidity <= 100;
@@ -57,7 +68,8 @@ const char* deviceId() {
   return identity;
 }
 bool setRest(bool enabled) {
-  if (!enabled && (wifiOTA_requiresSetup() || wifiOTA_isTesting() || founderOutputs::inhibited())) {
+  if (!enabled && (wifiOTA_requiresSetup() || wifiOTA_isTesting() || founderOutputs::inhibited() ||
+                   !allSettingsReady() || !founderOutputs::ready())) {
     return false;
   }
   if (enabled) {
@@ -90,9 +102,7 @@ String status() {
   j["free_heap"] = ESP.getFreeHeap();
   j["flash_bytes"] = ESP.getFlashChipSize();
   j["psram_bytes"] = ESP.getPsramSize();
-  bool settingsOk = founderEquipment::settingsReady() && settingsReady &&
-                    restMode_settingsReady() && time_settingsReady() && fanPolicy_settingsReady() &&
-                    wifiOTA_storageReady();
+  bool settingsOk = allSettingsReady();
   j["warning"] = !settingsOk                ? "SETTINGS"
                  : !founderOutputs::ready() ? "OUTPUT_INIT"
                  : fan_hasTachoFault()      ? "FAN_FAULT"

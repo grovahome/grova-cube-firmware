@@ -5,6 +5,7 @@
 namespace testNvs {
 inline std::map<std::string, std::vector<uint8_t>> data;
 inline bool failWrites = false;
+inline std::string failBegin;
 inline std::string failKey;
 }
 class Preferences {
@@ -16,7 +17,7 @@ class Preferences {
     T result; memcpy(&result, it->second.data(), sizeof(T)); return result;
   }
 public:
-  bool begin(const char* n, bool = false) { name = n; return true; }
+  bool begin(const char* n, bool = false) { name = n; return name != testNvs::failBegin; }
   bool isKey(const char* k) { return testNvs::data.count(key(k)) != 0; }
   size_t getBytesLength(const char* k) { return isKey(k) ? testNvs::data[key(k)].size() : 0; }
   size_t getBytes(const char* k, void* output, size_t size) {

@@ -16,11 +16,8 @@
 #include "modules/time_sync.h"
 #include "modules/wifi_ota.h"
 void setup() {
-  founderOutputs::preinit();
-  fan_preinit();
+  founderApp::bootSafetyBegin();  // Force GPIOs off and require release after every reboot.
   Serial.begin(115200);
-  restMode_begin();
-  restMode_setEnabled(true, true);  // Explicit activation required after every reboot.
   founderApp::settingsBegin();
   founderBus::begin();
   signalRegistry_begin();

@@ -232,3 +232,12 @@ production status JSON passed (selection/save payloads, retained drafts, assigne
 output lockout, timed start/stop). All three PlatformIO targets passed; the new
 S3 application uses about 63.3 kB RAM and 983 kB flash. These are local software
 checks; no physical acceptance, upload, push or deployment was performed.
+
+## Software acceptance before board arrival
+
+The [Founder software acceptance record](founder-software-validation.md) covers
+empty first start, all implemented device profiles, fresh-process restart with
+saved state, corrupt/unavailable storage, editor revision conflicts and lost
+control/status responses. The preview now starts empty; demo assignments are
+explicitly separate. Profile limits and missing monitoring are visible in the
+UI/catalog. These checks do not close any physical acceptance item.

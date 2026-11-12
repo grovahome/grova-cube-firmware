@@ -2,6 +2,7 @@
 #include <Arduino.h>
 #include <ArduinoJson.h>
 namespace founderApp {
+void bootSafetyBegin();
 void settingsBegin();
 String status();
 bool command(const String& body, String& response, bool remote = false);
