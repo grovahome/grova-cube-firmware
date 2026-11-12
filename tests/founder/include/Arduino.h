@@ -36,3 +36,12 @@ template <class T>
 T constrain(T value, T low, T high) {
   return value < low ? low : value > high ? high : value;
 }
+
+#define IRAM_ATTR
+#define DRAM_ATTR
+using portMUX_TYPE = int;
+#define portMUX_INITIALIZER_UNLOCKED 0
+#define portENTER_CRITICAL(x) ((void)(x))
+#define portEXIT_CRITICAL(x) ((void)(x))
+#define portENTER_CRITICAL_ISR(x) ((void)(x))
+#define portEXIT_CRITICAL_ISR(x) ((void)(x))

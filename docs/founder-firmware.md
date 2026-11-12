@@ -212,3 +212,23 @@ and failed PWM initialization. Browser simulation passed for missing OLED,
 SSD1317 setting commands, output readiness blocking, Rest and mobile layout.
 All physical checks, especially the exact OLED panel mapping and GPIO46 reset
 behaviour, remain OPEN. No device was uploaded to by these checks.
+
+## Flexible device assignment 2026-11-12
+
+The previously neutral output channels now have an optional persistent device
+catalog/assignment layer. Raw commissioning controls are restricted to local,
+unassigned outputs; device commands use profile-specific protections. See
+[device catalog and assignment](founder-equipment.md) for supported equipment,
+5/12 V compatibility, 0-10 V control vs power, timed pump/valve cutoff, limits
+and the remaining physical acceptance checks. Earlier no-role descriptions
+above document the preceding migration stage. Automation stays deferred.
+
+Validation for the assignment layer: Founder production driver/API tests passed,
+including timer initialization failure, GPIO cutoff independent of the app loop,
+assignment persistence/rollback, voltage/type/ownership checks and timed command
+replay. The previous 25 lifecycle and 16 Wi-Fi scenarios plus production Wi-Fi
+HTTP checks passed. Embedded JS syntax and a mobile Edge simulation using actual
+production status JSON passed (selection/save payloads, retained drafts, assigned
+output lockout, timed start/stop). All three PlatformIO targets passed; the new
+S3 application uses about 63.3 kB RAM and 983 kB flash. These are local software
+checks; no physical acceptance, upload, push or deployment was performed.

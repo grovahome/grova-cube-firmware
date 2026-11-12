@@ -7,6 +7,18 @@
 namespace founder {
 constexpr int OUT12_1 = 4, OUT5_1 = 5, OUT12_2 = 6;
 constexpr int ANALOG_OUT_1 = 7, ANALOG_OUT_2 = 40;
+// Electrical capabilities only; device roles belong to the assignment layer.
+struct OutputSpec {
+  const char* id;
+  int pin;
+  unsigned voltage;
+  bool analog;
+};
+constexpr OutputSpec OUTPUTS[] = {{"OUT12_1", OUT12_1, 12, false},
+                                  {"OUT5_1", OUT5_1, 5, false},
+                                  {"OUT12_2", OUT12_2, 12, false},
+                                  {"0_10V_OUT_1", ANALOG_OUT_1, 0, true},
+                                  {"0_10V_OUT_2", ANALOG_OUT_2, 0, true}};
 constexpr int SDA = 8, SCL = 9;
 constexpr int FAN1_PWM = 10, FAN2_PWM = 11;
 constexpr int FAN1_TACHO = 12, FAN2_TACHO = 13;
@@ -18,12 +30,12 @@ constexpr int RS485_TX = 41, RS485_RX = 42, RS485_DE_RE = 47;
 constexpr int UART_TX = 43, UART_RX = 44;
 constexpr int RGB_DATA = 21, CONFIG_BUTTON = 48;
 constexpr int USB_DM = 19, USB_DP = 20;
-constexpr int RTC_INT = 46; // Strapping pin: verify external level at reset.
+constexpr int RTC_INT = 46;  // Strapping pin: verify external level at reset.
 constexpr unsigned char MUX_ADDRESS = 0x70;
-constexpr unsigned char RTC_ADDRESS = 0x51; // RV-3032; detection only for now.
+constexpr unsigned char RTC_ADDRESS = 0x51;  // RV-3032 UTC clock and backup management.
 constexpr int MUX_CHANNELS = 8;
 // No pump/light role mapping. GPIO18 is unconnected in this schematic.
-}
+}  // namespace founder
 
 #if defined(GROVA_FOUNDER_APP)
 #define FAN_PWM 10

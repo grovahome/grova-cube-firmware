@@ -1,4 +1,5 @@
 #include <Wire.h>
+#include <driver/timer.h>
 
 #include <cassert>
 #include <iostream>
@@ -36,7 +37,16 @@ void ledcWrite(int ch, int v) {
   pwm[ch] = v;
 }
 void neopixelWrite(int, int, int, int) {}
-int main() {
+int main(int argc, char**) {
+  if (argc > 1) {
+    testTimer::fail = true;
+    founderOutputs::preinit();
+    founderOutputs::begin();
+    assert(!founderOutputs::ready());
+    founderOutputs::interlock(false, false);
+    assert(!founderOutputs::set("OUT12_1", 100));
+    return 0;
+  }
   // Same manufacturer bytes must not collide across boards.
   char first[13], second[13];
   grovaMacSuffix(0x112233AABBCCULL, first);

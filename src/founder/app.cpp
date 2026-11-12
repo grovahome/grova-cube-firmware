@@ -7,6 +7,7 @@
 #include "firmware_info.h"
 #include "founder/devices.h"
 #include "founder/display.h"
+#include "founder/equipment.h"
 #include "founder/i2c_bus.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
@@ -62,6 +63,7 @@ bool setRest(bool enabled) {
   bool ok = restMode_setEnabled(enabled, true);
   founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
   if (enabled || !ok) {
+    founderEquipment::stopAll();
     fan_forceOff();
   }
   return ok;
@@ -79,8 +81,9 @@ String status() {
   j["free_heap"] = ESP.getFreeHeap();
   j["flash_bytes"] = ESP.getFlashChipSize();
   j["psram_bytes"] = ESP.getPsramSize();
-  bool settingsOk = settingsReady && restMode_settingsReady() && time_settingsReady() &&
-                    fanPolicy_settingsReady() && wifiOTA_storageReady();
+  bool settingsOk = founderEquipment::settingsReady() && settingsReady &&
+                    restMode_settingsReady() && time_settingsReady() && fanPolicy_settingsReady() &&
+                    wifiOTA_storageReady();
   j["warning"] = !settingsOk                ? "SETTINGS"
                  : !founderOutputs::ready() ? "OUTPUT_INIT"
                  : fan_hasTachoFault()      ? "FAN_FAULT"
@@ -100,7 +103,7 @@ String status() {
   j["epoch_s"] = getEpochSeconds();
   j["rest_mode"]["enabled"] = restMode_isEnabled();
   j["automation_supported"] = false;
-  j["output_roles_assigned"] = false;
+  j["output_roles_assigned"] = founderEquipment::hasAssignments();
   j["mux_present"] = founderBus::hasMux();
   j["rtc"]["type"] = "RV-3032";
   j["rtc"]["enabled"] = rtc_isEnabled();
@@ -165,6 +168,8 @@ String status() {
   out += ',';
   founderDevices::appendJson(out);
   out += ',';
+  founderEquipment::appendJson(out);
+  out += ',';
   fanControl_appendJson(out);
   out += '}';
   return out;
@@ -202,7 +207,20 @@ bool command(const String& body, String& response, bool remote) {
   bool ok = false;
   if (!strcmp(cmd, "set_rest_mode") && j["enabled"].is<bool>()) {
     ok = setRest(j["enabled"].as<bool>());
-  } else if (!strcmp(cmd, "set_output") && j["output"].is<const char*>()) {
+  } else if (!strcmp(cmd, "configure_equipment") && !remote) {
+    String message;
+    ok = founderEquipment::configure(j.as<JsonObjectConst>(), message);
+    return result(response, ok, message.c_str());
+  } else if (!strcmp(cmd, "set_device") || !strcmp(cmd, "run_device") ||
+             !strcmp(cmd, "stop_device")) {
+    if (remote && !strcmp(cmd, "run_device") && expiry - getEpochSeconds() > 60) {
+      return result(response, false, "Timed command deadline must be within 60 seconds");
+    }
+    founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
+    String message;
+    ok = founderEquipment::operate(j.as<JsonObjectConst>(), message);
+    return result(response, ok, message.c_str());
+  } else if (!strcmp(cmd, "test_output") && !remote && j["output"].is<const char*>()) {
     founderOutputs::interlock(restMode_isEnabled(), wifiOTA_requiresSetup());
     if (j["state"].is<bool>()) {
       ok = founderOutputs::set(j["output"], j["state"].as<bool>() ? 100 : 0);
@@ -255,8 +273,7 @@ bool command(const String& body, String& response, bool remote) {
   } else if (!strcmp(cmd, "set_mqtt_config") && !remote) {
     ok = founderNetwork::configure(j.as<JsonObjectConst>());
   } else {
-    return result(response, false,
-                  "Unsupported command or invalid parameters; no output roles assigned");
+    return result(response, false, "Unsupported command or invalid parameters");
   }
   return result(response, ok, ok ? "Applied" : "Rejected: check Rest, range or storage");
 }

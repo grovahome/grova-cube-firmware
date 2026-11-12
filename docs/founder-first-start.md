@@ -67,6 +67,10 @@ rotation is 0..3, offset 0..95. The default offset 80 is provisional from a
   verify time retention with the real battery and a complete power interruption.
 - Outputs remain zero in Rest. Release Rest deliberately, then test each neutral
   switch and each analogue setpoint individually with a meter before a load.
+- In Rest, use **Geraete zuordnen** to select the real load profile, supply
+  voltage and compatible output. Follow [the device catalog](founder-equipment.md).
+  Pump profiles have a 10-minute boot lock and a maximum 10-second pulse. Measure
+  actual cutoff and confirm reset/Rest/setup/OTA leave the load off.
 - Test both fan PWM/tacho paths with actual connected fans; verify fault and
   zero-command behaviour of those fans rather than assuming zero means stopped.
 - Hold CONFIG five seconds: Rest and setup recovery should activate without

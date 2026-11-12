@@ -3,6 +3,7 @@
 #include "founder/app.h"
 #include "founder/devices.h"
 #include "founder/display.h"
+#include "founder/equipment.h"
 #include "founder/i2c_bus.h"
 #include "founder/inputs.h"
 #include "founder/network.h"
@@ -30,10 +31,11 @@ void setup() {
   time_begin();
   fan_begin();
   founderOutputs::begin();
+  founderEquipment::begin();
   founderOutputs::interlock(true, wifiOTA_requiresSetup());
   founderNetwork::begin();
   founderWeb::begin();
-  Serial.println("GROVA Founder application / Rest / no output roles");
+  Serial.println("GROVA Founder application / Rest / configurable devices");
 }
 void loop() {
   wifiOTA_loop();
