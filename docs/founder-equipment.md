@@ -177,3 +177,33 @@ failed-save rollback. Browser simulation covers all seven fixed connectors,
 absence of voltage selectors, correct 5/12 V payloads, optional power reservation,
 removal only after successful save, new assignments, named PWM fans, disabled
 editing while unlocked and mobile layout. Physical acceptance stays open.
+
+## Interactive enclosure view (2026-11-12)
+
+A simplified, inline SVG view follows the user's DC022B enclosure export: five
+WAGO output connectors across the top, OLED and encoder below, connector tray
+and eight grouped I2C sensor ports on the lower left, and the two PWM fan ports
+to its right. Source references are the supplied `Export_Steuerung` README,
+render metadata (orthographic, WAGO top), and 1024/2048 top-view PNGs, supported
+by the labelled PCB image in the shared Onshape design chat. The CAD files and
+reference renderings were not changed or embedded as large firmware assets.
+
+The model is a visual navigation aid, not a dimensioned wiring reference.
+Selecting an output filters the existing fixed-connector editor; selecting
+Sensors shows the shared sensor list. Display opens display settings. ADC1/2,
+1-Wire, RS485, UART and safety/water contacts show their unavailable status,
+without creating new interfaces or claiming a protective implementation.
+Encoder identifies existing hardware navigation rather than a generic output.
+There is no top-view power-input control: the DC jack is at the back of this
+enclosure variant and is not a software-switched output.
+
+Occupied outputs (including linked power companions) have a status marker;
+selection and keyboard focus are highlighted separately. SVG connector targets
+are accessible by Enter/Space, with a labelled dropdown and an All Connectors
+list fallback for small screens. Selection does not send a control command or
+alter unsaved device properties. Occupation colors describe saved configuration,
+not measured electrical output or automatically detected loads.
+
+Browser checks cover individual output filtering, placeholder interfaces, shared
+sensors, keyboard/dropdown selection, no control requests on map navigation,
+existing assignment/removal/storage-error behavior and mobile page width.
