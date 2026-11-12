@@ -1,6 +1,8 @@
 #pragma once
 namespace founderDisplay {
 void begin();
+const char* controller();
+bool selectController(const char* name);
 bool present();
 bool configure(unsigned rotation,unsigned offset);
 unsigned rotation();

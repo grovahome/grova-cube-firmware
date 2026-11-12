@@ -110,6 +110,18 @@ int main() {
   now += 500;
   founderDisplay::loop();
   assert(testGraphics::textCalls > 0);  // Rotation setting must not replay welcome.
+  assert(!founderDisplay::selectController("unknown"));
+  assert(founderDisplay::selectController("ssd1306"));
+  assert(std::string(founderDisplay::controller()) == "SSD1306");
+  assert(founderDisplay::offset() == 0);
+  assert(!founderDisplay::configure(0, 80));
+  founderDisplay::loop();
+  assert(founderDisplay::present());
+  founderDisplay::begin();
+  assert(std::string(founderDisplay::controller()) == "SSD1306");
+  assert(founderDisplay::rotation() == 1 && founderDisplay::offset() == 0);
+  assert(founderDisplay::selectController("ssd1317"));
+  assert(founderDisplay::offset() == 80);
   std::cout << "Display service: welcome cadence, Wi-Fi handoff, user skip, recovery and rotation "
                "reconfiguration passed\n";
 }

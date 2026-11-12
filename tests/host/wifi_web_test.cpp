@@ -41,5 +41,19 @@ int main() {
   assert(!wifiWeb_setupRequest(server));
   server.localAddress = 2; assert(wifiWeb_setupRequest(server));
   server.requestHeaders.clear(); server.request("/api/v1/wifi/scan", HTTP_GET); assert(server.code == 403);
+#if defined(GROVA_FOUNDER_APP)
+  // The AP transport removes duplicate secret entry, not cross-origin protection.
+  server.requestHeaders["X-GROVA-Setup-Request"] = "1";
+  server.request("/api/v1/wifi/scan", HTTP_GET); assert(server.code == 200);
+  server.request("/api/v1/wifi", HTTP_GET);
+  assert(std::string(server.body.c_str()).find("\"requires_key\":false") != std::string::npos);
+  WiFi.scan = -2;
+  server.request("/api/v1/wifi/scan", HTTP_GET);
+  assert(std::string(server.body.c_str()).find("WLAN-Suche fehlgeschlagen") != std::string::npos);
+  server.localAddress = 1;
+  server.request("/api/v1/wifi/scan", HTTP_GET); assert(server.code == 403);
+  server.request("/api/v1/wifi", HTTP_GET);
+  assert(std::string(server.body.c_str()).find("\"requires_key\":true") != std::string::npos);
+#endif
   std::cout << "Wi-Fi HTTP authorization, throttle, validation, scan escaping and interface isolation passed\n";
 }

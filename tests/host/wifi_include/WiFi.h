@@ -1,5 +1,6 @@
 #pragma once
 #include "Arduino.h"
+#include <functional>
 #define WIFI_STA 1
 #define WIFI_AP_STA 3
 #define WL_CONNECTED 3
@@ -13,6 +14,7 @@ struct IPAddress {
 };
 struct FakeWiFi {
   int link = 0, scan = -2, beginCalls = 0;
+  std::function<void()> beginHook;
   bool ap = false, apFailure = false, gotIp = true;
   std::string target, targetPassword;
   void persistent(bool) {}
@@ -28,7 +30,7 @@ struct FakeWiFi {
   int RSSI(int) { return -65; }
   int encryptionType(int) { return 1; }
   void disconnect(bool, bool) { link = 0; }
-  void begin(const char* ssid, const char* pass) { ++beginCalls; target = ssid; targetPassword = pass; }
+  void begin(const char* ssid, const char* pass) { ++beginCalls; target = ssid; targetPassword = pass; if (beginHook) beginHook(); }
   void scanDelete() { scan = -2; }
   int scanComplete() { return scan; }
   int scanNetworks(bool, bool) { scan = WIFI_SCAN_RUNNING; return scan; }

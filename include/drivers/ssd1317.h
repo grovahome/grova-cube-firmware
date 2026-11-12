@@ -9,13 +9,22 @@
 class GrovaSSD1317 : public GFXcanvas1 {
  public:
   explicit GrovaSSD1317(TwoWire& bus = Wire) : GFXcanvas1(128, 64), bus_(bus) {}
-  bool begin(uint8_t address, uint8_t offset = 80) {
+  bool begin(uint8_t address, uint8_t offset = 80, bool useSSD1306 = false) {
     address_ = address;
     if (!getBuffer() || offset > 95) {
       return false;
     }
     uint8_t init[32];
     size_t count = ssd1317::initCommands(init, offset);
+    if (useSSD1306) {
+      // SSD1306 128x64, internal charge pump, page addressing for this transport.
+      // Register settings follow Adafruit_SSD1306; SSD1317 keeps its own profile.
+      const uint8_t commands[] = {0xAE, 0xD5, 0x80, 0xA8, 0x3F, 0xD3, offset,
+        0x40, 0x8D, 0x14, 0x20, 0x02, 0xA1, 0xC8, 0xDA, 0x12,
+        0x81, 0xCF, 0xD9, 0xF1, 0xDB, 0x40, 0xA4, 0xA6, 0x2E};
+      count = sizeof(commands);
+      for (size_t i = 0; i < count; ++i) init[i] = commands[i];
+    }
     if (!command(init, count)) {
       return false;
     }

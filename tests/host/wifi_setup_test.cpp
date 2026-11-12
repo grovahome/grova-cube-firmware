@@ -25,6 +25,16 @@ int main(int argc, char** argv) {
     assert(restMode_isEnabled()); assert(strlen(wifiOTA_setupPassword()) == 12);
     assert(ArduinoOTA.begins == 0); const std::string key = wifiOTA_setupPassword();
     boot(); assert(key == wifiOTA_setupPassword()); assert(WiFi.beginCalls == 0);
+  } else if (scenario == "radio_start_elapsed") {
+    boot();
+    WiFi.beginHook = [] { clockMs += 25; };
+    assert(wifiOTA_submit("home", "password"));
+    tick();
+    assert(wifiOTA_isTesting());
+    assert(std::string(wifiOTA_setupState()) == "testing");
+    tick(29999); assert(wifiOTA_isTesting());
+    tick(1); assert(!wifiOTA_isTesting());
+    assert(std::string(wifiOTA_setupError()) == "connection_failed");
   } else if (scenario == "legacy_fallback") {
     strcpy(testLegacySsid, "old-network"); strcpy(testLegacyPassword, "old-password");
     boot(); assert(!wifiOTA_requiresSetup()); assert(!wifiOTA_setupActive());

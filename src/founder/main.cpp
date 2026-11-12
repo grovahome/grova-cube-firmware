@@ -6,6 +6,7 @@
 #include "founder/equipment.h"
 #include "founder/i2c_bus.h"
 #include "founder/inputs.h"
+#include "founder/led.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
 #include "founder/serial.h"
@@ -18,6 +19,7 @@
 void setup() {
   founderApp::bootSafetyBegin();  // Force GPIOs off and require release after every reboot.
   Serial.begin(115200);
+  founderLed::begin();
   founderApp::settingsBegin();
   founderBus::begin();
   signalRegistry_begin();
@@ -55,5 +57,6 @@ void loop() {
   founderWeb::loop();
   founderSerial::loop();
   founderNetwork::loop();
+  founderLed::loop();
   delay(5);
 }

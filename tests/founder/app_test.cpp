@@ -546,6 +546,7 @@ int main(int argc, char** argv) {
 }
 
 namespace founderDisplay {
+const char* controller() { return "SSD1317"; }
 bool present() {
   return true;
 }

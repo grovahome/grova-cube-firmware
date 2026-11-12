@@ -110,7 +110,7 @@ String status() {
   j["settings_ok"] = settingsOk;
   j["outputs_ready"] = founderOutputs::ready();
   j["oled_present"] = founderDisplay::present();
-  j["display"]["controller"] = "SSD1317";
+  j["display"]["controller"] = founderDisplay::controller();
   j["display"]["rotation"] = founderDisplay::rotation();
   j["display"]["offset"] = founderDisplay::offset();
   j["healthy"] = settingsOk && founderOutputs::ready() && !fan_hasTachoFault();

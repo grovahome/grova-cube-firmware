@@ -15,7 +15,7 @@ SCENARIOS = (
 )
 
 WIFI_SCENARIOS = (
-    "first_boot", "legacy_fallback", "saved_precedence", "success_and_ap_close",
+    "first_boot", "radio_start_elapsed", "legacy_fallback", "saved_precedence", "success_and_ap_close",
     "failed_trial_preserves_old", "storage_failure", "power_loss_during_trial", "dhcp_required",
     "first_save_failure", "corrupt_record", "recovery_without_run_reset", "input_and_scan",
     "millis_wrap", "ap_failure", "setup_key_write_failure", "key_failure_preserves_saved",

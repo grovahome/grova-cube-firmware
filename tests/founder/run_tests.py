@@ -4,6 +4,9 @@ import argparse,subprocess,tempfile
 p=argparse.ArgumentParser();p.add_argument('--compiler',default='g++');p.add_argument('--zig',action='store_true');p.add_argument('--status-output',type=Path);p.add_argument('--blank-output',type=Path);p.add_argument('--boot-frames',type=Path);a=p.parse_args()
 root=Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
+    led_binary=Path(temp)/'led_tests.exe'
+    subprocess.run([a.compiler]+(['c++'] if a.zig else [])+['-std=c++17','-Wall','-Wextra','-Isrc','tests/founder/led_test.cpp','-o',str(led_binary)],cwd=root,check=True)
+    subprocess.run([str(led_binary)],cwd=root,check=True)
     boot_binary=Path(temp)/'boot_tests.exe'
     boot_command=[a.compiler]+(['c++'] if a.zig else [])
     subprocess.run(boot_command+['-std=c++17','-Wall','-Wextra','-Isrc','tests/founder/boot_test.cpp','-o',str(boot_binary)],cwd=root,check=True)
@@ -46,3 +49,9 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     wifi_command+=['-std=c++17','-DGROVA_FOUNDER_APP=1','-Itests/host/wifi_include','-Itests/host/include','-Isrc','-Iinclude','tests/founder/wifi_identity_test.cpp','tests/founder/wifi_glue.cpp','src/modules/wifi_ota.cpp','src/modules/rest_mode.cpp','-o',str(wifi_binary)]
     subprocess.run(wifi_command,cwd=root,check=True)
     subprocess.run([str(wifi_binary)],cwd=root,check=True)
+
+    web_binary=Path(temp)/'founder_wifi_web_tests.exe'
+    web_command=[a.compiler]+(['c++'] if a.zig else [])
+    web_command+=['-std=c++17','-DGROVA_FOUNDER_APP=1','-Itests/host/wifi_include','-Itests/host/include','-Isrc','-Iinclude','tests/host/wifi_web_test.cpp','tests/founder/wifi_glue.cpp','src/modules/wifi_web.cpp','src/modules/wifi_ota.cpp','src/modules/rest_mode.cpp','-o',str(web_binary)]
+    subprocess.run(web_command,cwd=root,check=True)
+    subprocess.run([str(web_binary)],cwd=root,check=True)

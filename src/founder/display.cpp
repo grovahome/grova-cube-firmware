@@ -2,6 +2,7 @@
 
 #include <Preferences.h>
 #include <Wire.h>
+#include <cstring>
 
 #include "boards/grova_founder_s3.h"
 #include "drivers/ssd1317.h"
@@ -24,6 +25,8 @@ unsigned rotation() {
 unsigned offset() {
   return rowOffset;
 }
+static bool useSSD1306 = false;
+const char* controller() { return useSSD1306 ? "SSD1306" : "SSD1317"; }
 static bool ready = false;
 static uint8_t activeAddress = 0;
 static founderBoot::Sequence welcome;
@@ -33,21 +36,28 @@ bool present() {
 }
 static int page = 0;
 static uint32_t drawAt = 0, probeAt = 0;
-bool configure(unsigned rotation, unsigned offset) {
-  if (rotation > 3 || offset > 95 || !storageReady) {
+static bool apply(unsigned rotation, unsigned offset, bool ssd1306) {
+  if (rotation > 3 || offset > (ssd1306 ? 63U : 95U) || !storageReady) {
     return false;
   }
-  uint16_t packed = (rotation << 8) | offset;
+  uint16_t packed = (ssd1306 ? 0x8000 : 0) | (rotation << 8) | offset;
   if (displaySettings.putBytes("panel", &packed, sizeof(packed)) != sizeof(packed)) {
     return false;
   }
   welcome.dismiss();
+  useSSD1306 = ssd1306;
   rotate = rotation;
   rowOffset = offset;
   oled.setRotation(rotate);
   ready = false;
   probeAt = millis() - 10000;
   return true;
+}
+bool configure(unsigned rotation, unsigned offset) { return apply(rotation, offset, useSSD1306); }
+bool selectController(const char* name) {
+  if (!strcmp(name, "ssd1306")) return apply(rotate, 0, true);
+  if (!strcmp(name, "ssd1317")) return apply(rotate, 80, false);
+  return false;
 }
 void begin() {
   ready = false;
@@ -59,11 +69,12 @@ void begin() {
   if (storageReady && displaySettings.getBytesLength("panel") == sizeof(packed)) {
     uint16_t stored = 0;
     if (displaySettings.getBytes("panel", &stored, sizeof(stored)) == sizeof(stored) &&
-        (stored >> 8) <= 3 && (stored & 255) <= 95) {
+        (stored & 0x7C00) == 0 && (stored & 255) <= ((stored & 0x8000) ? 63 : 95)) {
       packed = stored;
     }
   }
-  rotate = packed >> 8;
+  useSSD1306 = (packed & 0x8000) != 0;
+  rotate = (packed >> 8) & 3;
   rowOffset = packed & 255;
   oled.setRotation(rotate);
   probeAt = millis() - 10000;
@@ -83,7 +94,7 @@ void loop() {
       uint8_t address = founderBus::probe(0x3C) ? 0x3C : founderBus::probe(0x3D) ? 0x3D : 0;
       activeAddress = address;
       if (address) {
-        ready = oled.begin(address, rowOffset);
+        ready = oled.begin(address, rowOffset, useSSD1306);
         if (ready) {
           welcome.found(millis());
         }

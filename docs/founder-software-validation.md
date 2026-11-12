@@ -5,6 +5,25 @@ Scope: software-only acceptance before the new PCB arrives. Founder branch,
 internal GROVA worktree. Installed versions are still documented separately in
 the internal `docs/software-validation.md`. This page does not certify hardware.
 
+## Live hardware checkpoint — 2026-11-12
+
+The pre-arrival software scope above is historical. The Founder application has
+now been flashed to the new ESP32-S3 N16R8 board; full observations are in
+[First start](founder-first-start.md). Confirmed: real phone Wi-Fi setup and
+persistence, restart reconnect, RTC valid boot time after a short battery-backed
+power interruption, and visually correct RGB sequence/status. A reproducible
+unsigned timestamp underflow in queued Wi-Fi trials was fixed and regression
+covered with nonzero radio startup time.
+
+Setup AP uses an eight-character password; no duplicate entry on its AP page.
+It closes five seconds after successful save. The setup links now point to the
+actual home-LAN app address. SSD1306/SSD1317 profiles are explicitly selectable;
+SSD1306 worked, the supplied SSD1317 modules did not ACK. Display/encoder are
+currently deferred. No output tests: WAGO connectors are not yet soldered.
+Sensors, output electrical limits/cutoffs, long-term RTC retention, power-path
+rework and manual recovery remain open. Internal Cube 001/002 deployments are
+unchanged.
+
 ## Verified behavior
 
 | Area | Verification and result |

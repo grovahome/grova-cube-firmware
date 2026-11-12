@@ -21,8 +21,9 @@ for name,offset,path in parts:
 out=ROOT/'dist/founder-s3';out.mkdir(parents=True,exist_ok=True)
 for name,offset,path in parts:shutil.copyfile(path,out/name)
 factory=out/'grova-founder-s3-first-flash.bin'
+# Match PlatformIO: ROM bootloader header uses DIO even with QIO application flash.
 command=[sys.executable,str(packages/'tool-esptoolpy/esptool.py'),'--chip','esp32s3','merge_bin',
-         '--flash_mode','qio','--flash_freq','80m','--flash_size','16MB','-o',str(factory)]
+         '--flash_mode','dio','--flash_freq','80m','--flash_size','16MB','-o',str(factory)]
 for name,offset,path in parts:command.extend([hex(offset),str(out/name)])
 subprocess.run(command,cwd=ROOT,check=True)
 sha=lambda path:hashlib.sha256(path.read_bytes()).hexdigest()
