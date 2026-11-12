@@ -4,8 +4,8 @@ Status: 2026-11-12. Development branch `codex/founder-pcb-bringup`, based on
 corrected V1 baseline `5725652`. The V1 branch and freeze tag are unchanged.
 The previous checkpoint was installed and Wi-Fi/LED/RTC checks are recorded in
 [First start](founder-first-start.md). The new [daily plans](founder-daily-plans.md)
-are prepared in source only: controller disconnected, no new flash or physical
-output acceptance. The internal dashboard deployment is unchanged.
+and the configurable watering journal are installed from source `6dde7cb`
+on the new board. Physical output/load acceptance remains open. The internal dashboard deployment is unchanged.
 
 ## Build and separation
 

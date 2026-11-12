@@ -344,3 +344,30 @@ It is NOT flashed. Prior installed Wi-Fi/LED/RTC findings remain unchanged.
 Physical outputs remain untested pending WAGO assembly. The GitHub failure of
 ba755b2 was the missing stdint include in the host graphics adapter; correction
 5bbc5d2 completed GitHub Actions successfully before this feature work.
+
+
+### Daily plans / configurable recovery / execution journal installed, 2026-11-12
+
+User reconnected the board and explicitly authorized installation and Git push
+once checks passed. Installed source `6dde7cb`, target grova_founder_s3, COM7,
+MAC 7c:4f:ad:b7:f0:60. Application-only write at 0x10000 with esptool usb_reset;
+hash verified. Bootloader, partitions and NVS were not overwritten.
+
+Live HTTP at http://192.168.1.115: healthy/settings_ok true, Wi-Fi connected,
+RTC present/valid/backup configured/used for boot/write OK, NTP source. Daily
+plans supported, desired automatic operation false, no resume pending/error,
+Rest true. Equipment revision 2, no assigned devices, all five setpoints zero.
+Served HTML contains the catch-up selection and uncertain-completion wording.
+No actuator tests, output assignments or watering were performed by the agent.
+
+Completed before install: full Founder host suite including process-restart,
+reservation/start/completion fault injection and legacy-ledger migration; 25
+legacy lifecycle + 17 Wi-Fi scenarios; JavaScript syntax, existing browser
+acceptance and new daily-plan/catch-up/history browser tests; S3 build passed.
+WAGO/load tests, sensors, SSD1317/encoder, extended RTC and power-path/manual
+recovery remain open. The internal project validation/handoff is updated
+separately; Mini PC and Cube 001/002 were not deployed to.
+Installed firmware.bin SHA-256: `455d9c8d8875ea9e0b9bfe34c75c9b41d3152db73977c55a007921c4a193907a`.
+
+Live browser check also rendered the real pump/catch-up editor at the LAN IP.
+Control POSTs were blocked in the test; no assignment or output request was sent.

@@ -1,7 +1,7 @@
 # Founder daily device plans — 2026-11-12
 
-Status: implemented and host/browser tested; NOT installed on the disconnected
-controller. Electrical output acceptance is still open (WAGO connectors not yet
+Status: installed and live-start verified on 2026-11-12 from source commit
+`6dde7cb` on Founder MAC `7c:4f:ad:b7:f0:60`, IP `192.168.1.115`. Electrical output acceptance is still open (WAGO connectors not yet
 soldered). Installed hardware observations remain in founder-first-start.md.
 
 ## Simple local workflow

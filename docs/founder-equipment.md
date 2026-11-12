@@ -2,8 +2,8 @@
 
 Status: manual controls and persistent daily device plans are implemented.
 Physical output acceptance remains OPEN. See [daily plans](founder-daily-plans.md)
-for the current save/resume and pump-execution contract; the new plans are not
-yet installed on the disconnected board.
+for the current save/resume and pump-execution contract. The plans/journal are
+installed from `6dde7cb`; no physical output/load acceptance has been performed.
 
 ## Separation of responsibilities
 

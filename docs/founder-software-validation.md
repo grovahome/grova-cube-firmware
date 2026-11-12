@@ -1,5 +1,15 @@
 # Founder software acceptance — 2026-11-12
 
+## Installed checkpoint — 2026-11-12
+
+Daily plans, configurable pulse recovery and version-2 execution journal are
+installed from `6dde7cb` on the new Founder board at `192.168.1.115`.
+Post-flash HTTP: healthy/settings OK, Wi-Fi/RTC/NTP working, Rest on, no device
+assignments and all setpoints zero. Flash hash verified; no physical output
+acceptance. See [first start](founder-first-start.md) for exact SHA and limits.
+Dated "prepared/not installed" sections below describe earlier checkpoints.
+
+
 Scope: software-only acceptance before the new PCB arrives. Founder branch,
 `grova_founder_s3`; no deployment, OTA, hardware actuation or changes to the
 internal GROVA worktree. Installed versions are still documented separately in
