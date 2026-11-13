@@ -191,3 +191,12 @@ clock loss, Pause, invalid/overlapping modes/plans and failed configuration writ
 `check_fan_ui.cjs` covers both native connectors, independent roles, save/reload,
 sliders, pending automatic mode, 0–10 V, switch limitations, removal and mobile
 layout. Browser tests use fixtures; no physical fan or output was activated.
+
+
+## Simple automation supersedes pending fan automation
+
+See [simple automation](founder-simple-automation.md) for the current device-based
+manual/time/sensor contract, exact-source rules, target and optional warning
+limits, priorities, fallback, fan roles, intervals and bounded sensor watering.
+Earlier statements that Founder sensor automation is not implemented are historical.
+Installation is recorded separately after OTA verification.

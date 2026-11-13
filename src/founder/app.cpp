@@ -5,6 +5,7 @@
 #include "boards/grova_founder_s3.h"
 #include "device_identity.h"
 #include "firmware_info.h"
+#include "founder/automation.h"
 #include "founder/devices.h"
 #include "founder/display.h"
 #include "founder/equipment.h"
@@ -251,8 +252,8 @@ static bool result(String& r, bool ok, const char* message) {
 bool command(const String& body, String& response, bool remote) {
   response = "";
   JsonDocument j;
-  if (body.length() > 4096 || deserializeJson(j, body) || !j.is<JsonObject>() ||
-      !j["cmd"].is<const char*>()) {
+  if (body.length() > founderAutomation::ConfigMaxBytes || deserializeJson(j, body) ||
+      !j.is<JsonObject>() || !j["cmd"].is<const char*>()) {
     return result(response, false, "Invalid command JSON");
   }
   const char* cmd = j["cmd"];
@@ -294,7 +295,7 @@ bool command(const String& body, String& response, bool remote) {
     ok = founderEquipment::configure(j.as<JsonObjectConst>(), message);
     if (ok && (j["start_plans"] | false) && founderEquipment::hasPlans()) {
       ok = setRest(false);
-      message = ok ? "Devices and daily plans saved; automatic operation enabled"
+      message = ok ? "Devices and automation saved; operation enabled"
                    : "Saved, but operation remains paused; check storage and interlocks";
     }
     return result(response, ok, message.c_str());
@@ -334,7 +335,7 @@ bool command(const String& body, String& response, bool remote) {
   } else if (!strcmp(cmd, "set_fan_auto") || !strcmp(cmd, "set_fan_policy")) {
     return result(
         response, false,
-        "Choose fan operation in hardware settings; sensor automation is not configured yet");
+        "Use per-device automation in hardware settings; legacy fan policies are disabled");
   } else if (!strcmp(cmd, "set_targets") && j["temperature_c"].is<float>() &&
              j["humidity_pct"].is<float>()) {
     Targets next;

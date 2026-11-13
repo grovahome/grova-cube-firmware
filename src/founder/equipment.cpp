@@ -6,6 +6,7 @@
 #include <memory>
 #include <new>
 
+#include "founder/automation.h"
 #include "founder/device_profiles.h"
 #include "founder/outputs.h"
 #include "founder/schedule_policy.h"
@@ -21,6 +22,8 @@ struct Device {
   unsigned voltage = 0, maxRuntime = 0;
   founderSchedule::Plan plan;
   bool automatic = false;
+  uint8_t role = 0;
+  founderAutomation::Config automation;
 };
 static Device devices[Count];
 static bool cleanText(const char*, size_t);
@@ -28,22 +31,65 @@ struct FanPort {
   bool enabled = false;
   char name[40] = {};
   bool automatic = false;
+  uint8_t role = 0;
+  founderAutomation::Config automation;
   founderSchedule::Plan plan;
 };
 static unsigned fanManual[2] = {};
+static founderAutomation::State deviceAutomationState[Count], fanAutomationState[2];
+static founderAutomation::Decision deviceDecision[Count], fanDecision[2];
+static bool parseAutomation(JsonObjectConst row, founderAutomation::Config& next, uint8_t& role,
+                            bool analog, bool pulse, unsigned maximum, String& error) {
+  if (!row["fan_role"].isNull()) {
+    if (!row["fan_role"].is<const char*>()) {
+      return false;
+    }
+    const char* value = row["fan_role"];
+    if (!strcmp(value, "circulation")) {
+      role = 0;
+    } else if (!strcmp(value, "intake")) {
+      role = 1;
+    } else if (!strcmp(value, "exhaust")) {
+      role = 2;
+    } else {
+      error = "Invalid fan function";
+      return false;
+    }
+  }
+  return founderAutomation::parse(row["automation"], next, analog, pulse, maximum, error);
+}
+static const char* roleName(unsigned role) {
+  return role == 1 ? "intake" : role == 2 ? "exhaust" : "circulation";
+}
+static void appendAutomation(JsonObject row, const founderAutomation::Config& config, uint8_t role,
+                             bool fan, bool pulse) {
+  founderAutomation::append(row, config);
+  if (fan) {
+    row["fan_role"] = roleName(role);
+  }
+  if (pulse) {
+    row["automation"]["pulse_ms"] = config.pulseMs;
+    row["automation"]["cooldown_s"] = config.cooldownSeconds;
+  }
+}
 static bool parsePlan(JsonVariantConst, Device&, String&);
 static void appendPlan(JsonObject, const Device&);
 static bool parseMode(JsonVariantConst value, bool& automatic, String& error) {
   if (value.isNull()) {
     return true;
   }
-  if (!value.is<const char*>() || (strcmp(value, "manual") && strcmp(value, "automatic"))) {
+  if (!value.is<const char*>() ||
+      (strcmp(value, "manual") && strcmp(value, "scheduled") && strcmp(value, "automatic"))) {
     error = "Expected manual or automatic fan mode";
     return false;
   }
   automatic = !strcmp(value, "automatic");
   return true;
 }
+struct WorkingConfiguration {
+  Device devices[Count];
+  FanPort fans[2];
+};
 static FanPort fanPorts[2];
 static bool parseFans(JsonObjectConst root, FanPort (&next)[2], String& error) {
   if (root["fan_ports"].isNull()) {
@@ -63,6 +109,12 @@ static bool parseFans(JsonObjectConst root, FanPort (&next)[2], String& error) {
     next[i].enabled = row["enabled"];
     strcpy(next[i].name, row["name"]);
     next[i].automatic = false;
+    next[i].automation = founderAutomation::Config{};
+    next[i].role = 0;
+    if (!parseAutomation(row.as<JsonObjectConst>(), next[i].automation, next[i].role, true, false,
+                         0, error)) {
+      return false;
+    }
     Device temporary;
     temporary.profile = profile("fan_0_10v");
     if (!parseMode(row["mode"], next[i].automatic, error) ||
@@ -150,7 +202,9 @@ static bool finishRun(unsigned i, RunState state) {
   PlanLedger next = planLedger;
   auto& record = next.last[i];
   record.state = unsigned(state);
-  record.recordedAt = getEpochSeconds();
+  if (getEpochSeconds() > record.recordedAt) {
+    record.recordedAt = getEpochSeconds();
+  }
   const uint32_t elapsed = uint32_t(millis() - activeAt[i]);
   record.elapsedMs = elapsed < record.requestedMs ? elapsed : record.requestedMs;
   activeRuns[i] = false;
@@ -211,6 +265,35 @@ static bool parsePlan(JsonVariantConst value, Device& device, String& error) {
     }
     plan.catchUpMinutes = value["catch_up_minutes"];
   }
+  if (!value["interval"].isNull()) {
+    auto v = value["interval"];
+    auto& i = plan.interval;
+    if (!v.is<JsonObjectConst>() || !v["every_minutes"].is<unsigned>() ||
+        v["every_minutes"].as<unsigned>() > 1440 || !v["anchor_minute"].is<unsigned>() ||
+        v["anchor_minute"].as<unsigned>() >= 1440) {
+      error = "Invalid repeating interval";
+      return false;
+    }
+    i.enabled = true;
+    i.everyMinutes = v["every_minutes"];
+    i.anchor = v["anchor_minute"];
+    if (device.profile->timed) {
+      if (!v["runtime_ms"].is<unsigned>() || v["runtime_ms"].as<unsigned>() > device.maxRuntime) {
+        error = "Invalid interval pulse";
+        return false;
+      }
+      i.runtimeMs = v["runtime_ms"];
+    } else {
+      if (!v["duration_minutes"].is<unsigned>() || v["duration_minutes"].as<unsigned>() > 1440 ||
+          !v["percent"].is<unsigned>() || v["percent"].as<unsigned>() > 100 ||
+          (!device.profile->analog && v["percent"].as<unsigned>() != 100)) {
+        error = "Invalid interval duration/percent";
+        return false;
+      }
+      i.durationMinutes = v["duration_minutes"];
+      i.percent = v["percent"];
+    }
+  }
   for (JsonObjectConst item : value["slots"].as<JsonArrayConst>()) {
     if (!item["start_minute"].is<unsigned>() || item["start_minute"].as<unsigned>() >= 1440) {
       error = "Invalid start time";
@@ -250,6 +333,18 @@ static void appendPlan(JsonObject row, const Device& device) {
   if (device.profile->timed) {
     p["catch_up_minutes"] = device.plan.catchUpMinutes;
     p["since_token"] = device.plan.sinceToken;
+  }
+  if (device.plan.interval.enabled) {
+    const auto& i = device.plan.interval;
+    auto v = p["interval"].to<JsonObject>();
+    v["anchor_minute"] = i.anchor;
+    v["every_minutes"] = i.everyMinutes;
+    if (device.profile->timed) {
+      v["runtime_ms"] = i.runtimeMs;
+    } else {
+      v["duration_minutes"] = i.durationMinutes;
+      v["percent"] = i.percent;
+    }
   }
   auto slots = p["slots"].to<JsonArray>();
   for (unsigned n = 0; n < device.plan.count; ++n) {
@@ -321,10 +416,13 @@ static bool parse(JsonObjectConst root, Device (&next)[Count], String& error) {
       error = "Runtime applies only to timed devices";
       return false;
     }
+    if (p->timed) {
+      device.automation.pulseMs = device.maxRuntime < 1000 ? device.maxRuntime : 1000;
+    }
     const bool fan = p->kind == Kind::SwitchedFan || p->kind == Kind::AnalogFan;
-    if ((!fan && !row["mode"].isNull()) ||
-        (fan && !parseMode(row["mode"], device.automatic, error))) {
-      error = "Operating mode applies only to fans";
+    if (!parseMode(row["mode"], device.automatic, error) || (!fan && !row["fan_role"].isNull()) ||
+        !parseAutomation(row, device.automation, device.role, p->analog, p->timed,
+                         device.maxRuntime, error)) {
       return false;
     }
     if (!parsePlan(row["plan"], device, error)) {
@@ -374,10 +472,16 @@ static void apply(const Device (&next)[Count]) {
   for (unsigned i = 0; i < Count; ++i) {
     devices[i] = next[i];
     requested[i] = 0;
+    deviceAutomationState[i] = {};
+    deviceDecision[i] = {};
   }
 }
 void begin() {
   fanManual[0] = fanManual[1] = 0;
+  for (unsigned n = 0; n < 2; ++n) {
+    fanAutomationState[n] = {};
+    fanDecision[n] = {};
+  }
   for (unsigned n = 1; n <= 2; ++n) {
     fan_setDemand(n, 0);
   }
@@ -386,26 +490,38 @@ void begin() {
   for (unsigned i = 0; i < Count; ++i) {
     activeRuns[i] = false;
   }
-  Device empty[Count];
-  apply(empty);
+  std::unique_ptr<WorkingConfiguration> working(new (std::nothrow) WorkingConfiguration);
+  if (!working) {
+    storage = configOk = eventsOk = false;
+    for (auto& d : devices) {
+      d = Device{};
+    }
+    int8_t owners[5] = {-1, -1, -1, -1, -1};
+    bool pulse[5] = {};
+    founderOutputs::assignOwners(owners, pulse);
+    return;
+  }
+  auto& initial = working->devices;
+  auto& initialFans = working->fans;
+  apply(initial);
   revision = 0;
   fanPorts[0] = FanPort{};
   fanPorts[1] = FanPort{};
   strcpy(fanPorts[0].name, "Lüfter 1");
   strcpy(fanPorts[1].name, "Lüfter 2");
-  FanPort initialFans[2] = {fanPorts[0], fanPorts[1]};
+  initialFans[0] = fanPorts[0];
+  initialFans[1] = fanPorts[1];
   storage = settings.begin("founder-devices", false);
   configOk = storage;
   eventsOk = storage;
   memset(&ledger, 0, sizeof(ledger));
   ledger.schema = 1;
-  Device initial[Count];
   if (storage && settings.isKey("configuration")) {
     size_t size = settings.getBytesLength("configuration");
-    std::unique_ptr<char[]> bytes(new (std::nothrow) char[4097]);
+    std::unique_ptr<char[]> bytes(new (std::nothrow) char[(founderAutomation::ConfigMaxBytes + 1)]);
     JsonDocument root;
     String error;
-    configOk = bool(bytes) && size > 0 && size <= 4096 &&
+    configOk = bool(bytes) && size > 0 && size <= founderAutomation::ConfigMaxBytes &&
                settings.getBytes("configuration", bytes.get(), size) == size;
     if (configOk) {
       bytes[size] = 0;
@@ -417,8 +533,10 @@ void begin() {
     if (configOk) {
       revision = root["revision"];
     } else {
-      Device empty[Count];
-      apply(empty);
+      for (auto& d : initial) {
+        d = Device{};
+      }
+      apply(initial);
     }
   }
   if (configOk) {
@@ -470,7 +588,9 @@ void begin() {
         if (r.state == unsigned(RunState::Reserved) || r.state == unsigned(RunState::Started)) {
           // Start-before-power-loss cannot prove a full run. Never report completion.
           r.state = unsigned(RunState::InterruptedUnknown);
-          r.recordedAt = getEpochSeconds();
+          if (isTimeSynced() && getEpochSeconds() > r.recordedAt) {
+            r.recordedAt = getEpochSeconds();
+          }
           rewrite = true;
         }
       }
@@ -523,8 +643,9 @@ static void serializeConfiguration(const Device (&next)[Count], const FanPort (&
     auto row = fans.add<JsonObject>();
     row["enabled"] = fan.enabled;
     row["name"] = fan.name;
-    row["mode"] = fan.automatic ? "automatic" : "manual";
-    row["automation_ready"] = false;
+    row["mode"] = fan.automatic ? "automatic" : fan.plan.enabled ? "scheduled" : "manual";
+    row["automation_ready"] = fan.automation.count > 0;
+    appendAutomation(row, fan.automation, fan.role, true, false);
     Device temporary;
     temporary.profile = profile("fan_0_10v");
     temporary.plan = fan.plan;
@@ -540,9 +661,11 @@ static void serializeConfiguration(const Device (&next)[Count], const FanPort (&
       row["profile"] = next[i].profile->id;
       row["name"] = next[i].name;
       row["output"] = channels()[next[i].output].id;
-      if (next[i].profile->kind == Kind::SwitchedFan || next[i].profile->kind == Kind::AnalogFan) {
-        row["mode"] = next[i].automatic ? "automatic" : "manual";
-      }
+      row["mode"] = next[i].automatic ? "automatic" : next[i].plan.enabled ? "scheduled" : "manual";
+      appendAutomation(
+          row, next[i].automation, next[i].role,
+          next[i].profile->kind == Kind::SwitchedFan || next[i].profile->kind == Kind::AnalogFan,
+          next[i].profile->timed);
       appendPlan(row, next[i]);
       if (!next[i].profile->analog) {
         row["voltage"] = next[i].voltage;
@@ -573,8 +696,15 @@ bool configure(JsonObjectConst request, String& message) {
     message = "Configuration revision exhausted";
     return false;
   }
-  Device next[Count];
-  FanPort nextFans[2] = {fanPorts[0], fanPorts[1]};
+  std::unique_ptr<WorkingConfiguration> working(new (std::nothrow) WorkingConfiguration);
+  if (!working) {
+    message = "Not enough memory for device configuration";
+    return false;
+  }
+  auto& next = working->devices;
+  auto& nextFans = working->fans;
+  nextFans[0] = fanPorts[0];
+  nextFans[1] = fanPorts[1];
   if (!parseFans(request, nextFans, message) || !parse(request, next, message)) {
     return false;
   }
@@ -586,7 +716,8 @@ bool configure(JsonObjectConst request, String& message) {
     bool unchanged = old.profile == next[i].profile && old.output == next[i].output &&
                      old.maxRuntime == next[i].maxRuntime &&
                      old.plan.enabled == next[i].plan.enabled &&
-                     old.plan.count == next[i].plan.count;
+                     old.plan.count == next[i].plan.count &&
+                     founderSchedule::same(old.plan.interval, next[i].plan.interval);
     for (unsigned n = 0; unchanged && n < next[i].plan.count; ++n) {
       unchanged = old.plan.slots[n].start == next[i].plan.slots[n].start &&
                   old.plan.slots[n].runtimeMs == next[i].plan.slots[n].runtimeMs;
@@ -599,13 +730,17 @@ bool configure(JsonObjectConst request, String& message) {
   }
   String bytes;
   serializeConfiguration(next, nextFans, revision + 1, bytes);
-  if (bytes.length() > 4096 ||
+  if (bytes.length() > founderAutomation::ConfigMaxBytes ||
       settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
     message = "Device assignment was not saved; previous assignment remains";
     return false;
   }
   apply(next);
   fanManual[0] = fanManual[1] = 0;
+  for (unsigned n = 0; n < 2; ++n) {
+    fanAutomationState[n] = {};
+    fanDecision[n] = {};
+  }
   fan_setDemand(1, 0);
   fan_setDemand(2, 0);
   fanPorts[0] = nextFans[0];
@@ -668,7 +803,7 @@ bool operate(JsonObjectConst request, String& message) {
   const auto& d = devices[i];
   const char* cmd = request["cmd"] | "";
   if (d.plan.enabled || d.automatic) {
-    message = "Device is scheduled; pause or edit its plan first";
+    message = "Device is automated; choose manual mode or pause automation";
     return false;
   }
   if (!strcmp(cmd, "stop_device")) {
@@ -737,7 +872,7 @@ bool operate(JsonObjectConst request, String& message) {
 }
 bool planEnabled(const char* id) {
   int i = slot(id);
-  return i >= 0 && devices[i].profile && devices[i].plan.enabled;
+  return i >= 0 && devices[i].profile && (devices[i].plan.enabled || devices[i].automatic);
 }
 bool setFanManual(unsigned fan, unsigned percent) {
   if (fan < 1 || fan > 2 || percent > 100) {
@@ -756,12 +891,12 @@ bool fanControlled(unsigned fan) {
 }
 bool hasPlans() {
   for (const auto& fan : fanPorts) {
-    if (fan.enabled && !fan.automatic && fan.plan.enabled) {
+    if (fan.enabled && (fan.plan.enabled || (fan.automatic && fan.automation.count))) {
       return true;
     }
   }
   for (const auto& d : devices) {
-    if (d.profile && d.plan.enabled) {
+    if (d.profile && (d.plan.enabled || (d.automatic && d.automation.count))) {
       return true;
     }
   }
@@ -777,10 +912,16 @@ void loop() {
     const auto& fan = fanPorts[n];
     unsigned value = 0;
     if (fanEnabled(n + 1) && !restMode_isEnabled() && !wifiOTA_requiresSetup() &&
-        !wifiOTA_isTesting() && !founderOutputs::inhibited() && !fan.automatic) {
-      value = fan.plan.enabled
-                  ? (allowed && minute < 1440 ? founderSchedule::percent(fan.plan, minute) : 0)
-                  : fanManual[n];
+        !wifiOTA_isTesting() && !founderOutputs::inhibited()) {
+      if (fan.automatic) {
+        fanDecision[n] = founderAutomation::evaluate(fan.automation, fanAutomationState[n],
+                                                     millis(), true, founderAutomation::read);
+        value = allowed ? fanDecision[n].percent : 0;
+      } else {
+        value = fan.plan.enabled
+                    ? (allowed && minute < 1440 ? founderSchedule::percent(fan.plan, minute) : 0)
+                    : fanManual[n];
+      }
     }
     fan_setDemand(n + 1, value);
   }
@@ -795,7 +936,7 @@ void loop() {
     if (baselineChanged) {
       String bytes;
       serializeConfiguration(devices, fanPorts, revision, bytes);
-      if (bytes.length() > 4096 ||
+      if (bytes.length() > founderAutomation::ConfigMaxBytes ||
           settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
         plansOk = false;
         stopAll();
@@ -818,12 +959,24 @@ void loop() {
         }
       }
     }
-    if (d.profile && d.automatic) {
-      drive(i, 0);
-      requested[i] = 0;
-      continue;
+    const bool sensor = d.profile && d.automatic;
+    unsigned sensorDemand = 0;
+    if (sensor) {
+      deviceDecision[i] =
+          founderAutomation::evaluate(d.automation, deviceAutomationState[i], millis(),
+                                      d.profile->analog, founderAutomation::read);
+      sensorDemand = deviceDecision[i].percent;
+      if (d.profile->timed && !sensorDemand) {
+        drive(i, 0);
+        requested[i] = 0;
+      }
+      if (!d.profile->timed) {
+        drive(i, allowed ? sensorDemand : 0);
+        requested[i] = allowed ? sensorDemand : 0;
+        continue;
+      }
     }
-    if (!d.profile || !d.plan.enabled) {
+    if (!d.profile || (!d.plan.enabled && !sensor)) {
       continue;
     }
     if (!allowed || minute >= 1440 || date < 0) {
@@ -841,11 +994,30 @@ void loop() {
     if (millis() < d.profile->startupLockMs || founderOutputs::applied(d.output) > 0) {
       continue;
     }
-    const auto due = founderSchedule::latest(d.plan, unsigned(date), minute);
-    if (!due.token || due.token < d.plan.sinceToken || due.token <= planLedger.token[i]) {
+    if (sensor && (!sensorDemand || (planLedger.last[i].recordedAt &&
+                                     (getEpochSeconds() < planLedger.last[i].recordedAt ||
+                                      getEpochSeconds() - planLedger.last[i].recordedAt <
+                                          d.automation.cooldownSeconds)))) {
       continue;
     }
-    const auto& slot = d.plan.slots[due.slot];
+    auto due = founderSchedule::latest(d.plan, unsigned(date), minute);
+    if (sensor) {
+      due.token = founderSchedule::token(unsigned(date), minute);
+      due.slot = 0;
+      due.ageMinutes = 0;
+    }
+    if (!due.token || (!sensor && due.token < d.plan.sinceToken) ||
+        due.token <= planLedger.token[i]) {
+      continue;
+    }
+    founderSchedule::Slot slot;
+    if (sensor) {
+      slot.runtimeMs = d.automation.pulseMs;
+    } else if (d.plan.interval.enabled) {
+      slot.runtimeMs = d.plan.interval.runtimeMs;
+    } else {
+      slot = d.plan.slots[due.slot];
+    }
     PlanLedger next = planLedger;
     next.token[i] = due.token;
     next.last[i] = RunRecord{};
@@ -855,7 +1027,7 @@ void loop() {
     record.output = d.output;
     strcpy(record.name, d.name);
     record.recordedAt = getEpochSeconds();
-    const bool eligible = due.ageMinutes <= d.plan.catchUpMinutes;
+    const bool eligible = sensor || due.ageMinutes <= d.plan.catchUpMinutes;
     record.state = unsigned(eligible ? RunState::Reserved : RunState::Skipped);
     // Consume only the latest occurrence; never replay a queue of missed doses.
     if (!savePlanLedger(next)) {
@@ -917,8 +1089,12 @@ void appendJson(String& out) {
     auto row = fans.add<JsonObject>();
     row["enabled"] = fan.enabled;
     row["name"] = fan.name;
-    row["mode"] = fan.automatic ? "automatic" : "manual";
-    row["automation_ready"] = false;
+    row["mode"] = fan.automatic ? "automatic" : fan.plan.enabled ? "scheduled" : "manual";
+    row["automation_ready"] = fan.automation.count > 0;
+    appendAutomation(row, fan.automation, fan.role, true, false);
+    if (fan.automatic) {
+      founderAutomation::appendDecision(row, fanDecision[&fan - fanPorts]);
+    }
     Device temporary;
     temporary.profile = profile("fan_0_10v");
     temporary.plan = fan.plan;
@@ -987,9 +1163,20 @@ void appendJson(String& out) {
       row["name"] = d.name;
       row["profile"] = d.profile->id;
       row["output"] = channels()[d.output].id;
-      if (d.profile->kind == Kind::SwitchedFan || d.profile->kind == Kind::AnalogFan) {
-        row["mode"] = d.automatic ? "automatic" : "manual";
-        row["automation_ready"] = false;
+      row["mode"] = d.automatic ? "automatic" : d.plan.enabled ? "scheduled" : "manual";
+      row["automation_ready"] = d.automation.count > 0;
+      appendAutomation(row, d.automation, d.role,
+                       d.profile->kind == Kind::SwitchedFan || d.profile->kind == Kind::AnalogFan,
+                       d.profile->timed);
+      if (d.automatic) {
+        founderAutomation::appendDecision(row, deviceDecision[i]);
+        if (d.profile->timed) {
+          const uint32_t at = planLedger.last[i].recordedAt;
+          const uint32_t elapsed = getEpochSeconds() >= at ? getEpochSeconds() - at : 0;
+          row["automation_status"]["cooldown_remaining_s"] =
+              at && elapsed < d.automation.cooldownSeconds ? d.automation.cooldownSeconds - elapsed
+                                                           : 0;
+        }
       }
       appendPlan(row, d);
       if (d.profile->timed) {
@@ -1031,15 +1218,15 @@ void appendJson(String& out) {
       row["requested_percent"] = requested[i];
       row["applied_percent"] = founderOutputs::applied(d.output);
       row["remaining_ms"] = founderOutputs::remainingMs(d.output);
-      row["reason"] = founderOutputs::inhibited()             ? "OTA"
-                      : restMode_isEnabled()                  ? "REST"
-                      : !settingsReady()                      ? "STORAGE"
-                      : !founderOutputs::ready()              ? "OUTPUT_INIT"
-                      : !isTimeSynced() && d.plan.enabled     ? "WAIT_TIME"
-                      : d.plan.enabled                        ? "SCHEDULE"
-                      : founderOutputs::applied(d.output) > 0 ? "MANUAL"
-                      : requested[i] > 0 && d.profile->timed  ? "RUNTIME_COMPLETE"
-                                                              : "OFF";
+      row["reason"] = founderOutputs::inhibited()                          ? "OTA"
+                      : restMode_isEnabled()                               ? "REST"
+                      : !settingsReady()                                   ? "STORAGE"
+                      : !founderOutputs::ready()                           ? "OUTPUT_INIT"
+                      : !isTimeSynced() && (d.plan.enabled || d.automatic) ? "WAIT_TIME"
+                      : d.plan.enabled                                     ? "SCHEDULE"
+                      : founderOutputs::applied(d.output) > 0              ? "MANUAL"
+                      : requested[i] > 0 && d.profile->timed               ? "RUNTIME_COMPLETE"
+                                                                           : "OFF";
     }
   }
   String json;

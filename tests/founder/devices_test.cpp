@@ -35,8 +35,12 @@ int main() {
   auto first = signalRegistry_read(SIGNAL_CLIMATE_TEMPERATURE_C);
   assert(first.valid && std::string(first.source).find("ch0") != std::string::npos);
   assert(first.value > 24 && first.value < 26);
+  assert(founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, first.source).valid);
+  const std::string source = first.source;
+  assert(text.find("\"signals\":") != std::string::npos);
   Wire.sht[0] = false;
   advance(5000);
+  assert(!founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str()).valid);
   auto fallback = signalRegistry_read(SIGNAL_CLIMATE_TEMPERATURE_C);
   assert(fallback.valid && std::string(fallback.source).find("ch1") != std::string::npos);
   Wire.badCrc = true;

@@ -49,7 +49,7 @@ const {chromium}=require(args['--playwright']||'playwright');
   await page.locator('#saveEquipment').click();await idle();assert.equal(packets[before].cmd,'set_rest_mode');assert.equal(packets[before].enabled,true);assert.equal(packets[before+1].cmd,'configure_equipment');assert.equal(d.equipment[0].name,'Regallicht');
   await page.locator('#port_OUT12_1_plan_slots .plan-slot').nth(1).getByRole('button',{name:'Entfernen'}).click();await page.locator('#saveEquipment').click();await idle();assert.equal(d.equipment[0].plan.slots.length,1);
   // Pump UI has pulse duration, no continuous ON window.
-  await page.locator('#connectorSelect').selectOption('OUT5_1');await page.locator('#port_OUT5_1_active').check();await page.locator('#port_OUT5_1_profile').selectOption('pump');await page.locator('#port_OUT5_1_plan_enabled').check();
+  await page.locator('#connectorSelect').selectOption('OUT5_1');await page.locator('#port_OUT5_1_active').check();await page.locator('#port_OUT5_1_profile').selectOption('pump');await page.locator('#port_OUT5_1_mode').selectOption('scheduled');
   assert.equal(await page.locator('#port_OUT5_1_plan_slots .plan-end').count(),0);assert.equal(await page.locator('#port_OUT5_1_plan_slots .plan-duration').count(),1);
   await page.locator('#port_OUT5_1_catchup').selectOption('30');await page.locator('#saveEquipment').click();await idle();
   assert.equal(d.equipment.find(e=>e.profile==='pump').plan.catch_up_minutes,30);
@@ -60,7 +60,7 @@ const {chromium}=require(args['--playwright']||'playwright');
   assert((await page.locator('#'+pump.id+'_history').innerText()).includes('Abschluss unklar'));
   assert(!(await page.locator('#'+pump.id+'_history').innerText()).includes('regulär beendet'));
   // Manual devices have neither plan summaries nor planned watering history.
-  await page.locator('#nav-manage').click();await page.selectOption('#connectorSelect','OUT5_1');await page.uncheck('#port_OUT5_1_plan_enabled');await page.click('#saveEquipment');await idle();
+  await page.locator('#nav-manage').click();await page.selectOption('#connectorSelect','OUT5_1');await page.selectOption('#port_OUT5_1_mode','manual');await page.click('#saveEquipment');await idle();
   await page.click('#nav-overview');assert.equal(await page.locator('#'+pump.id+'_history').count(),0);assert.equal(await page.locator('#'+pump.id+'_next').count(),0);assert.equal(await page.locator('#'+pump.id+'_duration').count(),1);
   d.time_synced=false;await page.evaluate(()=>refresh());assert((await page.locator('#dev1_next').innerText()).includes('gültige Uhrzeit'));d.time_synced=true;
   const edge=await page.evaluate(()=>{const d={time_synced:true,epoch_s:Date.UTC(2026,10,13,22,0)/1000,schedule_timezone:'Europe/Berlin'},e={plan:{slots:[{start_minute:1320,end_minute:360,percent:100}]}},p={timed:false,connection:'dc_switch'};return nextPlanAction(d,e,p);});assert(edge.includes('morgen 06:00 · Aus'));

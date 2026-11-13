@@ -337,6 +337,30 @@ void loop() {
   }
   publish();
 }
+static float measurement(const Device& d, SignalId id) {
+  if (id == SIGNAL_CLIMATE_TEMPERATURE_C) {
+    return d.temperature;
+  }
+  if (id == SIGNAL_CLIMATE_HUMIDITY_PCT) {
+    return d.humidity;
+  }
+  if ((id == SIGNAL_CLIMATE_PRESSURE_HPA && d.type == BOSCH) ||
+      (id == SIGNAL_CLIMATE_CO2_PPM && d.type == SCD) ||
+      (id == SIGNAL_LIGHT_LUX && d.type == VEML) ||
+      (id == SIGNAL_LIGHT_UV_INDEX && d.type == LTR)) {
+    return d.extra;
+  }
+  return NAN;
+}
+founderAutomation::Reading readSignal(SignalId id, const char* source) {
+  for (const auto& d : devices) {
+    if (d.present && !strcmp(d.source, source)) {
+      const float v = measurement(d, id);
+      return {v, usable(d) && isfinite(v), uint32_t(millis() - d.sampled)};
+    }
+  }
+  return {};
+}
 void appendJson(String& j) {
   j += "\"devices\":[";
   bool comma = false;
@@ -366,7 +390,40 @@ void appendJson(String& j) {
       j += usable(d) && isfinite(d.temperature) ? String(d.temperature, 2) : String("null");
       j += " ,\"humidity_pct\":";
       j += usable(d) && isfinite(d.humidity) ? String(d.humidity, 2) : String("null");
-      j += '}';
+      j += ",\"source\":\"";
+      j += d.source;
+      j += "\",\"signals\":[";
+      bool signalComma = false;
+      for (int id = 0; id < SIGNAL_COUNT; ++id) {
+        const auto signal = static_cast<SignalId>(id);
+        const float value = measurement(d, signal);
+        const bool supported =
+            (id == SIGNAL_CLIMATE_TEMPERATURE_C &&
+             (d.type == SHT || d.type == AHT || d.type == BOSCH || d.type == SCD)) ||
+            (id == SIGNAL_CLIMATE_HUMIDITY_PCT &&
+             (d.type == SHT || d.type == AHT || (d.type == BOSCH && !d.bmp) || d.type == SCD)) ||
+            (id == SIGNAL_CLIMATE_PRESSURE_HPA && d.type == BOSCH) ||
+            (id == SIGNAL_CLIMATE_CO2_PPM && d.type == SCD) ||
+            (id == SIGNAL_LIGHT_LUX && d.type == VEML) ||
+            (id == SIGNAL_LIGHT_UV_INDEX && d.type == LTR);
+        if (!supported) {
+          continue;
+        }
+        if (signalComma) {
+          j += ',';
+        }
+        signalComma = true;
+        j += "{\"id\":\"";
+        j += signalRegistry_name(signal);
+        j += "\",\"unit\":\"";
+        j += signalRegistry_unit(signal);
+        j += "\",\"valid\":";
+        j += usable(d) && isfinite(value) ? "true" : "false";
+        j += ",\"value\":";
+        j += usable(d) && isfinite(value) ? String(value, 3) : String("null");
+        j += '}';
+      }
+      j += "]}";
     }
   }
   j += ']';

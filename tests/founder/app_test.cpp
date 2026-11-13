@@ -9,6 +9,7 @@
 #include <iostream>
 
 #include "founder/device_profiles.h"
+#include "founder/devices.h"
 #include "founder/equipment.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
@@ -69,8 +70,9 @@ bool time_settingsReady() {
 bool isTimeSynced() {
   return clockReady;
 }
+static unsigned long testEpoch = 1800000000;
 unsigned long getEpochSeconds() {
-  return 1800000000;
+  return testEpoch;
 }
 bool rtc_isEnabled() {
   return true;
@@ -226,13 +228,20 @@ static void loadNvs(const char* path) {
 }
 static const char* rebootConfig =
     R"({"cmd":"configure_equipment","expected_revision":0,"equipment":[{"id":"dev1","name":"Pumpe neu","profile":"pump","output":"OUT5_1","voltage":5,"max_runtime_ms":1000},{"id":"dev2","name":"Licht neu","profile":"light_0_10v","output":"0_10V_OUT_1","power_output":"OUT12_1","power_voltage":12}],"fan_ports":[{"enabled":true,"name":"Zuluft"},{"enabled":false,"name":"Abluft"}]})";
+namespace founderDevices {
+founderAutomation::Reading readSignal(SignalId id, const char* source) {
+  auto v = signalRegistry_read(id);
+  return {v.value, v.valid && !strcmp(v.source, source), uint32_t(signalRegistry_ageMs(id))};
+}
+}  // namespace founderDevices
 int main(int argc, char** argv) {
   if (argc > 2 &&
       (!strcmp(argv[1], "--reboot-load") || !strcmp(argv[1], "--plan-load") ||
        !strcmp(argv[1], "--plan-paused-load") || !strcmp(argv[1], "--plan-no-intent-load") ||
        !strcmp(argv[1], "--plan-corrupt-intent-load") ||
        !strcmp(argv[1], "--plan-release-fail-load") || !strcmp(argv[1], "--plan-history-load") ||
-       !strcmp(argv[1], "--plan-reserved-load") || !strcmp(argv[1], "--fan-load"))) {
+       !strcmp(argv[1], "--plan-reserved-load") || !strcmp(argv[1], "--fan-load") ||
+       !strcmp(argv[1], "--auto-load"))) {
     loadNvs(argv[2]);
   }
   if (argc > 1 && !strcmp(argv[1], "--plan-no-intent-load")) {
@@ -261,6 +270,95 @@ int main(int argc, char** argv) {
   founderOutputs::begin();
   founderEquipment::begin();
   signalRegistry_begin();
+  if (argc > 1 && !strcmp(argv[1], "--small-pulse")) {
+    assert(run(
+        R"({"cmd":"configure_equipment","equipment":[{"id":"dev1","profile":"pump","name":"Small pulse","output":"OUT5_1","voltage":5,"max_runtime_ms":100}]})"));
+    founderEquipment::begin();
+    assert(founderEquipment::settingsReady());
+    assert(statusJson()["equipment"][0]["automation"]["pulse_ms"].as<unsigned>() == 100);
+    return 0;
+  }
+  if (argc > 1 && !strncmp(argv[1], "--auto-", 7)) {
+    const char* cfg =
+        R"({"cmd":"configure_equipment","start_plans":true,"equipment":[{"id":"dev1","profile":"pump","name":"Water","output":"OUT5_1","voltage":5,"max_runtime_ms":1000,"mode":"automatic","automation":{"pulse_ms":500,"cooldown_s":60,"rules":[{"source":"test-sensor","signal":"climate.humidity_pct","direction":"raise","target":60,"band":10,"hysteresis":1,"delay_s":0}]}},{"id":"dev2","profile":"light_0_10v","name":"Light","output":"0_10V_OUT_1","mode":"automatic","automation":{"rules":[{"source":"test-sensor","signal":"light.lux","direction":"raise","target":1000,"band":1000,"hysteresis":10,"delay_s":0}]}}],"fan_ports":[{"enabled":true,"name":"Climate","mode":"automatic","fan_role":"exhaust","automation":{"rules":[{"source":"test-sensor","signal":"climate.temperature_c","direction":"lower","target":24,"band":4,"hysteresis":0.5,"delay_s":0,"maximum":30,"above_percent":100}]}},{"enabled":true,"name":"Circulation","mode":"scheduled","fan_role":"circulation","plan":{"enabled":true,"slots":[],"interval":{"anchor_minute":0,"every_minutes":180,"duration_minutes":10,"percent":40}}}]})";
+    bool loading = !strcmp(argv[1], "--auto-load");
+    if (!loading) {
+      assert(run(cfg));
+    }
+    nowMs = 600000;
+    minuteOfDay = 540;
+    signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 26, "test-sensor");
+    signalRegistry_publish(SIGNAL_CLIMATE_HUMIDITY_PCT, 50, "test-sensor");
+    signalRegistry_publish(SIGNAL_LIGHT_LUX, 500, "test-sensor");
+    if (loading) {
+      assert(statusJson()["equipment"][0]["last_run"]["state"].as<std::string>() ==
+             "INTERRUPTED_UNKNOWN");
+    }
+    founderApp::loop();
+    assert(!restMode_isEnabled());
+    assert(manualFans[0] == 50 && manualFans[1] == 40);
+    assert(founderOutputs::applied(3) == 50);
+    if (loading) {
+      assert(founderOutputs::applied(1) == 0);
+      return 0;
+    }
+    assert(founderOutputs::applied(1) == 100);
+    assert(statusJson()["equipment"][0]["last_run"]["state"].as<std::string>() == "STARTED");
+    if (!strcmp(argv[1], "--auto-save")) {
+      saveNvs(argv[2]);
+      return 0;
+    }
+    assert(!run(R"({"cmd":"set_device","id":"dev2","percent":90})"));
+    signalRegistry_invalidate(SIGNAL_CLIMATE_HUMIDITY_PCT);
+    founderApp::loop();
+    assert(founderOutputs::applied(1) == 0);
+    founderApp::loop();
+    assert(statusJson()["equipment"][0]["last_run"]["state"].as<std::string>() == "INTERRUPTED");
+    signalRegistry_publish(SIGNAL_CLIMATE_HUMIDITY_PCT, 50, "test-sensor");
+    founderApp::loop();
+    assert(founderOutputs::applied(1) == 0);
+    testEpoch += 61;
+    minuteOfDay++;
+    founderApp::loop();
+    assert(founderOutputs::applied(1) == 100);
+    signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 35, "different-sensor");
+    founderApp::loop();
+    assert(manualFans[0] == 0);
+    assert(statusJson()["fan_ports"][0]["automation_status"]["reason"].as<std::string>() ==
+           "SENSOR_MISSING");
+    assert(founderApp::setRest(true));
+    founderApp::loop();
+    assert(manualFans[0] == 0 && manualFans[1] == 0 && founderOutputs::applied(1) == 0);
+    JsonDocument bad;
+    assert(!deserializeJson(bad, cfg));
+    bad["equipment"][0]["automation"]["fallback_percent"] = 100;
+    String request;
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    assert(!deserializeJson(bad, cfg));
+    bad["fan_ports"][0]["automation"]["rules"][0]["maximum"] = 20;
+    request = "";
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    assert(!deserializeJson(bad, cfg));
+    bad["equipment"][0]["automation"]["rules"][0]["signal"] = "unknown";
+    request = "";
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    testNvs::failKey = "founder-devices/configuration";
+    assert(!run(cfg));
+    testNvs::failKey = "";
+    assert(statusJson()["fan_ports"][0]["fan_role"].as<std::string>() == "exhaust");
+    assert(run(cfg));
+    minuteOfDay++;
+    testEpoch += 120;
+    testNvs::failKey = "founder-devices/plan-ledger";
+    founderApp::loop();
+    assert(founderOutputs::applied(1) == 0 && restMode_isEnabled());
+    std::cout << "Automatic devices: selected source, sensor light/fan, interval, bounded pump, "
+                 "cooldown, durable reserve, restart and validation passed\n";
+    return 0;
+  }
   if (argc > 1 && !strncmp(argv[1], "--fan-", 6)) {
     const char* config =
         R"({"cmd":"configure_equipment","start_plans":true,"equipment":[{"id":"dev1","profile":"fan_0_10v","name":"Analog fan","output":"0_10V_OUT_1","mode":"automatic","plan":{"enabled":false,"slots":[]}}],"fan_ports":[{"enabled":true,"name":"PWM fan","mode":"manual","plan":{"enabled":true,"slots":[{"start_minute":480,"end_minute":540,"percent":35},{"start_minute":1320,"end_minute":360,"percent":65}]}},{"enabled":true,"name":"Future auto","mode":"automatic"}]})";

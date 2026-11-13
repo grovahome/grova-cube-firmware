@@ -50,5 +50,30 @@ int main() {
   assert(latest(catchup, 2026000, 0).token == token(2025364, 490));
   catchup.catchUpMinutes = 61;
   assert(!valid(catchup, true, 500));
+  Plan interval;
+  interval.enabled = true;
+  interval.interval.enabled = true;
+  interval.interval.everyMinutes = 120;
+  interval.interval.durationMinutes = 10;
+  interval.interval.percent = 40;
+  assert(valid(interval, false, 0));
+  assert(percent(interval, 0) == 40 && percent(interval, 9) == 40 && percent(interval, 10) == 0 &&
+         percent(interval, 120) == 40);
+  assert(latest(interval, 2026001, 130).slot == 1 &&
+         latest(interval, 2026001, 130).ageMinutes == 10);
+  interval.interval.anchor = 1435;
+  assert(percent(interval, 0) == 40 && percent(interval, 5) == 0);
+  assert(latest(interval, 2026001, 0).token == token(2026000, 1435));
+  interval.interval.runtimeMs = 500;
+  assert(valid(interval, true, 500));
+  assert(!valid(interval, true, 499));
+  interval.interval.everyMinutes = 0;
+  assert(!valid(interval, false, 0));
+  interval.interval.everyMinutes = 120;
+  interval.interval.durationMinutes = 121;
+  assert(!valid(interval, false, 0));
+  interval.interval.durationMinutes = 10;
+  interval.count = 1;
+  assert(!valid(interval, false, 0));
   std::cout << "Daily plan windows, midnight, overlap, boundaries and pulse limits passed\n";
 }
