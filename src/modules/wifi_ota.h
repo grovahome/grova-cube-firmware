@@ -4,6 +4,8 @@ void wifiOTA_begin();
 void wifiOTA_loop();
 
 bool wifiOTA_isConnected();
+// Coordinator has initialized OTA and is servicing it on a validated WLAN.
+bool wifiOTA_otaReady();
 const char* wifiOTA_getIP();
 bool wifiOTA_setupActive();
 unsigned wifiOTA_setupCloseDelayMs();

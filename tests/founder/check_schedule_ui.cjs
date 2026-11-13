@@ -4,6 +4,7 @@ const args={};for(let i=2;i<process.argv.length;i+=2)args[process.argv[i]]=proce
 const {chromium}=require(args['--playwright']||'playwright');
 (async()=>{
  const d=JSON.parse(fs.readFileSync(args['--blank'],'utf8')),packets=[],errors=[];
+ d.epoch_s=Date.UTC(2026,10,13,8,0)/1000;d.time_synced=true;d.schedule_timezone='Europe/Berlin';
  const html=fs.readFileSync('src/founder/page.h','utf8').match(/R"HTML\(([\s\S]*)\)HTML"/)[1];
  const browser=await chromium.launch({headless:true,...(args['--browser']?{executablePath:args['--browser']}:{})});
  try{
@@ -39,7 +40,7 @@ const {chromium}=require(args['--playwright']||'playwright');
   assert.equal(d.equipment[0].voltage,12);assert.equal(d.equipment[0].plan.slots.length,2);assert.equal(d.equipment[0].plan.slots[1].start_minute,720);assert.equal(packets.at(-1).start_plans,true);assert.equal(d.rest_mode.enabled,false);
   await page.reload();await page.waitForSelector('#port_OUT12_1_active',{state:'attached'});await idle();
   assert.equal(await page.locator('#port_OUT12_1_plan_slots .plan-slot').count(),2);
-  await page.locator('#nav-overview').click();assert((await page.locator('#equipment').innerText()).includes('08:00–10:00'));
+  await page.locator('#nav-overview').click();assert((await page.locator('#equipment').innerText()).includes('08:00–10:00'));assert((await page.locator('#dev1_next').innerText()).includes('heute 10:00 · Aus'));assert.equal(await page.locator('#dev1_history').count(),0);
   await page.locator('#equipment').getByRole('button',{name:'Zeitplan bearbeiten'}).click();
   assert.equal(await page.locator('#port_OUT12_1_plan_slots .plan-slot').count(),2);
   if(args['--screenshot'])await page.locator('#assignmentCard').screenshot({path:args['--screenshot']});
@@ -58,6 +59,13 @@ const {chromium}=require(args['--playwright']||'playwright');
   await page.evaluate(()=>refresh());await page.locator('#nav-overview').click();
   assert((await page.locator('#'+pump.id+'_history').innerText()).includes('Abschluss unklar'));
   assert(!(await page.locator('#'+pump.id+'_history').innerText()).includes('regulär beendet'));
+  // Manual devices have neither plan summaries nor planned watering history.
+  await page.locator('#nav-manage').click();await page.selectOption('#connectorSelect','OUT5_1');await page.uncheck('#port_OUT5_1_plan_enabled');await page.click('#saveEquipment');await idle();
+  await page.click('#nav-overview');assert.equal(await page.locator('#'+pump.id+'_history').count(),0);assert.equal(await page.locator('#'+pump.id+'_next').count(),0);assert.equal(await page.locator('#'+pump.id+'_duration').count(),1);
+  d.time_synced=false;await page.evaluate(()=>refresh());assert((await page.locator('#dev1_next').innerText()).includes('gültige Uhrzeit'));d.time_synced=true;
+  const edge=await page.evaluate(()=>{const d={time_synced:true,epoch_s:Date.UTC(2026,10,13,22,0)/1000,schedule_timezone:'Europe/Berlin'},e={plan:{slots:[{start_minute:1320,end_minute:360,percent:100}]}},p={timed:false,connection:'dc_switch'};return nextPlanAction(d,e,p);});assert(edge.includes('morgen 06:00 · Aus'));
+  await page.click('#nav-manage');await page.selectOption('#connectorSelect','OUT5_1');await page.uncheck('#port_OUT5_1_active');await page.click('#saveEquipment');await idle();
+  await page.selectOption('#connectorSelect','OUT12_1');await page.uncheck('#port_OUT12_1_active');await page.click('#saveEquipment');await idle();await page.click('#nav-overview');assert.equal(await page.locator('#equipment article').count(),0);assert.equal(await page.locator('#equipment [id$="_next"]').count(),0);assert.equal(await page.locator('#equipment [id$="_history"]').count(),0);
   for(const tab of ['overview','manage','settings']){await page.setViewportSize({width:390,height:844});await page.evaluate(t=>showView(t),tab);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}
   assert.deepEqual(errors,[]);console.log('Schedule UI passed: output → light → two windows → save/reload, overlap rejection, active edit, removal, pulse UI and mobile layout');
  }finally{await browser.close();}

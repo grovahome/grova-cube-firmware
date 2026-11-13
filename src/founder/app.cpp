@@ -158,6 +158,7 @@ String status() {
   j["display"]["offset"] = founderDisplay::offset();
   j["healthy"] = !hasFault();
   j["wifi_connected"] = wifiOTA_isConnected();
+  j["ota_ready"] = wifiOTA_otaReady();
   j["ip"] = wifiOTA_getIP();
   j["mqtt_connected"] = founderNetwork::connected();
   j["time_synced"] = isTimeSynced();

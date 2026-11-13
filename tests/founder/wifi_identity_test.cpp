@@ -15,6 +15,7 @@ int main() {
   ESP.mac = 0x112233AABBCCULL;
   wifiOTA_begin();
   restMode_begin();
+  assert(!wifiOTA_otaReady());
   assert(strlen(wifiOTA_setupPassword()) == 8);
   std::string first = wifiOTA_setupSSID();
   assert(first == "GROVA-CCBBAA332211");
@@ -30,6 +31,7 @@ int main() {
   wifiOTA_loop();
   assert(!wifiOTA_requiresSetup());
   assert(ArduinoOTA.hostname == second);
+  assert(wifiOTA_otaReady());
   assert(wifiOTA_setupCloseDelayMs() == 5000);
   assert(wifiOTA_setupActive());
   now += 4999; wifiOTA_loop(); assert(wifiOTA_setupActive());

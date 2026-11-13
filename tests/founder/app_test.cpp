@@ -51,6 +51,7 @@ bool wifiOTA_requiresSetup() {
 bool wifiOTA_isTesting() {
   return testing;
 }
+bool wifiOTA_otaReady() { return true; }
 bool wifiOTA_isConnected() {
   return true;
 }

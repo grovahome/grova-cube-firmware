@@ -196,6 +196,7 @@ void wifiOTA_loop() {
   wasConnected = online;
 }
 
+bool wifiOTA_otaReady() { return otaReady && !needsSetup && !trial && wifiOTA_isConnected(); }
 bool wifiOTA_isConnected() { return WiFi.status() == WL_CONNECTED && static_cast<uint32_t>(WiFi.localIP()) != 0; }
 const char* wifiOTA_getIP() { return ipText.c_str(); }
 bool wifiOTA_setupActive() { return apOpen; }
