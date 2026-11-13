@@ -51,7 +51,9 @@ bool wifiOTA_requiresSetup() {
 bool wifiOTA_isTesting() {
   return testing;
 }
-bool wifiOTA_otaReady() { return true; }
+bool wifiOTA_otaReady() {
+  return true;
+}
 bool wifiOTA_isConnected() {
   return true;
 }
@@ -154,6 +156,10 @@ bool fanPolicy_settingsReady() {
 }
 static int manualFans[2] = {};
 static bool failFanSave = false;
+bool fan_setDemand(int fan, int percent) {
+  manualFans[fan - 1] = percent;
+  return true;
+}
 bool fan_setManual(int fan, int percent, bool) {
   manualFans[fan - 1] = percent;
   return !failFanSave;
@@ -226,7 +232,7 @@ int main(int argc, char** argv) {
        !strcmp(argv[1], "--plan-paused-load") || !strcmp(argv[1], "--plan-no-intent-load") ||
        !strcmp(argv[1], "--plan-corrupt-intent-load") ||
        !strcmp(argv[1], "--plan-release-fail-load") || !strcmp(argv[1], "--plan-history-load") ||
-       !strcmp(argv[1], "--plan-reserved-load"))) {
+       !strcmp(argv[1], "--plan-reserved-load") || !strcmp(argv[1], "--fan-load"))) {
     loadNvs(argv[2]);
   }
   if (argc > 1 && !strcmp(argv[1], "--plan-no-intent-load")) {
@@ -255,6 +261,71 @@ int main(int argc, char** argv) {
   founderOutputs::begin();
   founderEquipment::begin();
   signalRegistry_begin();
+  if (argc > 1 && !strncmp(argv[1], "--fan-", 6)) {
+    const char* config =
+        R"({"cmd":"configure_equipment","start_plans":true,"equipment":[{"id":"dev1","profile":"fan_0_10v","name":"Analog fan","output":"0_10V_OUT_1","mode":"automatic","plan":{"enabled":false,"slots":[]}}],"fan_ports":[{"enabled":true,"name":"PWM fan","mode":"manual","plan":{"enabled":true,"slots":[{"start_minute":480,"end_minute":540,"percent":35},{"start_minute":1320,"end_minute":360,"percent":65}]}},{"enabled":true,"name":"Future auto","mode":"automatic"}]})";
+    if (strcmp(argv[1], "--fan-load")) {
+      assert(run(config));
+    } else {
+      assert(restMode_isEnabled());
+    }
+    founderApp::loop();
+    assert(!restMode_isEnabled() && manualFans[0] == 35 && manualFans[1] == 0);
+    assert(founderOutputs::applied(3) == 0);
+    auto state = statusJson();
+    assert(state["fan_ports"][0]["plan"]["slots"].size() == 2);
+    assert(state["fan_ports"][1]["mode"].as<std::string>() == "automatic");
+    assert(state["equipment"][0]["mode"].as<std::string>() == "automatic");
+    assert(!run(R"({"cmd":"set_fan_manual","fan":1,"percent":90})"));
+    assert(!run(R"({"cmd":"set_fan_manual","fan":2,"percent":90})"));
+    assert(!run(R"({"cmd":"set_fan_auto","fan":1})"));
+    assert(!run(R"({"cmd":"set_device","id":"dev1","percent":90})"));
+    minuteOfDay = 540;
+    founderApp::loop();
+    assert(manualFans[0] == 0);
+    minuteOfDay = 1380;
+    founderApp::loop();
+    assert(manualFans[0] == 65);
+    minuteOfDay = 120;
+    founderApp::loop();
+    assert(manualFans[0] == 65);
+    clockReady = false;
+    founderApp::loop();
+    assert(manualFans[0] == 0);
+    clockReady = true;
+    minuteOfDay = 480;
+    founderApp::loop();
+    assert(manualFans[0] == 35);
+    if (!strcmp(argv[1], "--fan-save")) {
+      saveNvs(argv[2]);
+      return 0;
+    }
+    assert(founderApp::setRest(true));
+    founderApp::loop();
+    assert(manualFans[0] == 0);
+    JsonDocument bad;
+    assert(!deserializeJson(bad, config));
+    bad["fan_ports"][0]["mode"] = "automatic";
+    String request;
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    bad["fan_ports"][0]["mode"] = "invalid";
+    request = "";
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    bad["fan_ports"][0]["mode"] = "manual";
+    bad["fan_ports"][0]["plan"]["slots"][1]["start_minute"] = 500;
+    request = "";
+    serializeJson(bad, request);
+    assert(!run(request.c_str()));
+    testNvs::failKey = "founder-devices/configuration";
+    assert(!run(config));
+    testNvs::failKey = "";
+    assert(statusJson()["fan_ports"][0]["plan"]["slots"][0]["percent"].as<unsigned>() == 35);
+    std::cout << "Fan plans: percent, midnight, cold restart, clock loss, pause, auto pending and "
+                 "validation passed\n";
+    return 0;
+  }
   if (argc > 1 && !strncmp(argv[1], "--plan-", 7)) {
     if (!strcmp(argv[1], "--plan-no-intent-load") ||
         !strcmp(argv[1], "--plan-corrupt-intent-load") ||

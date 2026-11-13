@@ -46,7 +46,6 @@ void loop() {
   founderOutputs::interlock(restMode_isEnabled(), setup);
   founderDevices::loop();
   time_loop();
-  fan_loop();
   auto input = founderInputs::poll();
   if (input.requestSetup) {
     founderApp::setRest(true);
@@ -58,6 +57,7 @@ void loop() {
   founderSerial::loop();
   founderNetwork::loop();
   founderApp::loop();
+  fan_loop();
   founderLed::loop();
   delay(5);
 }

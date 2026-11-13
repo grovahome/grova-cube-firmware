@@ -4,6 +4,8 @@ void fan_preinit();
 void fan_begin();
 void fan_loop();
 void fan_forceOff();
+// Volatile demand from a coordinator; preserves latched tacho faults and driver ramp.
+bool fan_setDemand(int fan, int percent);
 bool fan_applyPolicyConfig(int fan);
 
 int getFanPercent();

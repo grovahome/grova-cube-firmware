@@ -9,6 +9,7 @@
 #include "founder/device_profiles.h"
 #include "founder/outputs.h"
 #include "founder/schedule_policy.h"
+#include "modules/fan.h"
 #include "modules/rest_mode.h"
 #include "modules/time_sync.h"
 #include "modules/wifi_ota.h"
@@ -19,13 +20,30 @@ struct Device {
   int output = -1, power = -1;
   unsigned voltage = 0, maxRuntime = 0;
   founderSchedule::Plan plan;
+  bool automatic = false;
 };
 static Device devices[Count];
 static bool cleanText(const char*, size_t);
 struct FanPort {
   bool enabled = false;
   char name[40] = {};
+  bool automatic = false;
+  founderSchedule::Plan plan;
 };
+static unsigned fanManual[2] = {};
+static bool parsePlan(JsonVariantConst, Device&, String&);
+static void appendPlan(JsonObject, const Device&);
+static bool parseMode(JsonVariantConst value, bool& automatic, String& error) {
+  if (value.isNull()) {
+    return true;
+  }
+  if (!value.is<const char*>() || (strcmp(value, "manual") && strcmp(value, "automatic"))) {
+    error = "Expected manual or automatic fan mode";
+    return false;
+  }
+  automatic = !strcmp(value, "automatic");
+  return true;
+}
 static FanPort fanPorts[2];
 static bool parseFans(JsonObjectConst root, FanPort (&next)[2], String& error) {
   if (root["fan_ports"].isNull()) {
@@ -44,6 +62,18 @@ static bool parseFans(JsonObjectConst root, FanPort (&next)[2], String& error) {
     }
     next[i].enabled = row["enabled"];
     strcpy(next[i].name, row["name"]);
+    next[i].automatic = false;
+    Device temporary;
+    temporary.profile = profile("fan_0_10v");
+    if (!parseMode(row["mode"], next[i].automatic, error) ||
+        !parsePlan(row["plan"], temporary, error)) {
+      return false;
+    }
+    next[i].plan = temporary.plan;
+    if (next[i].automatic && next[i].plan.enabled) {
+      error = "Automatic fans cannot use a manual daily plan";
+      return false;
+    }
   }
   return true;
 }
@@ -291,7 +321,17 @@ static bool parse(JsonObjectConst root, Device (&next)[Count], String& error) {
       error = "Runtime applies only to timed devices";
       return false;
     }
+    const bool fan = p->kind == Kind::SwitchedFan || p->kind == Kind::AnalogFan;
+    if ((!fan && !row["mode"].isNull()) ||
+        (fan && !parseMode(row["mode"], device.automatic, error))) {
+      error = "Operating mode applies only to fans";
+      return false;
+    }
     if (!parsePlan(row["plan"], device, error)) {
+      return false;
+    }
+    if (device.automatic && device.plan.enabled) {
+      error = "Automatic fans cannot use a manual daily plan";
       return false;
     }
     used[out] = true;
@@ -337,6 +377,10 @@ static void apply(const Device (&next)[Count]) {
   }
 }
 void begin() {
+  fanManual[0] = fanManual[1] = 0;
+  for (unsigned n = 1; n <= 2; ++n) {
+    fan_setDemand(n, 0);
+  }
   planLedger = PlanLedger{};
   plansOk = true;
   for (unsigned i = 0; i < Count; ++i) {
@@ -479,6 +523,12 @@ static void serializeConfiguration(const Device (&next)[Count], const FanPort (&
     auto row = fans.add<JsonObject>();
     row["enabled"] = fan.enabled;
     row["name"] = fan.name;
+    row["mode"] = fan.automatic ? "automatic" : "manual";
+    row["automation_ready"] = false;
+    Device temporary;
+    temporary.profile = profile("fan_0_10v");
+    temporary.plan = fan.plan;
+    appendPlan(row, temporary);
   }
   JsonArray list = root["equipment"].to<JsonArray>();
   for (unsigned i = 0; i < Count; ++i) {
@@ -490,6 +540,9 @@ static void serializeConfiguration(const Device (&next)[Count], const FanPort (&
       row["profile"] = next[i].profile->id;
       row["name"] = next[i].name;
       row["output"] = channels()[next[i].output].id;
+      if (next[i].profile->kind == Kind::SwitchedFan || next[i].profile->kind == Kind::AnalogFan) {
+        row["mode"] = next[i].automatic ? "automatic" : "manual";
+      }
       appendPlan(row, next[i]);
       if (!next[i].profile->analog) {
         row["voltage"] = next[i].voltage;
@@ -552,6 +605,9 @@ bool configure(JsonObjectConst request, String& message) {
     return false;
   }
   apply(next);
+  fanManual[0] = fanManual[1] = 0;
+  fan_setDemand(1, 0);
+  fan_setDemand(2, 0);
   fanPorts[0] = nextFans[0];
   fanPorts[1] = nextFans[1];
   ++revision;
@@ -611,7 +667,7 @@ bool operate(JsonObjectConst request, String& message) {
   }
   const auto& d = devices[i];
   const char* cmd = request["cmd"] | "";
-  if (d.plan.enabled) {
+  if (d.plan.enabled || d.automatic) {
     message = "Device is scheduled; pause or edit its plan first";
     return false;
   }
@@ -683,7 +739,27 @@ bool planEnabled(const char* id) {
   int i = slot(id);
   return i >= 0 && devices[i].profile && devices[i].plan.enabled;
 }
+bool setFanManual(unsigned fan, unsigned percent) {
+  if (fan < 1 || fan > 2 || percent > 100) {
+    return false;
+  }
+  const auto& port = fanPorts[fan - 1];
+  if (percent && (!fanEnabled(fan) || port.automatic || port.plan.enabled || restMode_isEnabled() ||
+                  !founderOutputs::ready())) {
+    return false;
+  }
+  fanManual[fan - 1] = percent;
+  return fan_setDemand(fan, percent);
+}
+bool fanControlled(unsigned fan) {
+  return fan >= 1 && fan <= 2 && (fanPorts[fan - 1].automatic || fanPorts[fan - 1].plan.enabled);
+}
 bool hasPlans() {
+  for (const auto& fan : fanPorts) {
+    if (fan.enabled && !fan.automatic && fan.plan.enabled) {
+      return true;
+    }
+  }
   for (const auto& d : devices) {
     if (d.profile && d.plan.enabled) {
       return true;
@@ -697,6 +773,17 @@ void loop() {
                        founderOutputs::ready() && isTimeSynced();
   const unsigned minute = unsigned(getHour() * 60 + getMinute());
   const int date = getDateKey();
+  for (unsigned n = 0; n < 2; ++n) {
+    const auto& fan = fanPorts[n];
+    unsigned value = 0;
+    if (fanEnabled(n + 1) && !restMode_isEnabled() && !wifiOTA_requiresSetup() &&
+        !wifiOTA_isTesting() && !founderOutputs::inhibited() && !fan.automatic) {
+      value = fan.plan.enabled
+                  ? (allowed && minute < 1440 ? founderSchedule::percent(fan.plan, minute) : 0)
+                  : fanManual[n];
+    }
+    fan_setDemand(n + 1, value);
+  }
   if (allowed && minute < 1440 && date >= 0) {
     bool baselineChanged = false;
     for (auto& d : devices) {
@@ -730,6 +817,11 @@ void loop() {
           return;
         }
       }
+    }
+    if (d.profile && d.automatic) {
+      drive(i, 0);
+      requested[i] = 0;
+      continue;
     }
     if (!d.profile || !d.plan.enabled) {
       continue;
@@ -792,6 +884,10 @@ void loop() {
   }
 }
 void stopAll() {
+  for (unsigned n = 0; n < 2; ++n) {
+    fanManual[n] = 0;
+    fan_setDemand(n + 1, 0);
+  }
   // Physical OFF precedes history writes, which may take time or fail.
   for (unsigned i = 0; i < Count; ++i) {
     if (devices[i].profile) {
@@ -821,6 +917,12 @@ void appendJson(String& out) {
     auto row = fans.add<JsonObject>();
     row["enabled"] = fan.enabled;
     row["name"] = fan.name;
+    row["mode"] = fan.automatic ? "automatic" : "manual";
+    row["automation_ready"] = false;
+    Device temporary;
+    temporary.profile = profile("fan_0_10v");
+    temporary.plan = fan.plan;
+    appendPlan(row, temporary);
   }
   auto catalog = root["device_catalog"].to<JsonArray>();
   unsigned count;
@@ -885,6 +987,10 @@ void appendJson(String& out) {
       row["name"] = d.name;
       row["profile"] = d.profile->id;
       row["output"] = channels()[d.output].id;
+      if (d.profile->kind == Kind::SwitchedFan || d.profile->kind == Kind::AnalogFan) {
+        row["mode"] = d.automatic ? "automatic" : "manual";
+        row["automation_ready"] = false;
+      }
       appendPlan(row, d);
       if (d.profile->timed) {
         const auto& r = planLedger.last[i];

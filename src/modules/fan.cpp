@@ -182,6 +182,16 @@ bool fan_setAuto(int fan, bool persist) {
     fan, FAN_MODE_AUTOMATIC, control.manualPercent);
 }
 
+bool fan_setDemand(int fan, int percent) {
+  if (fan < 1 || fan > FAN_CHANNEL_COUNT || !fanHw_isEnabled(fan) || percent < 0 || percent > 100) {
+    return false;
+  }
+  auto& control = controlFor(fan);
+  control.mode = FAN_MODE_MANUAL;
+  control.manualPercent = percent;
+  return true;
+}
+
 bool fan_setManual(int fan, int percent, bool persist) {
   if (fan == 0) fan = 1;
   if (!fanHw_isEnabled(fan) || percent < 0 || percent > 100) return false;

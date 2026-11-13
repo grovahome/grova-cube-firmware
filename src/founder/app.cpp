@@ -321,35 +321,20 @@ bool command(const String& body, String& response, bool remote) {
   } else if (!strcmp(cmd, "set_fan_manual") && j["fan"].is<int>() && j["percent"].is<int>()) {
     int fan = j["fan"], percent = j["percent"];
     if (fan >= 1 && fan <= 2 && percent >= 0 && percent <= 100 &&
-        (percent == 0 || founderEquipment::fanEnabled(fan))) {
-      ok = fan_setManual(fan, percent, true);
+        (percent == 0 || (allSettingsReady() && founderEquipment::fanEnabled(fan)))) {
+      if (founderEquipment::fanControlled(fan)) {
+        return result(response, percent == 0 && setRest(true),
+                      "Fan is scheduled or automatic; pause or edit configuration");
+      }
+      ok = founderEquipment::setFanManual(fan, percent);
       if (!ok) {
         setRest(true);
       }
     }
-  } else if (!strcmp(cmd, "set_fan_auto") && j["fan"].is<int>()) {
-    int fan = j["fan"];
-    if (founderEquipment::fanEnabled(fan)) {
-      ok = fan_setAuto(fan, true);
-      if (!ok) {
-        setRest(true);
-      }
-    }
-  } else if (!strcmp(cmd, "set_fan_policy")) {
-    // Existing policy parser receives canonical JSON, not untrusted hand-built tokens.
-    String canonical;
-    serializeJson(j, canonical);
-    if (!founderEquipment::fanEnabled(fanPolicy_extractFan(canonical))) {
-      return result(response, false, "Fan port is not assigned");
-    }
-    ok = fanPolicy_applyJson(canonical, response);
-    if (ok) {
-      ok = fan_applyPolicyConfig(fanPolicy_extractFan(canonical));
-    }
-    if (!ok) {
-      setRest(true);
-    }
-    return ok;
+  } else if (!strcmp(cmd, "set_fan_auto") || !strcmp(cmd, "set_fan_policy")) {
+    return result(
+        response, false,
+        "Choose fan operation in hardware settings; sensor automation is not configured yet");
   } else if (!strcmp(cmd, "set_targets") && j["temperature_c"].is<float>() &&
              j["humidity_pct"].is<float>()) {
     Targets next;

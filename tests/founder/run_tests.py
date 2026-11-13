@@ -42,6 +42,8 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     plan_snapshot=Path(temp)/'plan-nvs.bin'
     for mode in ['--plan-integration','--plan-save','--plan-load','--plan-no-intent-load','--plan-corrupt-intent-load','--plan-paused-save','--plan-paused-load','--plan-release-fail-save','--plan-release-fail-load','--plan-corrupt','--plan-history-save','--plan-history-load','--plan-reserved-save','--plan-reserved-load','--plan-journal-faults','--plan-history-stop','--plan-journal-migration']:
         subprocess.run([str(api_binary),mode,str(plan_snapshot)],cwd=root,check=True)
+    for mode in ['--fan-integration','--fan-save','--fan-load']:
+        subprocess.run([str(api_binary),mode,str(plan_snapshot)],cwd=root,check=True)
     print('Blank boot, unavailable/corrupt storage and fresh-process restart passed')
 
     device_binary=Path(temp)/'founder_device_tests.exe'

@@ -39,7 +39,7 @@ const {chromium}=require(args['--playwright']||'playwright');
   assert.equal(await page.locator('#equipmentEditor .port').count(),7);assert.equal(await page.locator('select[id$="_voltage"]').count(),0);
   for(const cb of await page.locator('#portEditorFields input[type="checkbox"]').all())assert.equal(await cb.isChecked(),false);
   await page.locator('#port_OUT5_1_active').check();await page.locator('#port_OUT5_1_profile').selectOption('pump');await page.locator('#port_OUT5_1_name').fill('Pumpe A');await page.locator('#port_OUT5_1_runtime').fill('1.5');
-  assert((await page.locator('#port_OUT5_1_fields .notice').innerText()).includes('Trockenlauferkennung'));
+  assert((await page.locator('#port_OUT5_1_protection').innerText()).includes('Trockenlauferkennung'));
   await page.evaluate(()=>refresh());assert.equal(await page.locator('#port_OUT5_1_name').inputValue(),'Pumpe A');
   await page.locator('#saveEquipment').click();await idle();assert.equal(d.equipment[0].voltage,5);assert.equal(d.equipment[0].max_runtime_ms,1500);assert.equal(await page.locator('#saveEquipment').isDisabled(),false);
   // Another client changes the saved configuration while this browser has a draft.

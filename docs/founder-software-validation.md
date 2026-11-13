@@ -157,3 +157,37 @@ syntax, both browser suites/mobile layouts and S3 build passed. Read-only browse
 check of the actual LAN page passed without JS errors; writes were blocked.
 Physical loads, sensor acceptance, SSD1317/encoder and power-path/recovery remain
 open. This OTA acceptance supersedes older not-installed statements above.
+
+
+## Independent fan operation — 2026-11-13
+
+Every assigned PWM or 0–10 V fan independently selects `manual` or `automatic`;
+there are no fixed intake/exhaust/circulation roles. A switched 5/12 V fan offers
+the same mode choice but only on/off windows, never a fake speed percentage.
+
+Manual operation offers a visible 0–100% slider on speed-capable ports or an
+optional daily plan with up to eight windows and individual 1–100% demand.
+Outside windows the fan is off; windows can cross midnight. One fan can provide
+periodic circulation while another is reserved for future climate regulation.
+Mode and plan are saved in the existing revisioned equipment configuration.
+Old assignments without these fields migrate to manual without an active plan.
+A disabled native port clears its plan when saved from the UI.
+
+Automatic mode is a stored selection for future sensor rules. It currently
+commands OFF and shows "not configured"; no inherited climate/interval policy
+is silently enabled. The old policy editor and Founder policy commands are
+retired. Future rules must use the same per-device demand/coordinator boundary.
+The PWM driver still owns ramps, limits and latched tacho protection; periodic
+demand updates do not acknowledge/reset faults and do not write NVS.
+
+Native PWM daily plans join the existing explicit operation intent and valid-time
+restart gates. Pause persists, loss of valid time stops scheduled demand, and
+manual one-off demands are volatile and never replayed after a cold restart.
+Direct manual commands cannot override an active plan or pending automation;
+a stop request for such a fan persistently pauses automatic operation.
+
+Host integration covers percent windows, midnight, fresh-process restart,
+clock loss, Pause, invalid/overlapping modes/plans and failed configuration writes.
+`check_fan_ui.cjs` covers both native connectors, independent roles, save/reload,
+sliders, pending automatic mode, 0–10 V, switch limitations, removal and mobile
+layout. Browser tests use fixtures; no physical fan or output was activated.
