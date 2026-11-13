@@ -395,3 +395,21 @@ syntax, both browser suites/mobile layouts and S3 build passed. Read-only browse
 check of the actual LAN page passed without JS errors; writes were blocked.
 Physical loads, sensor acceptance, SSD1317/encoder and power-path/recovery remain
 open. This OTA acceptance supersedes older not-installed statements above.
+
+
+## Independent fan modes installed by OTA — 2026-11-13
+
+Source `0ad1dee`, version `founder-dev.20261113.2`, `grova_founder_s3`.
+Application SHA-256: `cfcda1d7522b13195f1f449b8bf4dba9e7075ca88339a2d5b18f0dcf7a0dfbe5`.
+ArduinoOTA upload to 192.168.1.115 completed 100%, exit 0, followed by healthy
+new-version status, WLAN/OTA ready and valid RTC. The user's current equipment
+revision 4, empty assignment list, two disabled named fan ports and Pause survived.
+Old fan records migrated to manual/no plan in RAM; all output and fan setpoints
+remained zero. No assignments or physical loads were activated for acceptance.
+Actual served page passed a read-only browser check with all writes blocked.
+
+Founder host tests including fresh-process fan-plan restore, 25 lifecycle and 17
+Wi-Fi scenarios, JS syntax, three browser suites/mobile layout and S3 build passed.
+Each fan independently supports manual operation/daily windows or pending sensor
+automation. No fixed physical connector role. Pending automation keeps the device
+off until future rules exist. See the fan contract in founder-equipment.md.
