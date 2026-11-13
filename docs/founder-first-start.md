@@ -463,3 +463,22 @@ priority/tie/debounce decisions and execution blocks; central actionable warning
 for missing/invalid/stale inputs and limit violations, with recovery/offline handling.
 No test mode or save/enable workflow change. See founder-simple-automation.md.
 Physical sensor/load acceptance remains open.
+
+
+## RAM event history installed — 2026-11-13
+
+Source `667e2be`, version `founder-dev.20261113.6`, build `grova_founder_s3`.
+Application SHA-256 `c658e33f62bc0d5676877a54e48ca2c8c1eb4b8c78a18a18363077495c533c03`.
+OTA completed 100%, exit 0. Live checks: healthy, WLAN/OTA/RTC valid; current user
+revision **6**, empty assignments, disabled fans and Pause matched the fresh
+pre-OTA snapshot. All output/fan setpoints zero. Uptime 34 s, free heap 244196.
+The new event API contained BOOT and PAUSED, capacity 64, volatile true; repeated
+status reads produced no new entries. Actual LAN history UI passed a read-only
+browser check without JS errors or control writes.
+
+Ring/API tests and all six browser suites passed; ESP32-S3 build passed. Pure tests
+cover overwrite, deduplication, warning/fallback edges, copied limits, restart and
+clock wrap; API tests verify no added NVS/output changes. New history is RAM-only,
+cleared by restart/OTA, with browser JSON download. Existing durable configuration,
+operation intent and watering/command ledgers are unchanged. See founder-event-log.md.
+Hardware-generated sensor/load events still require physical acceptance.
