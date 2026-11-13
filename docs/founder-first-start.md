@@ -413,3 +413,23 @@ Wi-Fi scenarios, JS syntax, three browser suites/mobile layout and S3 build pass
 Each fan independently supports manual operation/daily windows or pending sensor
 automation. No fixed physical connector role. Pending automation keeps the device
 off until future rules exist. See the fan contract in founder-equipment.md.
+
+
+## Simple automation installed via OTA — 2026-11-13
+
+Installed source `ae91c78`, version `founder-dev.20261113.3`, `grova_founder_s3`.
+Application SHA-256: `2033c7cafc1ce7c7fd0bade54bedf54ad874c74962b01e40e65b9f47d9e21831`.
+ArduinoOTA to 192.168.1.115 completed at 100%, exit 0. After reboot: healthy,
+WLAN/OTA ready, valid RV-3032 used for boot, 253464 bytes free heap at the first
+check. Board identity and user revision 4, empty assignments, disabled named fans,
+mode/plan and persistent Pause matched the pre-OTA snapshot. All output and fan
+setpoints stayed zero. No hardware assignments or actuator commands were sent.
+
+The actual served LAN UI passed a read-only browser check with non-GET requests
+blocked: three modes on fixed ports, independent circulation/intake/exhaust roles,
+no unassigned device cards and no JavaScript errors. Source/limit/priority/interval/
+pump UI tests ran with fixtures; real sensors, fan response and watering remain
+physical acceptance tasks. Founder pure/integration/fresh-process tests, 25 legacy
+lifecycle and 17 Wi-Fi cases, JS syntax, four browser suites/mobile layouts and
+S3 build passed. See founder-simple-automation.md for the full implemented contract.
+No multi-day phase programs or new hardware interfaces were added.
