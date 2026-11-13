@@ -482,3 +482,28 @@ clock wrap; API tests verify no added NVS/output changes. New history is RAM-onl
 cleared by restart/OTA, with browser JSON download. Existing durable configuration,
 operation intent and watering/command ledgers are unchanged. See founder-event-log.md.
 Hardware-generated sensor/load events still require physical acceptance.
+
+
+## RAM chart and safe equipment backup installed — 2026-11-13
+
+Source `f3d8117`, version `founder-dev.20261113.7`, build `grova_founder_s3`.
+Application SHA-256 `d9941f9eb20ef071fc3c0a1244a54e277b6954ccf68db05042f1298f08ebcd91`.
+OTA completed 100%, exit 0. Current user revision **7** and released operation
+(Rest false) were preserved. FAN1 is enabled, circulation, sensor-controlled by
+SHT4x@ch3/0x44 temperature: target 24, minimum 20/0%, maximum 30/100%, fallback 0.
+FAN2 disabled; generic equipment empty. Runtime diagnostic readings naturally
+changed during verification and were excluded from configuration comparison.
+
+Post-OTA healthy/WLAN/OTA/RTC checks passed. At 169 s uptime free heap was 206800;
+all output/fan setpoints were zero at that observation (temperature below target).
+Live history GET showed 6 samples / 9 series including valid SHT4x temperature and
+humidity on channel 3. Configuration GET exported schema-1 revision 7 without
+credentials. Actual chart/settings UI passed a read-only browser check with all
+control writes blocked. No live restore or actuator-test command was issued.
+
+Pure/history/API/fresh-process tests and all eight browser suites/mobile layouts
+passed; S3 build passed (111808 B static RAM, 1117913 B application flash). The
+preceding RAM-event source also passed GitHub run 43516655946. Logs and chart are
+RAM-only; explicit restore persists Pause/configuration. Existing watering safety
+journals remain durable. See founder-event-log.md and founder-history-backup.md.
+Physical threshold/unplug/load and pump acceptance remain open.
