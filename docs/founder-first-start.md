@@ -444,3 +444,22 @@ matched the preceding version exactly; output/fan setpoints zero. Four browser
 suites including sensor disconnect/reconnect without page reload and retained
 rule targets passed; S3 build passed. The complete automation predecessor also
 passed GitHub run 43506162923. No actuator commands or real test assignments.
+
+
+## Diagnostics and central warnings installed — 2026-11-13
+
+Source `443f134`, version `founder-dev.20261113.5`, build `grova_founder_s3`.
+Application SHA-256 `65d07c1150c9d02ab5a97b64d7e7f4d051b464fad687e1d7e2af8d7c369c7132`.
+OTA completed 100%, exit 0. Post-boot healthy/WLAN/OTA/RTC checks passed; revision 4,
+empty assignments, disabled fan configuration and persistent Pause matched exactly.
+All output/fan setpoints zero; uptime 67 s, free heap 252272 at acceptance.
+Read-only browser check of the served LAN page passed, without JS errors and with
+all control writes blocked. Five browser fixture suites/mobile layouts and Founder
+pure/API/restart tests passed, plus S3 build. Populated rule diagnostics/warnings
+were exercised with fixtures, not live actuator assignments.
+
+Added per-rule input/value/unit/age, target/limits, normal/special requirements,
+priority/tie/debounce decisions and execution blocks; central actionable warnings
+for missing/invalid/stale inputs and limit violations, with recovery/offline handling.
+No test mode or save/enable workflow change. See founder-simple-automation.md.
+Physical sensor/load acceptance remains open.
