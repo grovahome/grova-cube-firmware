@@ -1080,6 +1080,27 @@ void stopAll() {
     restMode_setEnabled(true, true);
   }
 }
+static const char* automationBlock() {
+  if (founderOutputs::inhibited()) {
+    return "OTA";
+  }
+  if (wifiOTA_requiresSetup() || wifiOTA_isTesting()) {
+    return "SETUP";
+  }
+  if (restMode_isEnabled()) {
+    return "REST";
+  }
+  if (!settingsReady()) {
+    return "STORAGE";
+  }
+  if (!founderOutputs::ready()) {
+    return "OUTPUT_INIT";
+  }
+  if (!isTimeSynced()) {
+    return "WAIT_TIME";
+  }
+  return nullptr;
+}
 void appendJson(String& out) {
   JsonDocument root;
   root["equipment_settings_ok"] = settingsReady();
@@ -1093,7 +1114,15 @@ void appendJson(String& out) {
     row["automation_ready"] = fan.automation.count > 0;
     appendAutomation(row, fan.automation, fan.role, true, false);
     if (fan.automatic) {
-      founderAutomation::appendDecision(row, fanDecision[&fan - fanPorts]);
+      const unsigned n = &fan - fanPorts;
+      const char* block = automationBlock();
+      if (!block && !fan.enabled) {
+        block = "DISABLED";
+      }
+      if (!block && fan_getTachoFault(n + 1)) {
+        block = "TACHO_FAULT";
+      }
+      founderAutomation::appendDecision(row, fanDecision[n], fan.automation, block);
     }
     Device temporary;
     temporary.profile = profile("fan_0_10v");
@@ -1169,7 +1198,11 @@ void appendJson(String& out) {
                        d.profile->kind == Kind::SwitchedFan || d.profile->kind == Kind::AnalogFan,
                        d.profile->timed);
       if (d.automatic) {
-        founderAutomation::appendDecision(row, deviceDecision[i]);
+        const char* block = automationBlock();
+        if (!block && millis() < d.profile->startupLockMs) {
+          block = "STARTUP_LOCK";
+        }
+        founderAutomation::appendDecision(row, deviceDecision[i], d.automation, block);
         if (d.profile->timed) {
           const uint32_t at = planLedger.last[i].recordedAt;
           const uint32_t elapsed = getEpochSeconds() >= at ? getEpochSeconds() - at : 0;

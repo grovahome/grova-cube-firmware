@@ -33,7 +33,18 @@ struct RuleState {
 struct State {
   RuleState rules[MaxRules];
 };
+struct RuleDiagnostic {
+  Reading input;
+  unsigned normalPercent = 0, requestedPercent = 0;
+  int16_t action = -1;
+  int8_t zone = 0, pending = 0;
+  uint32_t pendingMs = 0;
+};
 struct Decision {
+  RuleDiagnostic rules[MaxRules];
+  uint32_t evaluatedAt = 0;
+  uint8_t missingMask = 0;
+  bool evaluated = false;
   unsigned percent = 0;
   int winner = -1;
   uint16_t warnings = 0;
@@ -68,19 +79,27 @@ inline bool valid(const Config& c, bool analog, bool pulse, unsigned maxRuntime)
 template <class Reader>
 Decision evaluate(const Config& c, State& state, uint32_t now, bool analog, Reader read) {
   Decision result;
+  result.evaluated = true;
+  result.evaluatedAt = now;
   if (!c.count) {
     return result;
   }
   Reading values[MaxRules];
   for (unsigned n = 0; n < c.count; ++n) {
     values[n] = read(c.rules[n].signal, c.rules[n].source);
+    result.rules[n].input = values[n];
     if (!values[n].valid || !isfinite(values[n].value) || values[n].ageMs >= 12000) {
-      state = State{};
-      result.percent = c.fallbackPercent;
-      result.winner = n;
-      result.reason = "SENSOR_MISSING";
-      return result;
+      result.missingMask |= uint8_t(1U << n);
+      if (result.winner < 0) {
+        result.winner = n;
+      }
     }
+  }
+  if (result.missingMask) {
+    state = State{};
+    result.percent = c.fallbackPercent;
+    result.reason = "SENSOR_MISSING";
+    return result;
   }
   result.reason = "TARGET_REACHED";
   int overrideWinner = -1;
@@ -109,6 +128,18 @@ Decision evaluate(const Config& c, State& state, uint32_t now, bool analog, Read
       result.warnings |= uint16_t(1U << (n * 2 + (s.zone == 2 ? 1 : 0)));
     }
     const int special = s.zone == -2 ? r.belowPercent : s.zone == 2 ? r.abovePercent : -1;
+    unsigned demand = 0;
+    if (s.zone && deviation > 0) {
+      demand = analog ? unsigned(fminf(100, fmaxf(1, ceilf(deviation / r.band * 100)))) : 100;
+    }
+    auto& diagnostic = result.rules[n];
+    diagnostic.normalPercent = demand;
+    diagnostic.requestedPercent = warning && special >= 0 ? unsigned(special) : demand;
+    diagnostic.action = warning ? special : -1;
+    diagnostic.zone = s.zone;
+    diagnostic.pending = s.pending;
+    const uint32_t wait = uint32_t(r.delaySeconds) * 1000, elapsed = uint32_t(now - s.since);
+    diagnostic.pendingMs = s.zone != s.pending && elapsed < wait ? wait - elapsed : 0;
     if (warning && special >= 0 && overrideWinner < 0) {
       overrideWinner = n;
       result.percent = special;
@@ -117,10 +148,6 @@ Decision evaluate(const Config& c, State& state, uint32_t now, bool analog, Read
     }
     if (overrideWinner >= 0) {
       continue;
-    }
-    unsigned demand = 0;
-    if (s.zone && deviation > 0) {
-      demand = analog ? unsigned(fminf(100, fmaxf(1, ceilf(deviation / r.band * 100)))) : 100;
     }
     if (demand > result.percent) {
       result.percent = demand;

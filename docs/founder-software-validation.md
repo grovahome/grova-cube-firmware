@@ -200,3 +200,8 @@ manual/time/sensor contract, exact-source rules, target and optional warning
 limits, priorities, fallback, fan roles, intervals and bounded sensor watering.
 Earlier statements that Founder sensor automation is not implemented are historical.
 Installation is recorded separately after OTA verification.
+
+
+Rule diagnostics / central warnings are covered by the additive evaluator/API tests
+and tests/founder/check_diagnostics_ui.cjs. See founder-simple-automation.md.
+No new output mode or authorization workflow; installed source recorded separately.

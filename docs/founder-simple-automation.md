@@ -88,3 +88,35 @@ still require physical acceptance. Installed source/hash are recorded separately
 in founder-first-start.md and the internal software-validation.md.
 
 Sensor selector options refresh when devices disconnect/reconnect without a page reload or configuration revision. Existing selections, targets and unsaved rule drafts remain unchanged; missing bindings are clearly labelled.
+
+
+## Rule diagnostics and central warnings
+
+Each active sensor-controlled device exposes an expandable rule diagnosis. It
+shows concrete sensor/source, value/unit, sample age/validity, goal and limits,
+normal and special demands, priority/tie decisions and pending state-change delay.
+The driver output is shown separately from the controller requirement. Execution
+blocks (Pause, setup/OTA, storage, output initialization, invalid time, pump boot
+lock and native tacho fault) are explicit; pump cooldown remains visible.
+
+The evaluator retains additive volatile diagnostic snapshots of every input and
+rule contribution, including lower-priority actions and all unavailable inputs.
+A paused/blocked diagnosis reads fresh cached sensor values without advancing
+controller state, writing NVS or sending actuator commands. Rule demands then show
+not-evaluated and the overall demand is identified as the last evaluation.
+Missing values remain null, never a false zero measurement.
+
+The central warning section lists missing/invalid/stale selected inputs and observed
+minimum/maximum violations per device/rule, linking to the corresponding diagnosis.
+It distinguishes an observed limit from an active debounced/hysteretic limit action,
+shows configured fallback/action and priority/blocking context, retains hysteretic
+warnings until released, and clears on recovery. Board faults are also surfaced.
+Offline data is explicitly marked unknown/last received; manual/disabled devices
+do not contribute old sensor warnings. No simulation mode or save/enable workflow
+change was introduced; control outputs, thresholds, debounce, fallback and durable
+watering contracts remain unchanged.
+
+Tests: pure diagnostic capture including all missing inputs; API values/ages/units,
+priority/tie explanations, fresh paused readings with no NVS/actuator side effects;
+read-only browser fixture navigation, delay, missing/stale inputs, warning clearing,
+offline labels and mobile layout. Existing four browser suites also pass.

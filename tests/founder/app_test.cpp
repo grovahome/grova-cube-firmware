@@ -8,6 +8,7 @@
 #include <fstream>
 #include <iostream>
 
+#include "founder/automation.h"
 #include "founder/device_profiles.h"
 #include "founder/devices.h"
 #include "founder/equipment.h"
@@ -231,7 +232,10 @@ static const char* rebootConfig =
 namespace founderDevices {
 founderAutomation::Reading readSignal(SignalId id, const char* source) {
   auto v = signalRegistry_read(id);
-  return {v.value, v.valid && !strcmp(v.source, source), uint32_t(signalRegistry_ageMs(id))};
+  if (strcmp(v.source, source)) {
+    return {};
+  }
+  return {v.value, v.valid, uint32_t(signalRegistry_ageMs(id))};
 }
 }  // namespace founderDevices
 int main(int argc, char** argv) {
@@ -297,6 +301,35 @@ int main(int argc, char** argv) {
     founderApp::loop();
     assert(!restMode_isEnabled());
     assert(manualFans[0] == 50 && manualFans[1] == 40);
+    founderAutomation::Config tieConfig;
+    tieConfig.count = 2;
+    founderAutomation::Decision tie;
+    tie.evaluated = true;
+    tie.evaluatedAt = millis();
+    tie.percent = 50;
+    tie.winner = 0;
+    tie.reason = "TARGET_CONTROL";
+    for (unsigned n = 0; n < 2; ++n) {
+      strcpy(tieConfig.rules[n].source, "test-sensor");
+      tie.rules[n].input = {26, true, 0};
+      tie.rules[n].normalPercent = 50;
+      tie.rules[n].requestedPercent = 50;
+    }
+    JsonDocument tieJson;
+    founderAutomation::appendDecision(tieJson.to<JsonObject>(), tie, tieConfig);
+    assert(tieJson["automation_status"]["rules"][1]["decision"].as<std::string>() == "SAME_DEMAND");
+    tie.reason = "ABOVE_MAXIMUM";
+    tieJson.clear();
+    founderAutomation::appendDecision(tieJson.to<JsonObject>(), tie, tieConfig);
+    assert(tieJson["automation_status"]["rules"][1]["decision"].as<std::string>() ==
+           "LOWER_PRIORITY");
+    auto diagnostic = statusJson();
+    auto detail = diagnostic["fan_ports"][0]["automation_status"]["rules"][0];
+    assert(detail["value"].as<float>() == 26 && detail["unit"].as<std::string>() == "C" &&
+           detail["valid"].as<bool>());
+    assert(detail["requested_percent"].as<unsigned>() == 50 && detail["selected"].as<bool>());
+    assert(diagnostic["fan_ports"][0]["automation_status"]["execution_block"].as<std::string>() ==
+           "NONE");
     assert(founderOutputs::applied(3) == 50);
     if (loading) {
       assert(founderOutputs::applied(1) == 0);
@@ -329,6 +362,14 @@ int main(int argc, char** argv) {
     assert(founderApp::setRest(true));
     founderApp::loop();
     assert(manualFans[0] == 0 && manualFans[1] == 0 && founderOutputs::applied(1) == 0);
+    signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 35, "test-sensor");
+    const auto savedData = testNvs::data;
+    auto paused = statusJson();
+    assert(savedData == testNvs::data && manualFans[0] == 0);
+    auto pausedRule = paused["fan_ports"][0]["automation_status"]["rules"][0];
+    assert(pausedRule["value"].as<float>() == 35 && pausedRule["requested_percent"].isNull());
+    assert(pausedRule["decision"].as<std::string>() == "REST" &&
+           pausedRule["observed_limit"].as<std::string>() == "ABOVE_MAXIMUM");
     JsonDocument bad;
     assert(!deserializeJson(bad, cfg));
     bad["equipment"][0]["automation"]["fallback_percent"] = 100;

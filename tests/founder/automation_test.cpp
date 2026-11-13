@@ -35,6 +35,8 @@ int main() {
   assert(d.percent == 0);
   d = evaluate(c, s, 2000, true, read);
   assert(d.percent == 50 && d.winner == 0);
+  assert(d.evaluated && d.evaluatedAt == 2000 && d.rules[0].input.value == 26 &&
+         d.rules[1].normalPercent == 50);
   hum = 74;
   d = evaluate(c, s, 2001, true, read);
   assert(d.percent == 90 && d.winner == 1);
@@ -43,6 +45,8 @@ int main() {
   evaluate(c, s, 3000, true, read);
   d = evaluate(c, s, 5000, true, read);
   assert(d.percent == 0 && d.winner == 0 && d.warnings == 10 && !strcmp(d.reason, "ABOVE_MAXIMUM"));
+  assert(d.rules[0].requestedPercent == 0 && d.rules[1].requestedPercent == 100 &&
+         d.rules[1].action == 100);
   c.rules[0].abovePercent = -1;
   d = evaluate(c, s, 5001, true, read);
   assert(d.percent == 100 && d.winner == 1);
@@ -50,6 +54,7 @@ int main() {
   missing = true;
   d = evaluate(c, s, 5002, true, read);
   assert(d.percent == 40 && !strcmp(d.reason, "SENSOR_MISSING"));
+  assert(d.missingMask == 3 && !d.rules[0].input.valid && !d.rules[1].input.valid);
   missing = false;
   age = 12000;
   assert(evaluate(c, s, 5003, true, read).percent == 40);

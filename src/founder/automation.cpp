@@ -145,12 +145,88 @@ void append(JsonObject row, const Config& c) {
     }
   }
 }
-void appendDecision(JsonObject row, const Decision& d) {
+void appendDecision(JsonObject row, const Decision& d, const Config& config, const char* block) {
   auto r = row["automation_status"].to<JsonObject>();
   r["reason"] = d.reason;
   r["demand_percent"] = d.percent;
   r["winning_rule"] = d.winner;
   r["warning_mask"] = d.warnings;
+  r["execution_block"] = block ? block : (!d.evaluated ? "WAIT_EVALUATION" : "NONE");
+  const uint32_t elapsed = uint32_t(millis() - d.evaluatedAt);
+  if (d.evaluated) {
+    r["evaluated_age_ms"] = elapsed;
+  } else {
+    r["evaluated_age_ms"] = nullptr;
+  }
+  auto rules = r["rules"].to<JsonArray>();
+  for (unsigned n = 0; n < config.count; ++n) {
+    const auto& rule = config.rules[n];
+    const auto& sample = d.rules[n];
+    const bool live = block || !d.evaluated;
+    auto input = live ? read(rule.signal, rule.source) : sample.input;
+    if (!live && input.ageMs != UINT32_MAX) {
+      input.ageMs =
+          uint64_t(input.ageMs) + elapsed >= UINT32_MAX ? UINT32_MAX - 1 : input.ageMs + elapsed;
+    }
+    const bool valid = input.valid && isfinite(input.value) && input.ageMs < 12000;
+    const char* inputState = valid                       ? "OK"
+                             : input.ageMs == UINT32_MAX ? "MISSING"
+                             : input.ageMs >= 12000      ? "STALE"
+                                                         : "INVALID";
+    auto item = rules.add<JsonObject>();
+    item["priority"] = n + 1;
+    item["source"] = rule.source;
+    item["signal"] = signalRegistry_name(static_cast<SignalId>(rule.signal));
+    item["unit"] = signalRegistry_unit(static_cast<SignalId>(rule.signal));
+    item["input_state"] = inputState;
+    item["valid"] = valid;
+    if (input.ageMs == UINT32_MAX) {
+      item["age_ms"] = nullptr;
+    } else {
+      item["age_ms"] = input.ageMs;
+    }
+    if (valid) {
+      item["value"] = input.value;
+    } else {
+      item["value"] = nullptr;
+    }
+    const char* observed = valid && rule.hasMinimum && input.value < rule.minimum ? "BELOW_MINIMUM"
+                           : valid && rule.hasMaximum && input.value > rule.maximum
+                               ? "ABOVE_MAXIMUM"
+                               : "NONE";
+    item["observed_limit"] = observed;
+    item["active_limit"] = !live && sample.zone == -2  ? "BELOW_MINIMUM"
+                           : !live && sample.zone == 2 ? "ABOVE_MAXIMUM"
+                                                       : "NONE";
+    const bool applicable = !live && !d.missingMask && valid;
+    if (applicable) {
+      item["normal_demand_percent"] = sample.normalPercent;
+      item["requested_percent"] = sample.requestedPercent;
+    } else {
+      item["normal_demand_percent"] = nullptr;
+      item["requested_percent"] = nullptr;
+    }
+    item["selected"] = applicable && d.winner == int(n);
+    if (applicable && sample.action >= 0) {
+      item["limit_action_percent"] = sample.action;
+    } else {
+      item["limit_action_percent"] = nullptr;
+    }
+    item["pending_ms"] =
+        applicable ? (sample.pendingMs > elapsed ? sample.pendingMs - elapsed : 0) : 0;
+    item["decision"] = block                        ? block
+                       : !d.evaluated               ? "WAIT_EVALUATION"
+                       : !valid                     ? inputState
+                       : d.missingMask              ? "FALLBACK"
+                       : sample.pendingMs > elapsed ? "DELAY"
+                       : d.winner == int(n)         ? "SELECTED"
+                       : sample.action >= 0 || !strcmp(d.reason, "BELOW_MINIMUM") ||
+                               !strcmp(d.reason, "ABOVE_MAXIMUM")
+                           ? "LOWER_PRIORITY"
+                       : sample.normalPercent && sample.normalPercent == d.percent ? "SAME_DEMAND"
+                       : sample.normalPercent ? "LOWER_DEMAND"
+                                              : "TARGET_REACHED";
+  }
 }
 Reading read(unsigned id, const char* source) {
   return founderDevices::readSignal(static_cast<SignalId>(id), source);
