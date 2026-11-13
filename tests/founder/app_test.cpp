@@ -366,6 +366,23 @@ int main(int argc, char** argv) {
     const auto savedData = testNvs::data;
     auto paused = statusJson();
     assert(savedData == testNvs::data && manualFans[0] == 0);
+    founderEquipment::recordEvents();
+    auto logged = statusJson();
+    const auto logCount = logged["event_log"]["total"].as<unsigned>();
+    for (unsigned n = 0; n < 1000; ++n) {
+      founderEquipment::recordEvents();
+    }
+    assert(savedData == testNvs::data && manualFans[0] == 0 &&
+           statusJson()["event_log"]["total"].as<unsigned>() == logCount);
+    assert(logged["event_log"]["volatile"].as<bool>() &&
+           logged["event_log"]["capacity"].as<unsigned>() == 64);
+    bool named = false;
+    for (JsonObject row : logged["event_log"]["events"].as<JsonArray>()) {
+      if (row["device"].as<std::string>() == "FAN1") {
+        named = true;
+      }
+    }
+    assert(named);
     auto pausedRule = paused["fan_ports"][0]["automation_status"]["rules"][0];
     assert(pausedRule["value"].as<float>() == 35 && pausedRule["requested_percent"].isNull());
     assert(pausedRule["decision"].as<std::string>() == "REST" &&

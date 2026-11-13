@@ -8,6 +8,7 @@
 
 #include "founder/automation.h"
 #include "founder/device_profiles.h"
+#include "founder/event_log.h"
 #include "founder/outputs.h"
 #include "founder/schedule_policy.h"
 #include "modules/fan.h"
@@ -477,6 +478,7 @@ static void apply(const Device (&next)[Count]) {
   }
 }
 void begin() {
+  founderEvents::begin();
   fanManual[0] = fanManual[1] = 0;
   for (unsigned n = 0; n < 2; ++n) {
     fanAutomationState[n] = {};
@@ -746,6 +748,7 @@ bool configure(JsonObjectConst request, String& message) {
   fanPorts[0] = nextFans[0];
   fanPorts[1] = nextFans[1];
   ++revision;
+  founderEvents::configuration(revision);
   configOk = true;
   message = "Device assignment saved; all outputs off";
   return true;
@@ -1100,6 +1103,20 @@ static const char* automationBlock() {
     return "WAIT_TIME";
   }
   return nullptr;
+}
+void recordEvents() {
+  founderEvents::operation(restMode_isEnabled());
+  const bool allowed = !automationBlock();
+  for (unsigned n = 0; n < Count; ++n) {
+    const auto& d = devices[n];
+    founderEvents::observe(n, d.name, d.automation, d.profile && d.automatic,
+                           allowed && (!d.profile || millis() >= d.profile->startupLockMs));
+  }
+  for (unsigned n = 0; n < 2; ++n) {
+    const auto& f = fanPorts[n];
+    founderEvents::observe(Count + n, f.name, f.automation, f.enabled && f.automatic,
+                           allowed && !fan_getTachoFault(n + 1));
+  }
 }
 void appendJson(String& out) {
   JsonDocument root;

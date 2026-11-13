@@ -9,6 +9,7 @@
 #include "founder/devices.h"
 #include "founder/display.h"
 #include "founder/equipment.h"
+#include "founder/event_log.h"
 #include "founder/i2c_bus.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
@@ -128,6 +129,7 @@ void loop() {
     resumeFailed = !setRest(false);
   }
   founderEquipment::loop();
+  founderEquipment::recordEvents();
 }
 bool hasFault() {
   return resumeFailed || !allSettingsReady() || !founderOutputs::ready() || fan_hasTachoFault();
@@ -237,6 +239,8 @@ String status() {
   founderDevices::appendJson(out);
   out += ',';
   founderEquipment::appendJson(out);
+  out += ',';
+  founderEvents::appendJson(out);
   out += ',';
   fanControl_appendJson(out);
   out += '}';

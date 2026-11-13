@@ -205,3 +205,8 @@ Installation is recorded separately after OTA verification.
 Rule diagnostics / central warnings are covered by the additive evaluator/API tests
 and tests/founder/check_diagnostics_ui.cjs. See founder-simple-automation.md.
 No new output mode or authorization workflow; installed source recorded separately.
+
+
+RAM event history: see founder-event-log.md. Pure ring tests, no-NVS/output-side-effect
+API checks and check_events_ui.cjs cover bounded history and JSON download.
+Existing five browser workflows remain unchanged. Installation is recorded separately.

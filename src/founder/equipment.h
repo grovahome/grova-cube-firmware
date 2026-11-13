@@ -12,6 +12,7 @@ bool configure(JsonObjectConst request, String& message);
 bool operate(JsonObjectConst request, String& message);
 void stopAll();
 void loop();
+void recordEvents();
 bool hasPlans();
 bool planEnabled(const char* id);
 void appendJson(String& json);
