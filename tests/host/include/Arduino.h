@@ -19,6 +19,7 @@ public:
     stream.setf(std::ios::fixed); stream.precision(decimals); stream << number;
     value = stream.str();
   }
+  bool reserve(size_t size) { value.reserve(size); return true; }
   bool concat(const char* text) { value += text; return true; }
   void remove(size_t index) { value.erase(index); }
   const char* c_str() const { return value.c_str(); }

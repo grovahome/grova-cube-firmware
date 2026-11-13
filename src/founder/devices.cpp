@@ -352,6 +352,31 @@ static float measurement(const Device& d, SignalId id) {
   }
   return NAN;
 }
+static bool supported(const Device& d, SignalId id) {
+  return (id == SIGNAL_CLIMATE_TEMPERATURE_C &&
+          (d.type == SHT || d.type == AHT || d.type == BOSCH || d.type == SCD)) ||
+         (id == SIGNAL_CLIMATE_HUMIDITY_PCT &&
+          (d.type == SHT || d.type == AHT || (d.type == BOSCH && !d.bmp) || d.type == SCD)) ||
+         (id == SIGNAL_CLIMATE_PRESSURE_HPA && d.type == BOSCH) ||
+         (id == SIGNAL_CLIMATE_CO2_PPM && d.type == SCD) ||
+         (id == SIGNAL_LIGHT_LUX && d.type == VEML) ||
+         (id == SIGNAL_LIGHT_UV_INDEX && d.type == LTR);
+}
+void forEachSignal(MeasurementVisitor visitor) {
+  for (const auto& d : devices) {
+    if (!d.present || !*d.source) {
+      continue;
+    }
+    for (int n = 0; n < SIGNAL_COUNT; ++n) {
+      auto id = static_cast<SignalId>(n);
+      if (!supported(d, id)) {
+        continue;
+      }
+      const float value = measurement(d, id);
+      visitor(d.source, id, value, usable(d) && isfinite(value));
+    }
+  }
+}
 founderAutomation::Reading readSignal(SignalId id, const char* source) {
   for (const auto& d : devices) {
     if (d.present && !strcmp(d.source, source)) {
@@ -397,16 +422,7 @@ void appendJson(String& j) {
       for (int id = 0; id < SIGNAL_COUNT; ++id) {
         const auto signal = static_cast<SignalId>(id);
         const float value = measurement(d, signal);
-        const bool supported =
-            (id == SIGNAL_CLIMATE_TEMPERATURE_C &&
-             (d.type == SHT || d.type == AHT || d.type == BOSCH || d.type == SCD)) ||
-            (id == SIGNAL_CLIMATE_HUMIDITY_PCT &&
-             (d.type == SHT || d.type == AHT || (d.type == BOSCH && !d.bmp) || d.type == SCD)) ||
-            (id == SIGNAL_CLIMATE_PRESSURE_HPA && d.type == BOSCH) ||
-            (id == SIGNAL_CLIMATE_CO2_PPM && d.type == SCD) ||
-            (id == SIGNAL_LIGHT_LUX && d.type == VEML) ||
-            (id == SIGNAL_LIGHT_UV_INDEX && d.type == LTR);
-        if (!supported) {
+        if (!supported(d, signal)) {
           continue;
         }
         if (signalComma) {

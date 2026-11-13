@@ -6,9 +6,11 @@
 #include <memory>
 #include <new>
 
+#include "firmware_info.h"
 #include "founder/automation.h"
 #include "founder/device_profiles.h"
 #include "founder/event_log.h"
+#include "founder/history.h"
 #include "founder/outputs.h"
 #include "founder/schedule_policy.h"
 #include "modules/fan.h"
@@ -479,6 +481,7 @@ static void apply(const Device (&next)[Count]) {
 }
 void begin() {
   founderEvents::begin();
+  founderHistory::begin();
   fanManual[0] = fanManual[1] = 0;
   for (unsigned n = 0; n < 2; ++n) {
     fanAutomationState[n] = {};
@@ -683,8 +686,64 @@ static void serializeConfiguration(const Device (&next)[Count], const FanPort (&
   }
   serializeJson(root, bytes);
 }
-bool configure(JsonObjectConst request, String& message) {
-  if (!storage || !restMode_isEnabled()) {
+bool backup(String& output) {
+  if (!storage || !configOk) {
+    return false;
+  }
+  String bytes;
+  serializeConfiguration(devices, fanPorts, revision, bytes);
+  JsonDocument config;
+  if (deserializeJson(config, bytes)) {
+    return false;
+  }
+  for (JsonObject f : config["fan_ports"].as<JsonArray>()) {
+    f.remove("automation_ready");
+  }
+  for (JsonObject e : config["equipment"].as<JsonArray>()) {
+    if (e["plan"].is<JsonObject>()) {
+      e["plan"].as<JsonObject>().remove("since_token");
+    }
+  }
+  JsonDocument root;
+  root["format"] = "grova-core-equipment";
+  root["version"] = 1;
+  root["hardware_profile"] = GROVA_BOARD_PROFILE_ID;
+  root["firmware_version"] = GROVA_FIRMWARE_VERSION;
+  if (isTimeSynced()) {
+    root["created_at_s"] = getEpochSeconds();
+  } else {
+    root["created_at_s"] = nullptr;
+  }
+  root["configuration"].set(config.as<JsonObject>());
+  output = "";
+  serializeJson(root, output);
+  return !root.overflowed() && output.length() <= BackupMaxBytes;
+}
+bool restoreBackup(JsonObjectConst request, String& message, bool validateOnly) {
+  const auto b = request["backup"];
+  const auto c = b["configuration"];
+  if (!request["expected_revision"].is<uint32_t>() || !b.is<JsonObjectConst>() ||
+      !b["format"].is<const char*>() || strcmp(b["format"], "grova-core-equipment") ||
+      !b["version"].is<unsigned>() || b["version"].as<unsigned>() != 1 ||
+      !b["hardware_profile"].is<const char*>() ||
+      strcmp(b["hardware_profile"], GROVA_BOARD_PROFILE_ID) || !c.is<JsonObjectConst>() ||
+      !c["schema"].is<unsigned>() || c["schema"].as<unsigned>() != 1 ||
+      !c["fan_ports"].is<JsonArrayConst>()) {
+    message = "Invalid backup format, version or hardware profile";
+    return false;
+  }
+  JsonDocument next;
+  next["expected_revision"] = request["expected_revision"];
+  next["equipment"].set(c["equipment"]);
+  next["fan_ports"].set(c["fan_ports"]);
+  if (next.overflowed()) {
+    message = "Not enough memory for backup";
+    return false;
+  }
+  return configure(next.as<JsonObjectConst>(), message, validateOnly);
+}
+bool configure(JsonObjectConst request, String& message, bool validateOnly) {
+  if (!storage || (!validateOnly && !restMode_isEnabled())) {
     message = "Device assignment requires Rest and available storage";
     return false;
   }
@@ -732,8 +791,15 @@ bool configure(JsonObjectConst request, String& message) {
   }
   String bytes;
   serializeConfiguration(next, nextFans, revision + 1, bytes);
-  if (bytes.length() > founderAutomation::ConfigMaxBytes ||
-      settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
+  if (bytes.length() > founderAutomation::ConfigMaxBytes) {
+    message = "Device configuration exceeds storage limit";
+    return false;
+  }
+  if (validateOnly) {
+    message = "Configuration validated";
+    return true;
+  }
+  if (settings.putBytes("configuration", bytes.c_str(), bytes.length()) != bytes.length()) {
     message = "Device assignment was not saved; previous assignment remains";
     return false;
   }

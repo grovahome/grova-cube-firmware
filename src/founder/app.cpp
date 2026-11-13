@@ -10,6 +10,7 @@
 #include "founder/display.h"
 #include "founder/equipment.h"
 #include "founder/event_log.h"
+#include "founder/history.h"
 #include "founder/i2c_bus.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
@@ -130,6 +131,7 @@ void loop() {
   }
   founderEquipment::loop();
   founderEquipment::recordEvents();
+  founderHistory::loop();
 }
 bool hasFault() {
   return resumeFailed || !allSettingsReady() || !founderOutputs::ready() || fan_hasTachoFault();
@@ -256,7 +258,7 @@ static bool result(String& r, bool ok, const char* message) {
 bool command(const String& body, String& response, bool remote) {
   response = "";
   JsonDocument j;
-  if (body.length() > founderAutomation::ConfigMaxBytes || deserializeJson(j, body) ||
+  if (body.length() > founderEquipment::BackupMaxBytes || deserializeJson(j, body) ||
       !j.is<JsonObject>() || !j["cmd"].is<const char*>()) {
     return result(response, false, "Invalid command JSON");
   }
@@ -291,6 +293,17 @@ bool command(const String& body, String& response, bool remote) {
     if (!ok) {
       setRest(true);
     }
+  } else if (!strcmp(cmd, "restore_equipment") && !remote) {
+    String message;
+    if (!founderEquipment::restoreBackup(j.as<JsonObjectConst>(), message, true)) {
+      return result(response, false, message.c_str());
+    }
+    if (!setRest(true)) {
+      return result(response, false, "Could not persist Pause; configuration unchanged");
+    }
+    const bool restored = founderEquipment::restoreBackup(j.as<JsonObjectConst>(), message, false);
+    return result(response, restored,
+                  restored ? "Backup restored; operation remains paused" : message.c_str());
   } else if (!strcmp(cmd, "configure_equipment") && !remote) {
     String message;
     if (!j["start_plans"].isNull() && !j["start_plans"].is<bool>()) {

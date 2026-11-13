@@ -3,6 +3,8 @@
 #include <WebServer.h>
 
 #include "founder/app.h"
+#include "founder/equipment.h"
+#include "founder/history.h"
 #include "founder/page.h"
 #include "modules/wifi_web.h"
 namespace founderWeb {
@@ -20,6 +22,20 @@ void begin() {
     server.sendHeader("Cache-Control", "no-store");
     server.send(200, "application/json", founderApp::status());
   };
+  server.on("/api/v1/history", HTTP_GET, []() {
+    server.sendHeader("Cache-Control", "no-store");
+    server.send(200, "application/json", founderHistory::json());
+  });
+  server.on("/api/v1/configuration", HTTP_GET, []() {
+    String output;
+    server.sendHeader("Cache-Control", "no-store");
+    if (founderEquipment::backup(output)) {
+      server.send(200, "application/json", output);
+    } else {
+      server.send(503, "application/json",
+                  "{\"ok\":false,\"message\":\"Configuration unavailable\"}");
+    }
+  });
   server.on("/api/v1/status", HTTP_GET, status);
   server.on("/api/status", HTTP_GET, status);
   server.on("/api/v1/control", HTTP_POST, []() {

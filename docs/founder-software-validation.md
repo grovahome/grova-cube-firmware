@@ -210,3 +210,9 @@ No new output mode or authorization workflow; installed source recorded separate
 RAM event history: see founder-event-log.md. Pure ring tests, no-NVS/output-side-effect
 API checks and check_events_ui.cjs cover bounded history and JSON download.
 Existing five browser workflows remain unchanged. Installation is recorded separately.
+
+
+RAM plot and equipment/rule backup: see founder-history-backup.md. Additional pure
+history, production dry-validation/paused-restore/fresh-process tests and browser
+check_history_ui.cjs / check_backup_ui.cjs cover these paths. No per-sample flash
+writes; real board restoration is not part of read-only acceptance.

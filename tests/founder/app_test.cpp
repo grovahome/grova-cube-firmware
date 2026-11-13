@@ -12,6 +12,7 @@
 #include "founder/device_profiles.h"
 #include "founder/devices.h"
 #include "founder/equipment.h"
+#include "founder/history.h"
 #include "founder/network.h"
 #include "founder/outputs.h"
 #include "modules/fan.h"
@@ -107,6 +108,16 @@ bool hasMux() {
 }
 }  // namespace founderBus
 namespace founderDevices {
+void forEachSignal(MeasurementVisitor visitor) {
+  for (int n = 0; n < SIGNAL_COUNT; ++n) {
+    auto id = static_cast<SignalId>(n);
+    auto v = signalRegistry_read(id);
+    if (strcmp(v.source, "NONE")) {
+      visitor(v.source, id, v.value, v.valid && signalRegistry_ageMs(id) < 12000);
+    }
+  }
+}
+
 void appendJson(String& j) {
   j += "\"devices\":[]";
 }
@@ -245,7 +256,7 @@ int main(int argc, char** argv) {
        !strcmp(argv[1], "--plan-corrupt-intent-load") ||
        !strcmp(argv[1], "--plan-release-fail-load") || !strcmp(argv[1], "--plan-history-load") ||
        !strcmp(argv[1], "--plan-reserved-load") || !strcmp(argv[1], "--fan-load") ||
-       !strcmp(argv[1], "--auto-load"))) {
+       !strcmp(argv[1], "--auto-load") || !strcmp(argv[1], "--backup-load"))) {
     loadNvs(argv[2]);
   }
   if (argc > 1 && !strcmp(argv[1], "--plan-no-intent-load")) {
@@ -274,6 +285,85 @@ int main(int argc, char** argv) {
   founderOutputs::begin();
   founderEquipment::begin();
   signalRegistry_begin();
+  if (argc > 1 && !strncmp(argv[1], "--backup-", 9)) {
+    if (!strcmp(argv[1], "--backup-load")) {
+      founderApp::loop();
+      assert(restMode_isEnabled() && founderOutputs::applied(3) == 0 &&
+             founderEquipment::fanEnabled(1));
+      return 0;
+    }
+    assert(run(rebootConfig));
+    assert(founderApp::setRest(false));
+    nowMs = 600000;
+    assert(run(R"({"cmd":"set_device","id":"dev2","percent":60})"));
+    assert(founderOutputs::applied(3) == 60);
+    const auto before = testNvs::data;
+    String file;
+    assert(founderEquipment::backup(file));
+    assert(before == testNvs::data && founderOutputs::applied(3) == 60);
+    JsonDocument b;
+    assert(!deserializeJson(b, file));
+    assert(b["format"].as<std::string>() == "grova-core-equipment" &&
+           b["version"].as<unsigned>() == 1);
+    assert(!strstr(file.c_str(), "password") && !strstr(file.c_str(), "plan-ledger") &&
+           !strstr(file.c_str(), "since_token"));
+    JsonDocument req;
+    req["cmd"] = "restore_equipment";
+    req["expected_revision"] = 1;
+    req["backup"].set(b.as<JsonObject>());
+    auto send = [&](bool remote = false) {
+      String text;
+      serializeJson(req, text);
+      return run(text.c_str(), remote);
+    };
+    req["backup"]["hardware_profile"] = "wrong-board";
+    assert(!send());
+    assert(before == testNvs::data && !restMode_isEnabled());
+    req["backup"].set(b.as<JsonObject>());
+    req["backup"]["configuration"]["equipment"][0]["voltage"] = 12;
+    assert(!send());
+    assert(before == testNvs::data && !restMode_isEnabled() && founderOutputs::applied(3) == 60);
+    req["backup"].set(b.as<JsonObject>());
+    req["expected_revision"] = 0;
+    assert(!send());
+    assert(before == testNvs::data);
+    req["expected_revision"] = 1;
+    req["cmd_id"] = "remote-restore";
+    req["expires_at_s"] = getEpochSeconds() + 10;
+    assert(!send(true));
+    req.remove("cmd_id");
+    req.remove("expires_at_s");
+    req["start_plans"] = true;
+    req["backup"]["configuration"]["start_plans"] = true;
+    assert(send());
+    assert(restMode_isEnabled() && founderOutputs::applied(3) == 0 && manualFans[0] == 0);
+    assert(statusJson()["equipment_revision"].as<unsigned>() == 2);
+    const auto persisted = testNvs::data;
+    founderHistory::loop();
+    String plot = founderHistory::json();
+    JsonDocument series;
+    assert(!deserializeJson(series, plot));
+    assert(series["volatile"].as<bool>() && series["samples"].size() == 1 &&
+           series["series"].size() >= 7);
+    founderHistory::loop();
+    assert(persisted == testNvs::data);
+    if (!strcmp(argv[1], "--backup-save")) {
+      saveNvs(argv[2]);
+      return 0;
+    }
+    req["expected_revision"] = 2;
+    testNvs::failKey = "founder-devices/configuration";
+    assert(!send());
+    testNvs::failKey = "";
+    assert(statusJson()["equipment_revision"].as<unsigned>() == 2 && restMode_isEnabled());
+    assert(testNvs::data["founder-devices/configuration"] ==
+           persisted.at("founder-devices/configuration"));
+    assert(founderEquipment::backup(file));
+    std::cout << "Backup/history API: secret-free export, validation before pause/write, "
+                 "hardware/revision/voltage checks, remote denial, paused restore, restart, write "
+                 "failure and RAM-only history passed\n";
+    return 0;
+  }
   if (argc > 1 && !strcmp(argv[1], "--small-pulse")) {
     assert(run(
         R"({"cmd":"configure_equipment","equipment":[{"id":"dev1","profile":"pump","name":"Small pulse","output":"OUT5_1","voltage":5,"max_runtime_ms":100}]})"));
