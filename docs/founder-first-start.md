@@ -433,3 +433,14 @@ physical acceptance tasks. Founder pure/integration/fresh-process tests, 25 lega
 lifecycle and 17 Wi-Fi cases, JS syntax, four browser suites/mobile layouts and
 S3 build passed. See founder-simple-automation.md for the full implemented contract.
 No multi-day phase programs or new hardware interfaces were added.
+
+
+## Final sensor-selection refresh OTA — 2026-11-13
+
+Source `fe47529`, version `founder-dev.20261113.4`. Application SHA-256: `ad50ceb0a4cf8551dd0da064e09d5f5db0e6cf17a1d693c6f5c8cc31eef58395`.
+OTA upload completed 100%, exit 0. Live version/healthy/WLAN/OTA/RTC checks passed;
+equipment revision 4, empty assignments, disabled fan configuration and Pause
+matched the preceding version exactly; output/fan setpoints zero. Four browser
+suites including sensor disconnect/reconnect without page reload and retained
+rule targets passed; S3 build passed. The complete automation predecessor also
+passed GitHub run 43506162923. No actuator commands or real test assignments.
