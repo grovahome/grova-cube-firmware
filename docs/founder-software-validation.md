@@ -133,3 +133,27 @@ NVS write; water delivery remains unmeasured. Creation baselines exclude events
 from before the plan existed. Extra process-restart/fault-injection and browser
 tests cover these contracts. Installation and exact binary/commit are recorded
 in the subsequent first-start entry and internal software-validation record.
+
+
+## OTA acceptance — 2026-11-13
+
+Installed source `8f90329`, version `founder-dev.20261113.1`, target
+`grova_founder_s3`, via ArduinoOTA/espota to `192.168.1.115` (UDP 3232,
+TCP callback). Upload reached 100% and succeeded; no USB flash fallback.
+Application SHA-256: `fa59ce4c6db9cfb4def1844f3aebbb07aa05e13302ca464978cd46960126614e`.
+
+Overview now shows plan details and the next regular event only for assigned
+devices with enabled plans. Planned pulse history is hidden for manual devices;
+disabled ports disappear. Firmware/build and live OTA readiness are in Settings.
+
+After reboot the same board reported the new version, healthy, WLAN connected,
+OTA ready and valid RV-3032 time used at boot. Equipment revision 2, empty device
+list, disabled native fan ports and persistent Pause matched the pre-OTA snapshot;
+all five output setpoints remained zero. Populated plan persistence was covered
+by host/browser tests, not by writing test assignments to the live board.
+
+Founder host/fault-injection tests, 25 lifecycle and 17 Wi-Fi scenarios, JavaScript
+syntax, both browser suites/mobile layouts and S3 build passed. Read-only browser
+check of the actual LAN page passed without JS errors; writes were blocked.
+Physical loads, sensor acceptance, SSD1317/encoder and power-path/recovery remain
+open. This OTA acceptance supersedes older not-installed statements above.
