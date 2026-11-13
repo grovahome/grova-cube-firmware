@@ -86,3 +86,5 @@ intervals, protected pump configuration and mobile layout. Browser tests use
 fixtures, not commands to real outputs. Actual sensor/control response and loads
 still require physical acceptance. Installed source/hash are recorded separately
 in founder-first-start.md and the internal software-validation.md.
+
+Sensor selector options refresh when devices disconnect/reconnect without a page reload or configuration revision. Existing selections, targets and unsaved rule drafts remain unchanged; missing bindings are clearly labelled.
