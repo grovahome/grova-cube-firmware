@@ -507,3 +507,27 @@ preceding RAM-event source also passed GitHub run 43516655946. Logs and chart ar
 RAM-only; explicit restore persists Pause/configuration. Existing watering safety
 journals remain durable. See founder-event-log.md and founder-history-backup.md.
 Physical threshold/unplug/load and pump acceptance remain open.
+
+
+## Ten-second sensor grace and event UI installed — 2026-11-16
+
+Source `4c04eaf`, version `founder-dev.20261116.1`, build `grova_founder_s3`.
+Active branch renamed by user on origin to `founder-pcb-bringup`; local branch and
+tracking now match. No divergent commits were present before the change.
+Application SHA-256 `18b985ecf8467c0fd1309e975cf7d9d8307281f454a1e073662586126ef3ddc1`.
+OTA to 192.168.1.115 completed 100%, exit 0. Read-only post-check at 16 s uptime:
+healthy, WiFi/OTA/RTC valid, free heap 210044. Fresh pre-/post-OTA comparison preserved
+revision 8, Pause enabled, equipment and stable fan configuration; runtime diagnostics
+were excluded. No actuator tests or configuration writes were sent.
+
+Short failed reads preserve the last successful exact-source value and its original
+timestamp. It expires at exactly 10 seconds; loss warnings, event logging and fallback
+use the same threshold. Never-seen inputs remain unavailable, identity changes clear
+cached samples. Retry interval for unready devices is one second. Cache is RAM-only.
+Recent event entries contain timestamp/text; current warnings retain diagnosis links.
+
+Founder host suites passed, including transient CRC failure, recovery, 9999/10000 ms
+boundary, removal and separate same-address sources. JavaScript syntax, event and
+diagnostic browser suites passed. S3 build passed; actual LAN UI passed read-only
+with all non-GET requests blocked, no JS errors and no event-list buttons.
+Physical threshold, unplug and load/pump acceptance remain open.
