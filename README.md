@@ -10,7 +10,8 @@ with control running directly on the device.
 Set a schedule, respond to a sensor or operate equipment yourself. Start with a
 single sensor and fan, then build a setup that fits your space.
 
-**[Visit GROVA Home](https://grova.carrd.co/)** ·
+[![Visit GROVA Home](docs/assets/visit-grova-home.svg)](https://grova.carrd.co/)
+
 [Explore the features](#what-you-can-do-with-grova) ·
 [Hardware](#built-around-real-hardware) ·
 [Build the firmware](#build)
