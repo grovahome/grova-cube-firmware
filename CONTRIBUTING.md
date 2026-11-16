@@ -53,7 +53,8 @@ See [repository conventions](docs/repository-conventions.md) for details.
 
 Use a focused branch and pull request. Explain the problem, resulting behavior and
 checks performed. Update the relevant documentation and the Unreleased section of
-the [changelog](CHANGELOG.md). Use the PR's actual base branch; do not assume `main`.
+the [changelog](CHANGELOG.md). Target `main` for current controller work. The frozen `legacy/core-v1` branch
+is retained as a reference and does not receive routine feature changes.
 Keep physical acceptance claims limited to tests that were actually performed.
 
 The firmware is distributed under the [GPL-3.0 license](LICENSE).

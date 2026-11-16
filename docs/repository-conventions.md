@@ -23,6 +23,22 @@ identifiers remain historical.
 The installed board is unaffected by repository reorganization. Do not infer a new
 installed version or completed hardware acceptance from these changes.
 
+## Branch organization
+
+- `main`: current S3 development and GitHub default branch.
+- `legacy/core-v1`: frozen V1 reference; keep its history and freeze tags intact.
+- Short-lived development branches: `codex/<topic>` for Codex work; use descriptive
+  topic names and remove merged branches when no longer needed.
+- Tags identify historical releases/baselines; do not move or rename published tags.
+
+On 16 November 2026, GitHub branches were renamed from `founder-pcb-bringup` to
+`main` and from `grova-core-v1` to `legacy/core-v1`. Commit history was preserved.
+The obsolete local `main` at `736e886` was already an ancestor of the current line;
+only its redundant local branch reference was removed. Stale remote-tracking
+references were pruned and `origin/HEAD` was updated to `origin/main`.
+Historical engineering records retain the branch names used at those checkpoints.
+The separate internal GROVA repository retains its own branch organization.
+
 ## Cleanup verification — 16 November 2026
 
 - All three PlatformIO firmware targets compiled successfully.

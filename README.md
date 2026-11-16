@@ -107,6 +107,16 @@ Detailed release records and acceptance results live in
 [board bring-up](docs/board-bringup.md). The legacy V1 firmware remains a separate,
 frozen reference target.
 
+## Development branches
+
+| Branch | Purpose |
+| --- | --- |
+| `main` | Current GROVA Core ESP32-S3 development; default branch |
+| `legacy/core-v1` | Frozen legacy ESP32 reference with its validated toolchain |
+
+Hardware targets remain separate build environments. Historical release and freeze
+tags retain their original names and commits.
+
 ## Build
 
 Install PlatformIO Core and run from the repository root:

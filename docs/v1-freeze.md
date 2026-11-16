@@ -1,7 +1,7 @@
 # PCB v1 software freeze
 
 Date: 2026-11-10
-Branch: `grova-core-v1`
+Current reference branch: `legacy/core-v1` (renamed from `grova-core-v1` on 2026-11-16)
 Annotated freeze tag: `grova-core-v1-final`
 
 This tag preserves the existing ESP32 PCB v1 firmware before development for

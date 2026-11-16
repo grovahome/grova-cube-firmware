@@ -1,11 +1,15 @@
 # GROVA CORE Technical Documentation
 
+> Legacy V1 reference. The baseline and interfaces below describe the frozen
+> ESP32 line, now on `legacy/core-v1`. For the current S3 application on `main`,
+> start with [architecture](architecture.md) and the [documentation index](README.md).
+
 This document collects the technical firmware details that are intentionally kept out of the front-page README.
 
 For setup and flashing, see [setup.md](setup.md). For lower-level endpoint details, see [api.md](api.md).
 For I2C module autodiscovery, see [i2c-discovery.md](i2c-discovery.md).
 
-## Current Baseline
+## Historical V1 Baseline
 
 | Component | Value |
 | --- | --- |

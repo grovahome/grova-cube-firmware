@@ -6,6 +6,12 @@ releases; installed versions and physical acceptance are tracked in
 
 ## Unreleased
 
+### Branch organization
+
+- Rename current development/default branch to `main` and frozen V1 reference to
+  `legacy/core-v1`, preserving their commits and all release/freeze tags.
+- Refresh local tracking references and clarify current versus historical profiles.
+
 ### Engineering workflow
 
 - Run all eight mocked browser acceptance suites in GitHub Actions.

@@ -4,7 +4,7 @@
 
 Recorded installed release: `founder-dev.20261116.1`, source `4c04eaf`,
 documentation checkpoint `de6633c`, build `grova_founder_s3`, branch
-`founder-pcb-bringup`. Installation and physical acceptance are separate.
+`main`. Installation and physical acceptance are separate.
 
 The 16 November checkpoint adds a 10-second grace period for failed sensor
 measurements from the same source, preserving the original timestamp. At expiry,

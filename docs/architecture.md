@@ -3,7 +3,7 @@
 ## Current checkpoint — 16 November 2026
 
 Current platform: GROVA Core ESP32-S3. Active development branch:
-`founder-pcb-bringup`. The current application is installed and includes equipment,
+`main`. The current application is installed and includes equipment,
 automation, daily scheduling, diagnostics, event history and backup/restore.
 See [software validation](software-validation.md) for the latest recorded release.
 The architecture below includes dated engineering notes; historical release and

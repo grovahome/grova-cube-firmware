@@ -1,5 +1,21 @@
 # GROVA Firmware Profiles
 
+## Current branch and build map
+
+| Branch | Hardware / build targets |
+| --- | --- |
+| `main` | Current S3 application: `grova_founder_s3`; isolated diagnostics: `grova_founder_s3_bringup` |
+| `legacy/core-v1` | Frozen ESP32 V1 reference: `grova_core_v1` |
+
+The S3 board profile is `include/boards/grova_core_s3.h`. V1 is
+`include/boards/grova_core_v1.h`. Build and persisted identifiers are retained
+for compatibility. See [architecture](architecture.md) for current S3 behavior.
+
+## Historical V1 profile record — 10 November 2026
+
+The following baseline describes V1 before the S3 split; statements about the
+absence of S3 code or future branch creation are historical.
+
 The PCB v1 software line is frozen at tag `grova-core-v1-final`.
 See [V1 freeze record](v1-freeze.md) for scope and validation limits.
 
