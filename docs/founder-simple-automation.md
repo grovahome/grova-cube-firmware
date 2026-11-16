@@ -40,7 +40,7 @@ Each limit may warn only or demand a specific output. The first active limit act
 in priority order overrides all normal target demands and lower limit actions.
 Runtime status includes winning rule, reason, demand and a per-rule warning mask.
 
-Any missing, invalid, nonfinite or >=12-second-old selected input immediately uses
+Any missing, invalid, nonfinite or >=10-second-old selected input immediately uses
 the device fallback (0..100 for analog, 0/100 for switches). All rule state resets
 on loss. Pulse devices always fall back to OFF. Recovery uses the configured
 normal debounce again. Manual/OTA/Setup/Pause/driver/storage/time interlocks take
@@ -120,3 +120,16 @@ Tests: pure diagnostic capture including all missing inputs; API values/ages/uni
 priority/tie explanations, fresh paused readings with no NVS/actuator side effects;
 read-only browser fixture navigation, delay, missing/stale inputs, warning clearing,
 offline labels and mobile layout. Existing four browser suites also pass.
+
+
+### Transient sensor failures
+
+The last successful sample from the exact selected source remains usable for less
+than 10 seconds, including a failed read, CRC error, probe or driver reinitialization.
+Failures never refresh its timestamp. At 10 seconds without a successful sample,
+rule diagnostics, warnings, event history and fallback consistently mark it stale.
+A source with no successful sample remains unavailable; no fabricated initial value
+is used. A changed device identity clears the cache. Failed devices retry at a
+one-second probe interval so a brief failure need not wait for the normal ten-second
+discovery interval. Successful measurements restore normal control automatically.
+The cache is RAM-only and does not add flash writes.

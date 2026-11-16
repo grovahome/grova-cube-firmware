@@ -168,11 +168,12 @@ void appendDecision(JsonObject row, const Decision& d, const Config& config, con
       input.ageMs =
           uint64_t(input.ageMs) + elapsed >= UINT32_MAX ? UINT32_MAX - 1 : input.ageMs + elapsed;
     }
-    const bool valid = input.valid && isfinite(input.value) && input.ageMs < 12000;
-    const char* inputState = valid                       ? "OK"
-                             : input.ageMs == UINT32_MAX ? "MISSING"
-                             : input.ageMs >= 12000      ? "STALE"
-                                                         : "INVALID";
+    const bool valid =
+        input.valid && isfinite(input.value) && input.ageMs < founderAutomation::InputMaxAgeMs;
+    const char* inputState = valid                                             ? "OK"
+                             : input.ageMs == UINT32_MAX                       ? "MISSING"
+                             : input.ageMs >= founderAutomation::InputMaxAgeMs ? "STALE"
+                                                                               : "INVALID";
     auto item = rules.add<JsonObject>();
     item["priority"] = n + 1;
     item["source"] = rule.source;

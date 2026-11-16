@@ -46,3 +46,10 @@ wrap. API integration compares NVS and output state across repeated observation 
 status reads. Browser acceptance verifies history display, escaped text, unknown
 clock, JSON download, reboot replacement, offline labelling, mobile layout and no
 control POSTs. Installed binary/source and live checks are recorded separately.
+
+
+The recent-events UI shows timestamp and text only; navigation to rule diagnostics
+remains available in current warnings. A transient failed sensor read does not
+create loss/recovery events while its last successful exact-source value is less
+than ten seconds old. At ten seconds it becomes unavailable and normal deduplicated
+loss/fallback events apply. Never-seen sources remain unavailable immediately.

@@ -38,8 +38,25 @@ int main() {
   assert(founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, first.source).valid);
   const std::string source = first.source;
   assert(text.find("\"signals\":") != std::string::npos);
+  // Brief CRC failures retain the exact source and original sample timestamp.
+  Wire.badCrc = true;
+  advance(3000);
+  auto held = founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str());
+  assert(held.valid && held.ageMs >= 3000 && held.ageMs < 10000);
+  Wire.badCrc = false;
+  advance(3000);
+  assert(founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str()).valid);
+  // Loss does not immediately erase the sample or switch an exact-source rule.
   Wire.sht[0] = false;
-  advance(5000);
+  advance(3000);
+  held = founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str());
+  assert(held.valid);
+  // Boundary is measured from last success, not from detecting the failure.
+  nowMs += 9999 - held.ageMs;
+  assert(founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str()).valid);
+  ++nowMs;
+  assert(!founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str()).valid);
+  advance(1000);
   assert(!founderDevices::readSignal(SIGNAL_CLIMATE_TEMPERATURE_C, source.c_str()).valid);
   auto fallback = signalRegistry_read(SIGNAL_CLIMATE_TEMPERATURE_C);
   assert(fallback.valid && std::string(fallback.source).find("ch1") != std::string::npos);

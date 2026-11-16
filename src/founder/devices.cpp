@@ -97,8 +97,9 @@ static void release(Device& d) {
   d.veml = nullptr;
   d.scd = nullptr;
   d.ltr = nullptr;
-  d.ready = d.valid = false;
-  d.temperature = d.humidity = d.extra = NAN;
+  // Keep the last successful sample through transient failures/reinitialization.
+  // Its original timestamp bounds reuse; neither failure nor probe refreshes it.
+  d.ready = false;
 }
 static bool init(Device& d) {
   release(d);
@@ -152,8 +153,14 @@ static bool init(Device& d) {
     release(d);
   }
   d.ready = ok;
+  char previousSource[sizeof(d.source)];
+  strcpy(previousSource, d.source);
   snprintf(d.source, sizeof(d.source), "%s@%s%d/0x%02X", name(d), d.lane < 0 ? "root" : "ch",
            d.lane < 0 ? 0 : d.lane, d.address);
+  if (strcmp(previousSource, d.source)) {
+    d.valid = false;
+    d.temperature = d.humidity = d.extra = NAN;
+  }
   return ok;
 }
 static bool sample(Device& d) {
@@ -225,13 +232,12 @@ static bool sample(Device& d) {
     d.sampled = millis();
     d.valid = true;
   } else {
-    d.valid = false;
     d.ready = false;
   }
   return ok;
 }
 static bool usable(const Device& d) {
-  return d.valid && millis() - d.sampled < 12000;
+  return d.valid && millis() - d.sampled < founderAutomation::InputMaxAgeMs;
 }
 static void publish() {
   const Device* bestT = nullptr;
@@ -313,7 +319,7 @@ void loop() {
     publish();
     return;
   }
-  bool probeDue = !d.probed || millis() - d.probeAt >= 10000;
+  bool probeDue = !d.probed || millis() - d.probeAt >= (d.ready ? 10000U : 1000U);
   if (probeDue || (d.ready && millis() - d.sampled >= 2000)) {
     founderBus::Scope bus(d.lane);
     if (probeDue) {
@@ -379,7 +385,7 @@ void forEachSignal(MeasurementVisitor visitor) {
 }
 founderAutomation::Reading readSignal(SignalId id, const char* source) {
   for (const auto& d : devices) {
-    if (d.present && !strcmp(d.source, source)) {
+    if (*d.source && !strcmp(d.source, source)) {
       const float v = measurement(d, id);
       return {v, usable(d) && isfinite(v), uint32_t(millis() - d.sampled)};
     }

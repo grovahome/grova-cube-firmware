@@ -71,7 +71,8 @@ class Recorder {
                     ? config->minimum
                     : config->maximum;
     }
-    if (input && input->valid && isfinite(input->value) && input->ageMs < 12000) {
+    if (input && input->valid && isfinite(input->value) &&
+        input->ageMs < founderAutomation::InputMaxAgeMs) {
       e.value = input->value;
       e.hasValue = true;
     }
@@ -121,14 +122,15 @@ class Recorder {
       const auto& r = c.rules[n];
       auto& s = t.rules[n];
       const auto input = read(r.signal, r.source);
-      const bool available = input.valid && isfinite(input.value) && input.ageMs < 12000;
+      const bool available =
+          input.valid && isfinite(input.value) && input.ageMs < founderAutomation::InputMaxAgeMs;
       if (!available) {
         missing = true;
         if (!s.known || s.available) {
           add(Type::InputLost, now, epoch, device, name, n, &r, nullptr, 0,
-              input.ageMs == UINT32_MAX ? 1
-              : input.ageMs >= 12000    ? 2
-                                        : 3);
+              input.ageMs == UINT32_MAX                         ? 1
+              : input.ageMs >= founderAutomation::InputMaxAgeMs ? 2
+                                                                : 3);
         }
         s.known = true;
         s.available = false;

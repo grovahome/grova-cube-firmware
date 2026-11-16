@@ -5,6 +5,7 @@
 #include <initializer_list>
 namespace founderAutomation {
 constexpr unsigned MaxRules = 6;
+constexpr uint32_t InputMaxAgeMs = 10000;
 struct Rule {
   char source[40] = {};
   uint8_t signal = 0;
@@ -88,7 +89,7 @@ Decision evaluate(const Config& c, State& state, uint32_t now, bool analog, Read
   for (unsigned n = 0; n < c.count; ++n) {
     values[n] = read(c.rules[n].signal, c.rules[n].source);
     result.rules[n].input = values[n];
-    if (!values[n].valid || !isfinite(values[n].value) || values[n].ageMs >= 12000) {
+    if (!values[n].valid || !isfinite(values[n].value) || values[n].ageMs >= InputMaxAgeMs) {
       result.missingMask |= uint8_t(1U << n);
       if (result.winner < 0) {
         result.winner = n;

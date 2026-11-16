@@ -59,7 +59,11 @@ int main() {
   valid = true;
   log.observe(0, "Climate", c, true, true, 9000, 109, read);
   assert(log.newest(0).type == Type::FallbackEnded && log.newest(1).type == Type::InputRecovered);
-  age = 12000;
+  count = log.count;
+  age = 9999;
+  log.observe(0, "Climate", c, true, true, 9999, 109, read);
+  assert(log.count == count);
+  age = 10000;
   log.observe(0, "Climate", c, true, true, 10000, 110, read);
   assert(log.newest(1).inputState == 2);
   log.configuration(2, 11000, 111);

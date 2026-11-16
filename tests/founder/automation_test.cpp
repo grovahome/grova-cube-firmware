@@ -56,7 +56,9 @@ int main() {
   assert(d.percent == 40 && !strcmp(d.reason, "SENSOR_MISSING"));
   assert(d.missingMask == 3 && !d.rules[0].input.valid && !d.rules[1].input.valid);
   missing = false;
-  age = 12000;
+  age = 9999;
+  assert(!evaluate(c, s, 5003, true, read).missingMask);
+  age = 10000;
   assert(evaluate(c, s, 5003, true, read).percent == 40);
   age = 0;
   c.count = 1;
