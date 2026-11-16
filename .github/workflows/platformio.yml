@@ -29,14 +29,14 @@ jobs:
       - name: Build firmware
         run: pio run -e grova_core_v1
 
-      - name: Build Founder S3 diagnostic firmware
+      - name: Build Core S3 diagnostic firmware
         run: pio run -e grova_founder_s3_bringup
 
-      - name: Build Founder S3 application
+      - name: Build Core S3 application
         run: pio run -e grova_founder_s3
 
-      - name: Test Founder device services and commands on host
-        run: python tests/founder/run_tests.py
+      - name: Test controller device services and commands on host
+        run: python tests/controller/run_tests.py
 
       - name: Check embedded web JavaScript
-        run: python tests/founder/check_web.py
+        run: python tests/controller/check_web.py

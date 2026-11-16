@@ -10,7 +10,7 @@
 #include "modules/wifi_ota.h"
 #include "modules/wifi_credentials.h"
 #if defined(GROVA_FOUNDER_APP)
-#include "founder/outputs.h"
+#include "controller/outputs.h"
 #include "device_identity.h"
 #include "modules/fan.h"
 #else

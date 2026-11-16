@@ -1,9 +1,18 @@
-# GROVA Hardware Reference
+# Hardware references
 
-Reference files for the current GROVA V1 hardware:
+## Current platform: GROVA Core ESP32-S3
 
-- [GROVA V1 schematic, 2026-07-29](reference/grova-v1-schematic-2026-07-29.pdf)
-- [GROVA V1 PCB render](reference/grova-v1-pcb-render.png)
+- [S3 pinout and engineering record](core-s3/README.md)
+- [Schematic, 1 November 2026](core-s3/SCH_Schematic1_2026-11-01.pdf)
+- [Bring-up and physical acceptance](../board-bringup.md)
 
-These files document the existing V1 board revision and are provided as
-hardware reference material for the firmware project.
+Current prototype photographs supplied by the project owner are in
+[core-s3/photos/](core-s3/photos/README.md). They show an assembly snapshot, not
+proof of completed electrical or functional acceptance.
+
+## Legacy V1 reference
+
+- [V1 schematic, 29 July 2026](reference/grova-v1-schematic-2026-07-29.pdf)
+- [V1 PCB render](reference/grova-v1-pcb-render.png)
+
+These V1 assets are historical and do not depict the current ESP32-S3 PCB.

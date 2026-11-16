@@ -1,7 +1,7 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "drivers/ssd1317.h"
-#include "boards/grova_founder_s3.h"
+#include "boards/grova_core_s3.h"
 
 // This target intentionally has no actuator commands, Wi-Fi, OTA, MQTT or runs.
 static GrovaSSD1317 oled;

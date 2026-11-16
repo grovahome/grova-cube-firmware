@@ -14,4 +14,8 @@ Thumbs.db
 include/board_config.h
 
 # Generated first-flash package, never source.
-/dist/founder-s3/
+/dist/
+
+# Local Python artifacts
+__pycache__/
+*.py[cod]
