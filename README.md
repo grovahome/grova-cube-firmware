@@ -1,53 +1,110 @@
-# GROVA Core Firmware
+# GROVA Core
 
-Local-first firmware for the GROVA Core environmental controller. Configure physical
-ports, connect sensors and run manual, scheduled or sensor-driven automation from
-the controller's own web interface.
+### Your environment. Your rules. Local control.
+
+GROVA is an open-source controller project for growing spaces, greenhouses and
+other environments where sensors and equipment need to work together. It brings
+monitoring, lighting, ventilation and watering into one configurable system,
+with control running directly on the device.
+
+Set a schedule, respond to a sensor or operate equipment yourself. Start with a
+single sensor and fan, then build a setup that fits your space.
+
+**[Visit GROVA Home](https://grova.carrd.co/)** ·
+[Explore the features](#what-you-can-do-with-grova) ·
+[Hardware](#built-around-real-hardware) ·
+[Build the firmware](#build)
 
 ![GROVA Core prototype in its enclosure](docs/hardware/core-s3/photos/core-s3-enclosure.jpg)
 
-*Current hardware prototype. Photos supplied by the project owner; display and
-encoder acceptance remain open.*
+*GROVA Core development prototype with its printed enclosure and accessible connections.*
 
-## Current status
+## GROVA at a glance
 
-The active hardware platform is the **ESP32-S3-WROOM-1-N16R8** with 16 MB flash
-and 8 MB PSRAM. The S3 application has been installed and checked on real hardware.
-As of **16 November 2026**, the recorded installed release is
-`founder-dev.20261116.1` (source `4c04eaf`). This repository cleanup does not install
-a new release. See [software validation](docs/software-validation.md) and the
-[hardware bring-up record](docs/board-bringup.md) for evidence and limitations.
+| | What it means for your setup |
+| --- | --- |
+| **Monitor** | Read connected sensors and follow changes in temperature, humidity and other supported measurements. |
+| **Automate** | Control compatible equipment manually, on a schedule or in response to a specific sensor. |
+| **Stay local** | Use the controller's web interface on your phone or computer; automation runs on the controller without a cloud connection. |
+| **Adapt** | Assign compatible devices to physical ports and choose their purpose, settings and control mode. |
+| **Understand** | See measurements, warnings and rule diagnostics so you can follow why an action is requested or blocked. |
+| **Own** | Inspect the source, keep control of your configuration and develop the system around your needs. |
 
-**Hardware acceptance is still in progress.** Sensor disconnection/recovery,
-long-term RTC operation, electrical outputs, PWM/tachometer, 0–10 V and pump/load
-tests remain open. Display and encoder work is deferred. The legacy V1 firmware
-remains available as a frozen reference; it is a separate hardware target.
+## What you can do with GROVA
 
-## Hardware reference
+### Keep air moving when it is needed
 
-The current controller PCB in its enclosure:
+Use fans for circulation, intake or exhaust. Run them at a chosen level, use daily
+time windows or let a selected sensor determine demand. Supported variable outputs
+allow percentage control, with configurable targets, limits and fallback behavior.
 
-![GROVA Core ESP32-S3 PCB in the open enclosure](docs/hardware/core-s3/photos/core-s3-board.jpg)
+### Give lighting and equipment a routine
 
-*Assembly state shown in the supplied photo; photographs do not replace electrical
-or functional acceptance. [Top view](docs/hardware/core-s3/photos/core-s3-top.jpg).*
+Create multiple daily operating windows or repeating intervals for compatible
+equipment. Each device has its own control mode, so scheduled lighting can work
+alongside sensor-driven ventilation and manually operated outputs.
 
-[S3 pinout and hardware notes](docs/hardware/core-s3/README.md) ·
-[Schematic, 1 November 2026 (PDF)](docs/hardware/core-s3/SCH_Schematic1_2026-11-01.pdf)
+### Plan controlled watering
 
-## Capabilities
+Configure bounded pump or valve pulses with minimum pauses between runs. Persistent
+execution records help prevent a pulse that already started from being repeated
+after a restart. Actual water delivery still depends on the connected plumbing and
+hardware; GROVA does not infer water flow from a command.
 
-- Local Wi-Fi setup and browser interface; application OTA updates.
-- Fixed-voltage physical ports with compatible device profiles.
-- Independent manual, scheduled and sensor-driven control.
-- Multiple daily windows/intervals, percentage control where supported, and flexible fan roles.
-- Explicit sensor source binding, hysteresis, delays, limit actions and fallback.
-- Persistent pause and configuration; bounded watering pulses with restart journals.
-- Rule diagnostics, warnings, event export, RAM measurement history and device backup/restore.
+### See what your system is doing
 
-Available connectors do not imply an implemented or physically validated driver.
-See [architecture](docs/architecture.md), [equipment](docs/equipment.md),
-[automation](docs/automation.md) and [command safety](docs/command-safety.md).
+Check current readings, recent measurement history and events in the local browser
+interface. Rule diagnostics show the selected sensor, requested action and any
+execution restrictions. Export events and back up device and rule settings for
+later restoration.
+
+## A flexible foundation
+
+GROVA is designed around **devices, sensors and rules**, rather than one fixed crop
+or growing method. A propagation shelf, an indoor growing cabinet, a small greenhouse
+or an environmental test setup can use the same basic approach:
+
+**Connect a supported sensor → configure compatible equipment → choose how it should respond.**
+
+The aim is practical automation that remains understandable as a setup grows:
+fewer separate timers, less routine switching and one place to see how equipment
+and environmental measurements relate.
+
+## Built around real hardware
+
+The current GROVA Core platform uses an **ESP32-S3**, with **16 MB flash** and
+**8 MB PSRAM**. The board provides:
+
+- **12 V and 5 V switched outputs** for compatible equipment.
+- **Two PWM fan connections with tachometer inputs** for variable fan control.
+- **Two 0–10 V outputs** for compatible controlled devices.
+- **Eight multiplexed I²C channels** for sensor expansion.
+- **Battery-backed RTC** for timekeeping across power interruptions.
+- **USB-C and Wi-Fi**, plus connections for display, encoder and further expansion.
+
+![GROVA Core ESP32-S3 PCB in its open enclosure](docs/hardware/core-s3/photos/core-s3-board.jpg)
+
+*The controller PCB in its open enclosure. [View from above](docs/hardware/core-s3/photos/core-s3-top.jpg).*
+
+[Pinout and hardware notes](docs/hardware/core-s3/README.md) ·
+[Circuit schematic (PDF)](docs/hardware/core-s3/SCH_Schematic1_2026-11-01.pdf)
+
+## Development status
+
+GROVA is under active development. The current S3 firmware includes local Wi-Fi
+setup, the browser interface, manual/scheduled/sensor-driven device control,
+diagnostics, events, measurement history, backup/restore and OTA updates.
+
+Hardware validation is ongoing, including electrical output and load tests,
+sensor fault/recovery tests and long-term RTC operation. Display/encoder integration
+is deferred. Expansion connectors describe hardware possibilities; driver support
+and validation vary by interface. Multi-day growing programs and additional interface
+integrations are future work.
+
+Detailed release records and acceptance results live in
+[software validation](docs/software-validation.md) and
+[board bring-up](docs/board-bringup.md). The legacy V1 firmware remains a separate,
+frozen reference target.
 
 ## Build
 
@@ -63,13 +120,8 @@ pio run -e grova_founder_s3
 | `grova_founder_s3_bringup` | Isolated S3 hardware diagnostic firmware |
 | `grova_core_v1` | Frozen legacy ESP32 application |
 
-The existing build names, preprocessor switches, namespaces and persisted identifiers
-are retained for compatibility. File and directory names use neutral product/function
-names. Building does not upload firmware. Device updates require a separate explicit
-operation after checking board identity and preserving the current configuration.
-
-Local credentials and board overrides are ignored by Git. Never commit passwords.
-See [firmware profiles](docs/firmware-profiles.md) and [Wi-Fi setup](docs/wifi-setup.md).
+See [firmware profiles](docs/firmware-profiles.md) for target details and
+[Wi-Fi setup](docs/wifi-setup.md) for connecting the controller.
 
 ## Repository layout
 
@@ -84,10 +136,6 @@ See [firmware profiles](docs/firmware-profiles.md) and [Wi-Fi setup](docs/wifi-s
 | `tests/host/` | Shared/legacy lifecycle and Wi-Fi host tests, including common test adapters |
 | `tests/embedded/` | PlatformIO board tests; hardware execution requires a prepared bench |
 | `tools/` | Local web preview and first-flash packaging tools |
-
-This repository contains firmware and its supporting engineering assets. Dashboards,
-servers, marketing sites and internal project coordination belong outside this repository.
-Generated builds (`.pio/`) and first-flash packages (`dist/`) are not source artifacts.
 
 ## Tests
 
