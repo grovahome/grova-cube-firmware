@@ -19,3 +19,8 @@ include/board_config.h
 # Local Python artifacts
 __pycache__/
 *.py[cod]
+
+# Local browser-test dependencies and generated results
+node_modules/
+test-results/
+playwright-report/

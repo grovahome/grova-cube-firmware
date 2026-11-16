@@ -1,3 +1,10 @@
+# Normalize text in Git and working copies on every platform.
+* text=auto eol=lf
 
-# Preserve schematic PDFs byte-for-byte (no line-ending conversion).
+# Preserve binary hardware references and photographs byte-for-byte.
 *.pdf binary
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.webp binary
+*.bin binary

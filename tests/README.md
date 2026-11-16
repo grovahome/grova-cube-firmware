@@ -24,6 +24,17 @@ The host runners require a C++17 compiler (`g++` by default). For Zig use
 `--node /path/to/node`. The runners create temporary executables and do not contact
 or control a board. Fake Arduino/sensor/storage headers are test adapters, not firmware.
 
+Install the pinned browser dependency with `npm ci`, then install Chromium with
+`npx playwright install chromium`. Run all eight suites through the shared runner:
+
+```sh
+python tests/controller/run_tests.py --blank-output blank.json
+npm run test:browser -- --blank blank.json
+```
+
+CI uses this same runner and generates the fixture under `.cache/browser/`.
+Keep generated fixture files local. See [contributor setup](../CONTRIBUTING.md).
+
 The `controller/check_*_ui.cjs` scripts exercise the embedded HTML with Playwright
 and mocked HTTP responses. They require Playwright and a compatible Chromium browser.
 Generate fixtures with `run_tests.py --blank-output blank.json --status-output status.json`,

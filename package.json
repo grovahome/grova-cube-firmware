@@ -1,0 +1,12 @@
+{
+  "name": "grova-firmware-checks",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Hardware-free browser regression checks for the embedded GROVA interface",
+  "scripts": {
+    "test:browser": "node tools/run_browser_tests.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.62.1"
+  }
+}
