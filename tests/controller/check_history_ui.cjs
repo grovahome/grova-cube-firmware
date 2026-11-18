@@ -26,9 +26,13 @@ const {chromium}=require(args['--playwright']||'playwright');
    }
    return route.fulfill({contentType:'text/html',body:html});
   });
+  // The ESP32 may deliver the open <details> before the trailing script arrives.
+  await page.setContent(html.slice(0,html.indexOf('<script>')));
+  await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve))));
+  assert.deepEqual(errors,[],'Opening the history panel during parsing must not call unloaded code');
   const idle=()=>page.waitForFunction(()=>!busy&&!statusBusy&&!pendingEquipment);
   await page.goto('http://grova.test/');await page.waitForSelector('#port_OUT12_1_active',{state:'attached'});await idle();
-  assert.equal(historyRequests,0);await page.locator('#trendHistory summary').click();await page.waitForFunction(()=>!!historyData&&!historyBusy);
+  await page.waitForFunction(()=>!!historyData&&!historyBusy);assert.equal(historyRequests,1);assert.equal(await page.locator('#trendHistory').evaluate(node=>node.open),true);
   assert.equal(await page.locator('#trendSeries option').count(),3);assert((await page.locator('#trendSummary').innerText()).includes('26 °C'));
   const lines=await page.evaluate(()=>{const c=el('trendCanvas').getContext('2d'),original=c.lineTo.bind(c);let calls=0;c.lineTo=(...p)=>{calls++;return original(...p);};drawHistory();c.lineTo=original;return calls;});assert.equal(lines,5,'Only grid lines: null gap must not be bridged');
   await page.locator('#trendSeries').selectOption('SHT4x@ch1/0x44|climate.temperature_c');assert((await page.locator('#trendSummary').innerText()).includes('32 °C'));
@@ -37,6 +41,6 @@ const {chromium}=require(args['--playwright']||'playwright');
   historyError=false;history.samples=[{uptime_ms:0,epoch_s:null}];history.series=[{...history.series[0],values:[null]}];history.omitted=2;await page.evaluate(()=>refreshHistory());assert((await page.locator('#trendSummary').innerText()).includes('Noch keine gültigen'));assert((await page.locator('#trendStatus').innerText()).includes('2 Messreihen'));assert.equal(await page.evaluate(()=>historyData.samples.length),1);
   await page.evaluate(()=>showOffline());assert((await page.locator('#trendStatus').innerText()).includes('zuletzt geladen'));assert.equal(packets.length,0);
   for(const width of [390,768]){await page.setViewportSize({width,height:900});assert(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth+1));}
-  assert.deepEqual(errors,[]);console.log('History UI passed: lazy read-only load, concrete sources, unit/range, null gaps, selected-source retention, stale failure, reboot reset, limits and mobile');
+  assert.deepEqual(errors,[]);console.log('History UI passed: overview read-only load, concrete sources, unit/range, null gaps, selected-source retention, stale failure, reboot reset, limits and mobile');
  }finally{await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});

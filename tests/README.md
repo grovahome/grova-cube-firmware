@@ -25,7 +25,7 @@ The host runners require a C++17 compiler (`g++` by default). For Zig use
 or control a board. Fake Arduino/sensor/storage headers are test adapters, not firmware.
 
 Install the pinned browser dependency with `npm ci`, then install Chromium with
-`npx playwright install chromium`. Run all eight suites through the shared runner:
+`npx playwright install chromium`. Run the browser suites through the shared runner:
 
 ```sh
 python tests/controller/run_tests.py --blank-output blank.json

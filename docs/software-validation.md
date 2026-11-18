@@ -1,6 +1,34 @@
 # Software validation
 
-## Current checkpoint — 16 November 2026
+## Current checkpoint — 18 November 2026
+
+Installed `founder-dev.20261118.2` on the GROVA Core ESP32-S3 via ArduinoOTA.
+Build target: `grova_founder_s3`. Development branch: `main`.
+
+- The overview includes the live measurement history and enclosure diagram.
+  Device setup uses a guided flow with only free outputs offered for new assignments.
+  Daily schedules support up to eight entries. The WLAN page guides network
+  selection, connection testing and return to the Core.
+- Saving a configuration leaves the outputs paused. Resume is a separate
+  confirmation. New 0–10 V assignments use one signal output and external power.
+- OTA verification confirmed the same board, equipment revision **8**,
+  matching exported configuration and zero output setpoints. Pause remained active.
+  WLAN, OTA readiness, valid RV-3032 time and the SHT4x on mux channel 3 were confirmed.
+- The live browser matched the installed HTML to the source. It checked the
+  overview, chart, port selection, a local multi-window draft and cancellation,
+  narrow layout and the Wi-Fi entry screen. Browser requests were restricted to
+  GET. Schedule saves and WLAN retries were checked separately with simulated data.
+- The S3 build, controller and legacy host tests, JavaScript check and ten browser
+  suites passed. A live check of the first OTA found an early history callback.
+  Version `founder-dev.20261118.2` fixes the loading order, with a browser regression check.
+
+Installed application SHA-256:
+`d3368e7d5a3f7228b8314dc3aa34b9becbc086f822c046803f5ea678789951ad`.
+
+Physical sensor fault/recovery, long-term RTC and electrical/load acceptance
+remain open.
+
+## Previous checkpoint — 16 November 2026
 
 Recorded installed release: `founder-dev.20261116.1`, source `4c04eaf`,
 documentation checkpoint `de6633c`, build `grova_founder_s3`, branch

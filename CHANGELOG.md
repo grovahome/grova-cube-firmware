@@ -6,6 +6,15 @@ releases; installed versions and physical acceptance are tracked in
 
 ## Unreleased
 
+### Local controller interface
+
+- Add a guided device setup and edit flow, a measurement history on the overview,
+  and direct access to devices from the enclosure diagram.
+- Offer only free ports when adding devices. Assign new 0–10 V devices to their
+  signal output and retain previously saved paired assignments for compatibility.
+- Leave all outputs paused when saving and review affected automations before
+  resuming operation. Guide Wi-Fi setup through selection, testing and handover.
+
 ### Branch organization
 
 - Rename current development/default branch to `main` and frozen V1 reference to

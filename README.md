@@ -162,7 +162,7 @@ tests also use the ArduinoJson headers installed by the S3 build. For Zig, pass
 procedure are explained in [tests/README.md](tests/README.md).
 
 CI compiles all three firmware targets, compiles the embedded pump tests without
-uploading or executing them, runs the host suites, checks embedded JavaScript and runs all eight mocked browser suites.
+uploading or executing them, runs the host suites, checks embedded JavaScript and runs the mocked browser suites.
 Automated checks complement physical acceptance; they do not establish water flow,
 electrical levels or correct load behavior.
 

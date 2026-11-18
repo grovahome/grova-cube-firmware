@@ -16,6 +16,7 @@ html=re.search(r'R"HTML\(([\s\S]*)\)HTML"',(root/'src/controller/page.h').read_t
 mock=r'''<script>
 const previewSnapshots=__DATA__;let previewState=structuredClone(previewSnapshots.blank);
 window.fetch=async(url,opts)=>{
+ if(url==='/api/v1/history')return {ok:true,json:async()=>({samples:[],series:[],capacity:120,interval_s:30})};
  if(opts?.method!=='POST')return {ok:true,json:async()=>structuredClone(previewState)};
  const p=JSON.parse(opts.body);let ok=true,message='Vorschau aktualisiert';
  if(p.cmd==='configure_equipment'){
@@ -25,11 +26,11 @@ window.fetch=async(url,opts)=>{
  else if(p.cmd==='stop_all'){previewState.rest_mode.enabled=true;}else{ok=false;message='Diese Vorschau führt keine Gerätebefehle aus.';}
  return {ok,json:async()=>({ok,message})};
 };
-async function previewPreset(value){previewState=structuredClone(previewSnapshots[value]);equipmentDirty=false;equipmentRevision=-1;pendingEquipment=null;await refresh();}
+async function previewPreset(value){if(wizard)closeWizard();previewState=structuredClone(previewSnapshots[value]);equipmentDirty=false;equipmentRevision=-1;pendingEquipment=null;await refresh();}
 </script>'''.replace('__DATA__',json.dumps(snapshots,ensure_ascii=True).replace('<','\u003c'))
 options='<option value="blank">Leeres Board (Erststart)</option>'
 if 'example' in snapshots:options+='<option value="example">Beispielbelegung laden</option>'
 banner='<section class="notice"><strong>INTERAKTIVE VORSCHAU · KEINE HARDWARE</strong><p>Alle Werte sind simuliert. Es werden keine Daten an einen Controller gesendet.</p><label>Ansicht<select onchange="previewPreset(this.value)">'+options+'</select></label></section>'
-html=html.replace('<script>',mock+'<script>',1).replace('<nav aria-label="Hauptnavigation">',banner+'<nav aria-label="Hauptnavigation">',1)
+html=html.replace('<script>',mock+'<script>',1).replace('<div class="app-content">','<div class="app-content">'+banner,1)
 a.output.parent.mkdir(parents=True,exist_ok=True);a.output.write_text(html,encoding='utf-8')
 print(a.output)

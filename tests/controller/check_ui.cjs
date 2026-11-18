@@ -34,8 +34,8 @@ const {chromium}=require(args['--playwright']||'playwright');
   const idle=()=>page.waitForFunction(()=>!busy&&!statusBusy);
   await page.goto('http://grova.test/');await page.waitForSelector('#port_OUT5_1_active',{state:'attached'});await idle();
   assert.equal(await page.locator('#equipment article').count(),0);assert.equal(await page.locator('#fanCard1').isVisible(),false);assert.equal(await page.locator('#emptyEquipment').isVisible(),true);
-  assert.equal(await page.locator('#lockState').innerText(),'Ausgänge gesperrt');assert.equal(packets.length,0);
-  await page.locator('#nav-manage').click();await page.locator('#connectorSelect').selectOption('all');
+  assert.equal(await page.locator('#lockState').innerText(),'Ausgänge pausiert');assert.equal(packets.length,0);
+  await page.locator('#nav-manage').click();await page.locator('#bulkEquipment').click();await page.locator('#connectorSelect').selectOption('all');
   assert.equal(await page.locator('#equipmentEditor .port').count(),7);assert.equal(await page.locator('select[id$="_voltage"]').count(),0);
   for(const cb of await page.locator('#portEditorFields input[type="checkbox"]').all())assert.equal(await cb.isChecked(),false);
   await page.locator('#port_OUT5_1_active').check();await page.locator('#port_OUT5_1_profile').selectOption('pump');await page.locator('#port_OUT5_1_name').fill('Pumpe A');await page.locator('#port_OUT5_1_runtime').fill('1.5');
@@ -59,8 +59,8 @@ const {chromium}=require(args['--playwright']||'playwright');
   // A bounded read timeout must release the poll lock and disable activation.
   mode='hang-status';const started=Date.now();await page.evaluate(()=>refresh());assert(Date.now()-started<6500);assert.equal(await page.locator('#rest').isDisabled(),true);assert.equal(await page.evaluate(()=>statusBusy),false);mode='';await page.evaluate(()=>refresh());
   // Map navigation is read-only; unsupported interfaces remain placeholders.
-  before=packets.length;await page.locator('#controllerMap [data-connector="adc1"]').click();assert.equal(await page.locator('#connectorLive').innerText(),'Noch nicht verfügbar');await page.locator('#controllerMap [data-connector="sensors"]').click();assert.equal(await page.locator('#sensorCard').isVisible(),true);assert.equal(packets.length,before);
-  await page.locator('#connectorSelect').selectOption('all');await page.locator('#port_OUT5_1_active').uncheck();await page.locator('#saveEquipment').click();await idle();assert.equal(d.equipment.length,0);
+  before=packets.length;await page.locator('#nav-overview').click();await page.locator('#controllerMap [data-connector="adc1"]').click();assert.match(await page.locator('#mapInfo').innerText(),/noch nicht in der Firmware verfügbar/);await page.locator('#controllerMap [data-connector="sensors"]').click();assert.equal(await page.locator('#sensorCard').isVisible(),true);assert.equal(packets.length,before);
+  await page.locator('#nav-manage').click();await page.locator('#connectorSelect').selectOption('all');await page.locator('#port_OUT5_1_active').uncheck();await page.locator('#saveEquipment').click();await idle();assert.equal(d.equipment.length,0);
   await page.locator('#nav-overview').click();assert.equal(await page.locator('#emptyEquipment').isVisible(),true);
   await page.reload();await page.waitForSelector('#port_OUT5_1_active',{state:'attached'});assert.equal(await page.locator('#equipment article').count(),0);
   await page.setViewportSize({width:390,height:844});for(const tab of ['overview','manage','settings']){await page.evaluate(t=>showView(t),tab);assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);}

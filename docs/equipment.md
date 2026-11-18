@@ -1,5 +1,21 @@
 # Founder device assignment
 
+## Current web interface
+
+- The overview includes the measurement history and the DC022B enclosure drawing.
+  Select a free output to start setup with that port, or an occupied output to
+  edit its assigned device. The Devices view lists all configured devices.
+- The setup assistant shows only free ports for new devices and leads through
+  device identity, controls and a review of the settings. Daily schedules support
+  up to eight entries and show overlaps before saving.
+- A new device gets one controller port. A 0–10 V output supplies the control
+  signal and the connected device is powered separately. Existing paired
+  assignments remain recognized and retain their original power port.
+- Saving pauses the outputs if needed and leaves them paused. Resume operation
+  separately after reviewing the devices that may start.
+
+The following dated engineering notes also describe earlier UI workflows.
+
 Status: manual controls and persistent daily device plans are implemented.
 Physical output acceptance remains OPEN. See [daily plans](scheduling.md)
 for the current save/resume and pump-execution contract. The plans/journal are

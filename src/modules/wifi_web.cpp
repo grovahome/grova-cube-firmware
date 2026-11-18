@@ -6,41 +6,137 @@
 static const char PAGE[] PROGMEM = R"HTML(
 <!doctype html><html lang="de"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>GROVA WLAN einrichten</title><style>
-*{box-sizing:border-box}body{margin:0;background:#101917;color:#edf6ef;font:16px system-ui,sans-serif}
-main{max-width:560px;margin:32px auto;padding:24px}h1{font-size:28px}p{line-height:1.5;color:#b7cac0}
-label{display:block;margin:18px 0 6px}input,select,button{font:inherit;width:100%;padding:12px;border-radius:8px;border:1px solid #53685a;background:#18261e;color:inherit}
-button{cursor:pointer;margin-top:16px;background:#b4da8a;color:#18261e;font-weight:600}button:disabled{opacity:.5;cursor:wait}
-a{color:#b4da8a}#message{padding:12px;border:1px solid #53685a;border-radius:8px;white-space:pre-line}small{color:#b7cac0}
-</style><main><small>GROVA CORE / NETZWERK</small><h1>WLAN einrichten</h1>
-<p>Verbinde den Core mit deinem 2,4-GHz-WLAN. Internet und ein GROVA-Server sind dafuer nicht erforderlich.</p>
-<p id="message" role="status" aria-live="polite">Status wird geladen ...</p>
+*{box-sizing:border-box}[hidden]{display:none!important}
+:root{color-scheme:light dark;--bg:light-dark(#f4f6f2,#141b17);--panel:light-dark(#fff,#1c2620);--line:light-dark(#d5e0d5,#38473c);--text:light-dark(#17251c,#eaf1e9);--muted:light-dark(#526357,#acbdb0);--accent:light-dark(#245e47,#a8dcb8);--on-accent:light-dark(#fff,#142c1d)}
+body{margin:0;background:var(--bg);color:var(--text);font:16px/1.5 system-ui,sans-serif}
+main{max-width:560px;margin:20px auto;padding:16px}h1{font-size:29px;letter-spacing:-.04em;margin:8px 0 4px}h2{font-size:20px;margin:0 0 9px}
+p,small{color:var(--muted)}small{display:block}label{display:block;margin:12px 0 4px}
+input,select,button{font:inherit;padding:9px 11px;border-radius:9px;border:1px solid var(--line);background:var(--panel);color:inherit;min-height:44px}
+input,select{width:100%;min-width:0}button{margin-top:12px;cursor:pointer}button:disabled{opacity:.55;cursor:default}
+button.primary{background:var(--accent);color:var(--on-accent);border-color:var(--accent);font-weight:650}
+a{color:var(--accent)}.card{padding:16px;border:1px solid var(--line);border-radius:14px;background:var(--panel)}
+#message{padding:0;white-space:pre-line;overflow-wrap:anywhere}#step{color:var(--accent);margin:14px 0 7px}#selectedNetwork{overflow-wrap:anywhere}
+.actions{display:flex;flex-wrap:wrap;gap:9px}
+</style><main><small>GROVA CORE</small><h1>WLAN einrichten</h1>
+<p>Verbinde den Core mit deinem 2,4-GHz-WLAN. Die Bedienung bleibt lokal.</p>
+<p id="step"></p><section class="card">
+<p id="message" role="status">Status wird geladen …</p>
 <form id="wifiForm"><div id="keyGroup" hidden><label for="key">Passwort des GROVA-WLANs</label>
-<input id="key" type="password" maxlength="12" autocomplete="off"><small>Im GROVA-WLAN ist keine erneute Eingabe erforderlich.</small></div>
+<input id="key" type="password" maxlength="12" autocomplete="off"></div>
+<section id="networkStep"><h2>WLAN auswählen</h2>
 <button id="scan" type="button">WLAN-Netzwerke suchen</button>
-<label for="networks">Gefundene Netzwerke</label><select id="networks"><option value="">Netzwerk auswaehlen</option></select>
-<label for="ssid">WLAN-Name (auch fuer versteckte Netzwerke)</label><input id="ssid" autocomplete="off" required>
+<label for="networks">Gefundene Netzwerke</label><select id="networks"><option value="">Netzwerk auswählen</option></select>
+<label for="ssid">WLAN-Name</label><input id="ssid" autocomplete="off" aria-describedby="ssidHelp" required>
+<small id="ssidHelp">Ein verstecktes Netzwerk kannst du von Hand eintragen.</small>
+<button id="next" class="primary" type="button">Weiter</button></section>
+<section id="passwordStep" hidden><h2>Verbindung prüfen</h2><p id="selectedNetwork"></p>
 <label for="password">Passwort deines WLANs</label><input id="password" type="password" maxlength="64" autocomplete="new-password">
-<small>Bei einem offenen Netzwerk leer lassen. WPA/WPA2-Personal: 8 bis 63 Zeichen oder 64 Hex-Zeichen. Firmen-WLAN mit Benutzeranmeldung wird hier nicht eingerichtet.</small>
-<button id="save" type="submit">Verbindung pruefen und speichern</button></form>
-<p>Deine bisherigen Zugangsdaten bleiben bei einem Fehler erhalten. Beim Wechsel kann sich dein Handy kurz vom Setup-WLAN trennen. Verbinde es bei Bedarf erneut.</p>
-<p id="destination"></p><p><a id="appLink" hidden>Lokale Webapp oeffnen</a></p></main>
+<small>Bei einem offenen Netzwerk bleibt das Feld leer. Bei einem Fehler bleiben die bisherigen Zugangsdaten erhalten.</small>
+<div class="actions"><button type="button" id="back">Zurück</button><button id="save" class="primary" type="submit" disabled>Prüfen und speichern</button></div></section></form>
+<section id="resultStep" hidden><h2>Core öffnen</h2><p id="destination"></p><a id="appLink" hidden>Lokale Weboberfläche öffnen</a></section>
+</section><p><a href="/" id="returnLink" hidden>Zurück zur lokalen Weboberfläche</a></p></main>
 <script>
-const el=id=>document.getElementById(id);let busy=false,scanning=false,storageReady=false,scanTimer=null,scanStarted=0,refreshing=false,connectedIp="";
-const errors={connection_failed:'Keine Verbindung erhalten. WLAN-Name, Passwort und Reichweite pruefen.',storage_failed:'Speichern fehlgeschlagen. Bisherige Daten bleiben erhalten.',storage_unavailable:'Geraetespeicher nicht verfuegbar. Einrichtung kann nicht gespeichert werden.',rest_storage_failed:'Ruhezustand konnte nicht gespeichert werden. Bitte erneut versuchen.',saved_credentials_invalid:'Gespeicherte WLAN-Daten sind ungueltig. Bitte WLAN neu einrichten.',setup_ap_failed:'Setup-WLAN konnte nicht gestartet werden.'};
-async function api(path,options={}){const control=new AbortController(),timer=setTimeout(()=>control.abort(),8000);try{const r=await fetch(path,{...options,signal:control.signal,cache:'no-store',headers:{'X-GROVA-Setup-Request':'1','X-GROVA-Setup-Key':el('key').value,...options.headers}});const data=await r.json();if(!r.ok)throw Error(data.message||'Anfrage fehlgeschlagen');return data;}catch(e){if(e.name==='AbortError')throw Error('Keine Antwort vom Core. Verbindung zum GROVA-WLAN pruefen.');throw e;}finally{clearTimeout(timer);}}
-async function refresh(){if(refreshing)return;refreshing=true;try{const s=await api('/api/v1/wifi');busy=s.testing;storageReady=s.storage_ready;el('keyGroup').hidden=!s.requires_key;el('key').required=s.requires_key;el('save').disabled=busy||scanning||!s.storage_ready;el('scan').disabled=busy||scanning;el('save').textContent=busy?'Verbindung wird geprueft ...':'Verbindung pruefen und speichern';if(s.connected&&s.state==='saved')el('password').value='';
-const radioErrors={201:'Das WLAN wurde beim Verbindungsversuch nicht gefunden.',202:'Das WLAN hat die Anmeldung abgelehnt. Passwort und WLAN-Sicherheitsmodus pruefen.',203:'Der Router hat die WLAN-Verbindung abgelehnt.',204:'Die WLAN-Schluesselaushandlung hat zu lange gedauert. Passwort und Sicherheitsmodus pruefen.',15:'Die WLAN-Schluesselaushandlung ist fehlgeschlagen. Passwort und Sicherheitsmodus pruefen.'};
-if(!scanning)el('message').textContent=s.error?((s.error==='connection_failed'&&radioErrors[s.disconnect_reason])||errors[s.error]||s.error)+(s.disconnect_reason?' (WLAN-Code '+s.disconnect_reason+')':''):s.testing?'Verbindung wird geprueft. Bitte bis zu 30 Sekunden warten.':s.connected?'Verbunden mit '+s.ssid+'\nIP: '+s.ip+(s.state==='saved'?'\nWLAN-Daten gespeichert.':''):'Verbinde dich mit '+s.setup_ssid+' und waehle dein WLAN.';
-const dest=el('destination'),link=el('appLink');if(s.connected&&s.ip!=='-'){connectedIp=s.ip;link.href='http://'+s.ip+'/';link.textContent='Webapp oeffnen: '+s.ip;link.hidden=false;dest.textContent=s.requires_key?'Du bist im Heimnetz. Ueber den Link geht es zur Board-Oberflaeche.':'Einrichtung abgeschlossen. Das GROVA-WLAN schliesst nach '+(s.setup_close_delay_s||5)+' Sekunden. Verbinde dein Handy mit deinem Heim-WLAN und oeffne danach den Link.';}
-}catch(e){el('message').textContent=connectedIp?'WLAN eingerichtet. Bitte ins Heim-WLAN wechseln und die Webapp unter '+connectedIp+' oeffnen.':'Verbindung zum Core unterbrochen. Bitte im GROVA-WLAN bleiben bzw. erneut damit verbinden. Der Verbindungstest laeuft auf dem Core weiter.';}finally{refreshing=false;}}
-function finishScan(){scanning=false;el('scan').disabled=busy;el('save').disabled=busy||!storageReady;el('scan').textContent='WLAN-Netzwerke suchen';}
-async function scanResults(){try{if(Date.now()-scanStarted>25000)throw Error('WLAN-Suche dauert zu lange. Bitte erneut versuchen.');const data=await api('/api/v1/wifi/scan');if(data.scanning){scanTimer=setTimeout(scanResults,1000);return;}if(data.error)throw Error(data.error);const list=el('networks');list.replaceChildren(new Option('Netzwerk auswaehlen',''));const seen=new Set();for(const n of data.networks){if(seen.has(n.ssid))continue;seen.add(n.ssid);list.add(new Option(n.ssid+' ('+n.rssi+' dBm)',n.ssid));}el('message').textContent=seen.size?seen.size+' WLAN-Netzwerke gefunden. Bitte auswaehlen.':'Keine 2,4-GHz-Netzwerke gefunden. Erneut suchen oder WLAN-Namen eingeben.';finishScan();}catch(e){el('message').textContent=e.message;finishScan();}}
-el('scan').onclick=async()=>{if(busy||scanning)return;clearTimeout(scanTimer);scanning=true;scanStarted=Date.now();el('scan').disabled=true;el('save').disabled=true;el('scan').textContent='Suche laeuft ...';el('message').textContent='Suche nach 2,4-GHz-WLAN-Netzwerken ...';try{await api('/api/v1/wifi/scan',{method:'POST'});await scanResults();}catch(e){el('message').textContent=e.message;finishScan();}};
+const el=id=>document.getElementById(id);
+let stage=1,busy=false,scanning=false,storageReady=false,refreshing=false,connectedIp='',pendingSsid='',attemptAt=0;
+const errors={
+ connection_failed:'Verbindung fehlgeschlagen. Prüfe WLAN-Name, Passwort und Reichweite.',
+ storage_failed:'Speichern fehlgeschlagen. Bisherige Zugangsdaten bleiben erhalten.',
+ storage_unavailable:'Gerätespeicher nicht verfügbar.',
+ rest_storage_failed:'Pause konnte nicht gespeichert werden. Bitte erneut versuchen.',
+ saved_credentials_invalid:'Gespeicherte WLAN-Daten sind ungültig.',
+ setup_ap_failed:'Das GROVA-WLAN konnte nicht gestartet werden.'
+};
+const radioErrors={201:'Das WLAN wurde nicht gefunden.',202:'Die Anmeldung wurde abgelehnt. Prüfe das Passwort.',203:'Der Router hat die Verbindung abgelehnt.',204:'Der WLAN-Schlüsselaustausch hat zu lange gedauert.',15:'Der WLAN-Schlüsselaustausch ist fehlgeschlagen.'};
+function controls(){
+ el('scan').disabled=busy||scanning;el('next').disabled=busy||scanning;
+ el('save').disabled=busy||scanning||!storageReady;el('back').disabled=busy;
+ el('wifiForm').hidden=stage===3;el('networkStep').hidden=stage!==1;
+ el('passwordStep').hidden=stage!==2;el('resultStep').hidden=stage!==3;
+ el('step').textContent='Schritt '+stage+' von 3';
+ el('save').textContent=busy?'Verbindung wird geprüft …':'Prüfen und speichern';
+}
+async function api(path,options={}){
+ const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),8000);
+ try{
+  const response=await fetch(path,{...options,signal:controller.signal,cache:'no-store',headers:{'X-GROVA-Setup-Request':'1','X-GROVA-Setup-Key':el('key').value,...options.headers}});
+  const data=await response.json();
+  if(!response.ok){const error=Error(data.message||'Anfrage fehlgeschlagen');error.rejected=true;throw error;}
+  return data;
+ }catch(e){if(e.name==='AbortError')throw Error('Keine Antwort vom Core. Prüfe die Verbindung zum GROVA-WLAN.');throw e;}
+ finally{clearTimeout(timer);}
+}
+async function refresh(){
+ if(refreshing)return;
+ refreshing=true;
+ try{
+  const s=await api('/api/v1/wifi');
+  storageReady=s.storage_ready;el('keyGroup').hidden=!s.requires_key;el('key').required=s.requires_key;
+  el('returnLink').hidden=!s.connected||!s.requires_key||stage===3;
+  busy=s.testing;
+  if(pendingSsid&&s.connected&&s.state==='saved'&&s.ssid===pendingSsid){
+   pendingSsid='';connectedIp=s.ip;stage=3;el('password').value='';el('returnLink').hidden=true;
+   el('message').textContent='Verbunden mit '+s.ssid+'. Die WLAN-Daten wurden gespeichert.';
+   el('destination').textContent=s.requires_key?'Öffne den Core im gewählten WLAN.':'Wechsle mit deinem Handy ins gewählte WLAN. Öffne den Core anschließend über den Link.';
+   if(connectedIp&&connectedIp!=='-'){el('appLink').href='http://'+connectedIp+'/';el('appLink').textContent='Core öffnen · '+connectedIp;el('appLink').hidden=false;}
+  }else if(s.error){
+   pendingSsid='';
+   el('message').textContent=((s.error==='connection_failed'&&radioErrors[s.disconnect_reason])||errors[s.error]||s.error);
+  }else if(s.testing){
+   el('message').textContent='Der Core prüft die Verbindung. Bleib im GROVA-WLAN, bis der Test abgeschlossen ist.';
+  }else if(pendingSsid&&Date.now()-attemptAt<12000){
+   busy=true;
+  }else if(pendingSsid){
+   pendingSsid='';el('message').textContent='Keine neue Verbindung bestätigt. Du kannst den Test erneut starten.';
+  }else if(!scanning&&stage===1){
+   el('message').textContent=s.connected?'Aktuelles WLAN: '+s.ssid:'Wähle dein WLAN oder gib den Namen ein.';
+  }
+ }catch(e){
+  if(connectedIp){el('message').textContent='Wechsle ins gewählte WLAN und öffne den Core unter '+connectedIp+'.';}
+  else{
+   if(pendingSsid&&Date.now()-attemptAt>=45000){pendingSsid='';busy=false;}
+   el('message').textContent=pendingSsid?'Der Core prüft weiter. Verbinde dich bei Bedarf erneut mit dem GROVA-WLAN.':'Core nicht erreichbar. Prüfe die WLAN-Verbindung.';
+  }
+ }finally{refreshing=false;controls();}
+}
+async function scanResults(started){
+ if(Date.now()-started>25000)throw Error('Die WLAN-Suche dauert zu lange. Bitte erneut suchen.');
+ const data=await api('/api/v1/wifi/scan');
+ if(data.scanning){await new Promise(resolve=>setTimeout(resolve,1000));return scanResults(started);}
+ if(data.error)throw Error(data.error);
+ const list=el('networks'),seen=new Set();
+ list.replaceChildren(new Option('Netzwerk auswählen',''));
+ for(const n of data.networks){if(seen.has(n.ssid))continue;seen.add(n.ssid);list.add(new Option(n.ssid,n.ssid));}
+ el('message').textContent=seen.size?'Wähle ein gefundenes WLAN.':'Keine Netzwerke gefunden. Gib den WLAN-Namen von Hand ein.';
+}
+el('scan').onclick=async()=>{
+ if(busy||scanning||!el('key').reportValidity())return;
+ scanning=true;controls();el('message').textContent='Suche nach 2,4-GHz-Netzwerken …';
+ try{await api('/api/v1/wifi/scan',{method:'POST'});await scanResults(Date.now());}
+ catch(e){el('message').textContent=e.message;}
+ finally{scanning=false;controls();}
+};
 el('networks').onchange=()=>{if(el('networks').value)el('ssid').value=el('networks').value;};
-el('wifiForm').onsubmit=async e=>{e.preventDefault();if(busy||scanning)return;const ssid=el('ssid').value,password=el('password').value;
-if(new TextEncoder().encode(ssid).length>32){el('message').textContent='Der WLAN-Name darf maximal 32 UTF-8-Bytes haben.';return;}
-busy=true;el('save').disabled=true;el('scan').disabled=true;el('save').textContent='Verbindung wird geprueft ...';el('message').textContent='Verbindung wird geprueft. Bitte bis zu 30 Sekunden warten und im GROVA-WLAN bleiben.';el('message').scrollIntoView({behavior:'smooth',block:'center'});try{await api('/api/v1/wifi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({ssid,password})});await refresh();}catch(e){el('message').textContent=e.message+' Der Auftrag kann bereits angekommen sein; der Status wird weiter geprueft.';}};
-refresh();setInterval(()=>{if(busy)refresh();},1500);
+el('next').onclick=()=>{
+ if(busy||scanning||!el('ssid').reportValidity()||!el('key').reportValidity())return;
+ if(new TextEncoder().encode(el('ssid').value).length>32){el('message').textContent='Der WLAN-Name darf maximal 32 UTF-8-Bytes haben.';return;}
+ stage=2;el('selectedNetwork').textContent='Gewähltes WLAN: '+el('ssid').value;el('message').textContent='';controls();el('password').focus();
+};
+el('back').onclick=()=>{stage=1;el('password').value='';el('message').textContent='';controls();el('ssid').focus();};
+el('wifiForm').onsubmit=async e=>{
+ e.preventDefault();
+ if(stage===1){el('next').click();return;}
+ if(busy||scanning||!storageReady)return;
+ const ssid=el('ssid').value,password=el('password').value;
+ pendingSsid=ssid;attemptAt=Date.now();busy=true;controls();
+ el('message').textContent='Der Core prüft die Verbindung. Das kann bis zu 30 Sekunden dauern.';
+ try{await api('/api/v1/wifi',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({ssid,password})});await refresh();}
+ catch(e){
+  if(e.rejected){pendingSsid='';busy=false;el('message').textContent=e.message;}
+  else el('message').textContent='Antwort fehlt. Der Core könnte bereits prüfen. Der Verbindungsstatus wird weiter abgefragt.';
+  controls();
+ }
+};
+controls();refresh();setInterval(()=>{if(busy||pendingSsid)refresh();},1500);
 </script></html>
 )HTML";
 

@@ -27,7 +27,7 @@ const {chromium}=require(args['--playwright']||'playwright');
   });
   const idle=()=>page.waitForFunction(()=>!busy&&!statusBusy&&!pendingEquipment);
   await page.goto('http://grova.test/');await page.waitForSelector('#port_OUT12_1_active',{state:'attached'});await idle();
-  const manage=async id=>{await page.locator('#nav-manage').click();await page.locator('#connectorSelect').selectOption(id);};
+  const manage=async id=>{await page.locator('#nav-manage').click();if(!await page.locator('#connectorSelect').isVisible())await page.locator('#bulkEquipment').click();await page.locator('#connectorSelect').selectOption(id);};
   const save=async()=>{await page.locator('#saveEquipment').click();await idle();};
   await manage('FAN1');await page.locator('#port_FAN1_active').check();await page.locator('#port_FAN1_role').selectOption('exhaust');await page.locator('#port_FAN1_mode').selectOption('automatic');
   await page.locator('#port_FAN1_sensor_add').click();let rules=page.locator('#port_FAN1_sensor_rules .sensor-rule');

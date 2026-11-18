@@ -1,9 +1,9 @@
 # Board bring-up and acceptance
 
-## Current checkpoint — 16 November 2026
+## Current checkpoint — 18 November 2026
 
 The integrated ESP32-S3 application is installed. Latest recorded release:
-`founder-dev.20261116.1` / `4c04eaf`; branch `main`.
+`founder-dev.20261118.2` on `main`, verified after OTA.
 Wi-Fi/OTA, SHT4x on mux channel 3 at `0x44`, mux detection and valid RV-3032
 operation have been confirmed. Short battery-backed RTC retention and RGB sequence
 were checked earlier. Display/encoder work remains deferred.

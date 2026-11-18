@@ -20,6 +20,7 @@ const suites = [
   'check_ui.cjs', 'check_automation_ui.cjs', 'check_backup_ui.cjs',
   'check_diagnostics_ui.cjs', 'check_events_ui.cjs', 'check_fan_ui.cjs',
   'check_history_ui.cjs', 'check_schedule_ui.cjs',
+  'check_device_wizard_ui.cjs', 'check_wifi_wizard_ui.cjs',
 ];
 const forwarded = Object.entries(options).flat();
 for (const suite of suites) {
