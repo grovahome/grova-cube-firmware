@@ -112,7 +112,7 @@ frozen reference target.
 The first 10-piece hardware run is on the bench and running live validation. **6 spare Founder units** are currently available for builders who want to test GROVA Core in real setups (grow cabinets, terrariums, greenhouses) and share feedback.
 
 * **What's included:** Assembled GROVA Core ESP32-S3 in its 3D-printed enclosure + a calibrated SHT41 temp/humidity sensor.
-* **How to join:** Visit **[grovahome.com]([https://grovahome.com](https://grova.carrd.co/))** to sign up for updates or reach out directly via GitHub Discussions / Reddit (`u/dein-username`) with what you plan to automate.
+* **How to join:** Visit **[grovahome.com](https://grova.carrd.co/)** to sign up for updates or reach out directly via GitHub Discussions / Reddit (`u/dein-username`) with what you plan to automate.
 
 ## Development branches
 
