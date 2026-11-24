@@ -96,7 +96,7 @@ GROVA is under active development. The current S3 firmware includes local Wi-Fi
 setup, the browser interface, manual/scheduled/sensor-driven device control,
 diagnostics, events, measurement history, backup/restore and OTA updates.
 The OLED home screen shows the clock, operating state and climate readings.
-Use the rotary encoder to check climate, outputs, fans and network details.
+Use the rotary encoder to pause or resume operation, adjust configured devices and change display settings.
 
 Hardware validation is ongoing, including OLED alignment and encoder operation,
 electrical output and load tests, sensor fault/recovery and long-term RTC operation.
@@ -171,6 +171,7 @@ electrical levels or correct load behavior.
 ## Documentation
 
 - [Documentation index](docs/README.md)
+- [OLED menu and encoder guide](docs/display-ui.md)
 - [Architecture](docs/architecture.md) and [API](docs/api.md)
 - [Hardware and bring-up](docs/board-bringup.md)
 - [Software validation](docs/software-validation.md)

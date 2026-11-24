@@ -1,65 +1,84 @@
-# Display And Encoder UI
+# OLED and rotary encoder
 
-The cube can be operated locally through the OLED display and rotary encoder. The ESP web UI and APIs are fallbacks and integration surfaces; the device should still be useful without a server.
+Use the OLED to check GROVA and operate configured devices from the enclosure.
+This guide covers the current [GROVA Core ESP32-S3 firmware](firmware-profiles.md).
+The frozen [GROVA V1 branch](v1-freeze.md) has its own display guide.
 
-## Display Pages
+## Using the knob
 
-```text
-STATUS
-GROW
-FAN
-CLIMATE
-LIGHT
-PUMP
-SENSORS
-DIAG
-SYSTEM
-```
+- Turn to move the highlight or change the value on an adjustment screen.
+- Press to open the highlighted item or confirm the action in the footer.
+- Hold for about one second and release to return to the home screen. You can
+  also select **Back to Home** from the main menu.
+- If the screen is off or showing the saver, the first turn or press wakes it.
+  Use a second input to select an item or change a value.
 
-## Encoder Controls
+The home screen shows the clock, **ACTIVE** or **PAUSED**, and the current
+temperature and humidity. When a timer action is scheduled, the bottom row
+shows its time, action and device. While paused, it shows **Schedule paused**.
+A sensor outage takes priority on this row. The web overview shows the full
+action with **Heute** (today) or **Morgen** (tomorrow).
 
-```text
-Rotate:      change page, or change value while editing
-Short press: select page-specific field or action
-Long press:  start editing or switch mode, depending on page
-```
+Press the knob to open the main menu.
 
-## Important Pages
+| Menu | Use it to |
+| --- | --- |
+| **Climate** | Check the active sensor, its port, the age of its last measurement, and available temperature, humidity and pressure readings. |
+| **Operation** | Pause all devices or review which automation will resume. |
+| **Devices** | Check and operate devices already assigned in the web interface. |
+| **Settings** | Set **Idle Mode** and **Brightness** or open **Network** to find the board IP. |
+| **Service** | Check **Outputs** and **Fans**, or use **Output Test** on an individual port. |
 
-### Grow
+**Sensor offline** means GROVA previously received a temperature reading and
+the source is now unavailable. **Climate** keeps the last known source and
+shows the age of its last sample. The warning clears when the signal returns.
 
-- Short press cycles and saves the grow mode.
-- Long press starts edit mode, rotate selects mode, short press saves.
+## Pause or resume the controller
 
-### Fan
+1. Open **Operation** and select **Pause all** or **Resume**.
+2. To pause, review **All outputs off**. To resume, review the listed schedules
+   and sensor-controlled devices. **Cancel** returns to the Operation menu.
+3. Turn to **Confirm** and press. If the device configuration changes during
+   the review, open **Resume** again to review the current assignments.
 
-- Short press starts/stops manual speed editing.
-- Long press switches between automatic and manual mode.
+## Operate a device
 
-### Climate
+1. Open **Devices** and choose an assigned device.
+2. For a manual light or fan, turn to choose **ON**, **OFF**, or a percentage,
+   depending on the device. Press when the footer shows **Press Save**.
+3. For a scheduled or sensor-controlled device, saving the value starts an
+   override for up to 15 minutes. The display shows the time left. To return
+   to automation early, press when the footer shows **Press Auto**.
+   Adjusting a running override keeps its original end time. Pausing ends it.
 
-- Short press selects target value.
-- Long press starts edit mode.
-- Values are saved persistently.
+A pump or other timed device shows **RUNNING** or **STOPPED**. While it is running,
+turn toward **Stop** and press to confirm. Stopping an automated timed device
+uses **Pause all**, so the other automatic outputs pause too.
 
-### Light
+Use the web interface to assign devices and change schedules or sensor rules.
+Timed starts also stay in the web interface. See [equipment and port assignment](equipment.md).
 
-- Short press selects state/on/off fields.
-- Long press on state switches automatic/manual off/manual on.
-- Long press on schedule fields starts editing.
+## Set brightness or idle behavior
 
-### Pump
+Open **Settings → Brightness** and choose **Low**, **Medium** or **High**. Under
+**Settings → Idle Mode**, choose what happens after one minute without encoder
+input.
 
-- Short press selects test/hour/minute/duration fields.
-- Long press on test starts or stops a pump test.
-- Long press on hour/minute/duration starts editing.
-- Automatic pump duration is clamped to `1..10` seconds.
+| Idle mode | Behavior |
+| --- | --- |
+| **Screen Off** | Turns the OLED off. |
+| **GROVA Saver** | Moves the GROVA wordmark across the screen and bounces it off the edges. |
+| **Always On** | Leaves the current view visible. |
 
-### System
+Press to save the selected option. An asterisk marks the saved choice.
 
-- Shows Wi-Fi, IP, firmware version, build time, time sync, RTC state, and config state.
-- RTC state is shown as `OFF`, `MISS`, `BAD`, or `OK`.
+## Test a physical output
 
-## Display Sleep
+1. Confirm the controller shows **PAUSED**, then open **Service → Output Test**.
+2. Select a fan, a free 5 V or 12 V output, or a free 0–10 V output. Assigned
+   switch and 0–10 V outputs remain under their configured device controls.
+3. Turn to select **ON**, a fan percentage or a voltage setpoint. Press when
+   the footer shows **Press Run**. During the test, turn to adjust the level or
+   press to stop. The test ends after ten seconds.
 
-The display sleeps after 60 seconds. The first encoder action wakes the display and does not change a value.
+Only one port is tested at a time. The voltage shown is the commanded setpoint.
