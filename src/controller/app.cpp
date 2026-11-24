@@ -97,6 +97,7 @@ bool setRest(bool enabled) {
     intentActive = false;
     restMode_setEnabled(true, false);
     founderOutputs::interlock(true, wifiOTA_requiresSetup());
+    founderOutputs::stopAll();
     founderEquipment::stopAll();
     fan_forceOff();
   }

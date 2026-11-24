@@ -6,6 +6,11 @@ void begin();
 void interlock(bool rest, bool setup);
 void inhibit();
 void stopAll();
+bool assigned(unsigned channel);
+bool startTest(unsigned channel, unsigned percent, unsigned durationMs);
+bool setTestLevel(unsigned percent);
+void stopTest();
+bool testing();
 bool inhibited();
 bool ready();
 bool set(const char* name, float percent);  // Explicit unassigned channel test only.

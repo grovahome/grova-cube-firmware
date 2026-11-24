@@ -71,7 +71,20 @@ without deleting the last validated WLAN.
 The English OLED home screen shows the clock, operating state, climate readings
 and Wi-Fi status. Turn the encoder to choose a view and press to open it. Press
 again to return to the menu. Select Back to Home or hold the encoder to go
-directly to the home screen. The OLED menu is read-only.
+directly to the home screen. Climate shows the active temperature source and
+sample age. When that signal drops out, the display keeps the last known
+source and marks the sensor offline.
+
+Display Settings saves the idle behavior after one minute without encoder
+input. Choose Screen Off, GROVA Saver or Always On. A turn or press wakes the
+screen without changing the selected menu item.
+
+Output Test runs one physical connection at a time while operation is paused.
+Select a port, turn to choose a level and press to start. Turn to change the
+level during the test or press to stop. The test ends after ten seconds.
+The existing output timer also cuts off the 5 V and 12 V switches. A connected
+device's assigned switch or 0–10 V output remains under equipment control.
+Fans use the existing ramp and tachometer fault handling.
 
 The display probes 0x3C and 0x3D on the root bus and retries failed transfers.
 The transport converts the 128×64 canvas to native 64×128 pages for SH1107.

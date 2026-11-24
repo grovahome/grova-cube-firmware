@@ -15,6 +15,15 @@ static float values[5] = {};
 static bool pwmReady[2] = {};
 static int8_t owners[5] = {-1, -1, -1, -1, -1};
 static bool timed[5] = {};
+static int testChannel = -1;
+
+bool testing() {
+  return testChannel >= 0;
+}
+
+bool assigned(unsigned channel) {
+  return channel < 5 && owners[channel] >= 0;
+}
 static void write(int i, float value) {
   values[i] = value;
   if (i < 3) {
@@ -25,11 +34,46 @@ static void write(int i, float value) {
 }
 static void off() {
   for (int i = 0; i < 5; ++i) {
-    write(i, 0);
+    if (i != testChannel) {
+      write(i, 0);
+    }
+  }
+}
+
+bool startTest(unsigned channel, unsigned percent, unsigned durationMs) {
+  if (testing() || !policy.ready || !policy.rest || policy.setup || policy.ota || channel >= 5 ||
+      assigned(channel) || percent == 0 || percent > 100 || !durationMs ||
+      durationMs > founderDigital::MaxRuntimeMs) {
+    return false;
+  }
+  if (channel < 3) {
+    if (percent != 100 || !founderDigital::pulse(channel, durationMs)) {
+      return false;
+    }
+  } else {
+    write(channel, percent);
+  }
+  testChannel = channel;
+  return true;
+}
+
+bool setTestLevel(unsigned percent) {
+  if (testChannel < 3 || percent == 0 || percent > 100 || !policy.rest || policy.setup || policy.ota) {
+    return false;
+  }
+  write(testChannel, percent);
+  return true;
+}
+
+void stopTest() {
+  if (testing()) {
+    write(testChannel, 0);
+    testChannel = -1;
   }
 }
 void preinit() {
   policy = Policy{};
+  testChannel = -1;
   for (int i = 0; i < 5; ++i) {
     values[i] = 0;
   }
@@ -56,16 +100,20 @@ void begin() {
 void interlock(bool rest, bool setup) {
   policy.rest = rest;
   policy.setup = setup;
+  if (!rest || setup || policy.ota) {
+    stopTest();
+  }
   if (rest || setup || policy.ota) {
     off();
   }
 }
 void stopAll() {
+  stopTest();
   off();
 }
 void inhibit() {
   policy.ota = true;
-  off();
+  stopAll();
 }
 bool ready() {
   return policy.ready;
@@ -82,6 +130,10 @@ bool set(const char* name, float value) {
       if (!policy.allows(value) || (i < 3 && value != 0 && value != 100)) {
         return false;
       }
+      if (i == testChannel) {
+        stopTest();  // Only an off command can reach here while paused.
+        return true;
+      }
       write(i, value);
       return true;
     }
@@ -89,7 +141,7 @@ bool set(const char* name, float value) {
   return false;
 }
 void assignOwners(const int8_t (&next)[5], const bool (&pulse)[5]) {
-  off();
+  stopAll();
   for (int i = 0; i < 5; ++i) {
     owners[i] = next[i];
     timed[i] = pulse[i];

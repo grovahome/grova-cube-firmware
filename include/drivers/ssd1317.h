@@ -39,8 +39,11 @@ class GrovaSSD1317 : public GFXcanvas1 {
       return false;
     }
     delay(100);
-    const uint8_t on = 0xAF;
-    return command(&on, 1);
+    return setPower(true);
+  }
+  bool setPower(bool on) {
+    const uint8_t instruction = on ? 0xAF : 0xAE;
+    return command(&instruction, 1);
   }
   void clearDisplay() {
     fillScreen(0);

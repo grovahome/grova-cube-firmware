@@ -32,6 +32,9 @@ static FanArbiter fanArbiters[FAN_CHANNEL_COUNT] = {
 };
 static unsigned long lastFanLog = 0;
 static const char* fanReasonName = "START";
+#if defined(GROVA_FOUNDER_APP)
+static int testFan = 0;
+#endif
 
 static int indexFor(int fan) {
   return fan >= 1 && fan <= FAN_CHANNEL_COUNT ? fan - 1 : 0;
@@ -241,7 +244,41 @@ const char* fan_getReasonName(int fan) {
   return controlFor(fan).reason;
 }
 
+#if defined(GROVA_FOUNDER_APP)
+bool fan_startTest(int fan, int percent) {
+  if (testFan || !restMode_isEnabled() || !fanHw_isEnabled(fan) || fan_getTachoFault(fan) ||
+      percent <= 0 || percent > 100) {
+    return false;
+  }
+  testFan = fan;
+  deviceFor(fan).requestPercent(percent);
+  return true;
+}
+
+bool fan_testing() {
+  return testFan && !fan_getTachoFault(testFan);
+}
+
+bool fan_setTestLevel(int percent) {
+  if (!fan_testing() || !restMode_isEnabled() || percent <= 0 || percent > 100) {
+    return false;
+  }
+  deviceFor(testFan).requestPercent(percent);
+  return true;
+}
+
+void fan_stopTest() {
+  if (testFan) {
+    deviceFor(testFan).forceOff();
+    testFan = 0;
+  }
+}
+#endif
+
 void fan_forceOff() {
+#if defined(GROVA_FOUNDER_APP)
+  fan_stopTest();
+#endif
   fanReasonName = "REST OFF";
   for (int fan = 1; fan <= FAN_CHANNEL_COUNT; fan++) {
     FanChannelControl& control = controlFor(fan);
@@ -270,10 +307,23 @@ static FanArbiterResult evaluateFanDecision(
 }
 
 void fan_loop() {
+#if defined(GROVA_FOUNDER_APP)
+  if (testFan && (!restMode_isEnabled() || fan_getTachoFault(testFan))) {
+    fan_stopTest();
+  }
+#endif
   const bool sensorFault = sensors_hasFault();
   for (int fan = 1; fan <= FAN_CHANNEL_COUNT; fan++) {
     FanChannelControl& control = controlFor(fan);
     FanDevice& device = deviceFor(fan);
+#if defined(GROVA_FOUNDER_APP)
+    if (fan == testFan) {
+      control.reason = "OUTPUT TEST";
+      control.decisionPriority = FAN_PRIORITY_MANUAL;
+      device.update();
+      continue;
+    }
+#endif
     const FanDemand demand = fanDemand_evaluate(
       fan, getTargetTemp(), getTargetHum(), control.demandState);
     const FanArbiterResult decision = evaluateFanDecision(

@@ -4,6 +4,12 @@ void fan_preinit();
 void fan_begin();
 void fan_loop();
 void fan_forceOff();
+#if defined(GROVA_FOUNDER_APP)
+bool fan_startTest(int fan, int percent);
+bool fan_testing();
+bool fan_setTestLevel(int percent);
+void fan_stopTest();
+#endif
 // Volatile demand from a coordinator; preserves latched tacho faults and driver ramp.
 bool fan_setDemand(int fan, int percent);
 bool fan_applyPolicyConfig(int fan);

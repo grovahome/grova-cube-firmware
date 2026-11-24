@@ -6,6 +6,7 @@ struct FakeWire {
   bool sht[8] = {}, badCrc = false;
   bool oled=true,failOledData=false;
   size_t oledBytes=0;
+  bool oledPowered = true;
   bool mux = true, rtc = true, failMask = false;
   int failRegister = -1;
   uint8_t mask = 0, address = 0, pointer = 0;
@@ -25,6 +26,9 @@ struct FakeWire {
     if(address==0x3C){
       if(!oled || (failOledData&&!tx.empty()&&tx[0]==0x40))return 4;
       if(!tx.empty()&&tx[0]==0x40)oledBytes+=tx.size()-1;
+      if (tx.size() == 2 && tx[0] == 0x00 && (tx[1] == 0xAE || tx[1] == 0xAF)) {
+        oledPowered = tx[1] == 0xAF;
+      }
       return 0;
     }
     if (address == 0x70) {

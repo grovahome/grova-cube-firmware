@@ -2,6 +2,22 @@
 
 ## Current checkpoint — 24 November 2026
 
+Installed `founder-dev.20261124.5` via ArduinoOTA on the GROVA Core ESP32-S3
+(`grova_founder_s3`). The build, controller and shared host tests passed.
+The controller tests exercise the OLED idle options, wake behavior, sensor
+status and timed output tests with simulated hardware.
+
+After reboot the board reported OLED I²C, valid RV-3032 time and OTA readiness.
+The saved SH1107 configuration, equipment revision **9** and
+paused state matched the pre-update snapshot. The Core also reported valid measurements from SHT4x on port 3 (0x44).
+All output setpoints were zero during OTA verification. Physical OLED idle
+behavior and output tests on the connected hardware remain to be checked.
+
+Installed application SHA-256:
+`6959393aab711922361d5cfd0a33cc1cf5f13433c7bd86e83ebb27b5411f8df3`.
+
+## Encoder detent checkpoint — 24 November 2026
+
 Installed `founder-dev.20261124.4` via ArduinoOTA on the GROVA Core ESP32-S3
 (`grova_founder_s3`). The build and controller tests passed, including encoder
 bounce, reversal, fast turns, short presses and holds.

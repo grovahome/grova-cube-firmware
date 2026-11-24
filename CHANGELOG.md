@@ -24,6 +24,12 @@ releases; installed versions and physical acceptance are tracked in
 - Count complete encoder detents and filter contact bounce. Fast turns are
   limited to one menu step per 140 ms and do not queue delayed steps.
 
+- Show sensor source, sample age and lost-sensor status on the OLED.
+- Add a saved idle choice after one minute of encoder inactivity: screen off,
+  moving GROVA wordmark, or always on.
+- Add timed output tests for both fans and free 5 V, 12 V and 0–10 V connections
+  while automation is paused.
+
 ### Branch organization
 
 - Rename current development/default branch to `main` and frozen V1 reference to

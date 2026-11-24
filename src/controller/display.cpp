@@ -9,6 +9,7 @@
 #include "drivers/ssd1317.h"
 #include "controller/boot_animation.h"
 #include "controller/i2c_bus.h"
+#include "controller/output_test.h"
 #include "controller/outputs.h"
 #include "modules/fan.h"
 #include "modules/rest_mode.h"
@@ -59,13 +60,28 @@ static bool lastFrameWelcome = false;
 bool present() {
   return ready;
 }
-enum class Screen { Home, Menu, Detail };
-static constexpr const char* menuItems[] = {"Back to Home", "Climate", "Outputs", "Fans", "Network"};
+enum class Screen { Home, Menu, Detail, IdleSettings, TestPorts, TestLevel };
+static constexpr const char* menuItems[] = {"Back to Home", "Climate", "Outputs", "Fans", "Network", "Display Settings", "Output Test"};
 static constexpr int MenuCount = sizeof(menuItems) / sizeof(menuItems[0]);
 static constexpr int LeftInset = 2;
 static Screen screen = Screen::Home;
-static int selection = 0;
-static uint32_t drawAt = 0, probeAt = 0;
+static int selection = 0, idleSelection = 0, testSelection = 0, testPercent = 0;
+static bool testRejected = false, idleSaveFailed = false, panelOff = false;
+enum class IdleMode : uint8_t { Off, Grova, AlwaysOn };
+static IdleMode idleMode = IdleMode::Off;
+static constexpr uint32_t IdleTimeoutMs = 60000;
+static uint32_t drawAt = 0, probeAt = 0, lastInputAt = 0;
+static constexpr const char* idleItems[] = {"Back", "Screen Off", "GROVA Saver", "Always On"};
+static constexpr const char* portLabels[] = {"12V 1", "5V 1", "12V 2", "0-10V 1", "0-10V 2"};
+static constexpr const char* testItems[] = {"Back", portLabels[0], portLabels[1], portLabels[2],
+    portLabels[3], portLabels[4], "Fan 1", "Fan 2"};
+static_assert(sizeof(testItems) / sizeof(testItems[0]) == founderOutputTest::PortCount + 1,
+              "Every output must have a list entry");
+static struct {
+  char source[40] = {};
+  uint32_t sampledAt = 0;
+  bool valid = false;
+} climate;
 static bool apply(unsigned rotation, unsigned offset, const Panel* selected) {
   if (!selected || rotation > 3 || offset > oledMaxOffset(selected->profile) || !storageReady) {
     return false;
@@ -80,7 +96,8 @@ static bool apply(unsigned rotation, unsigned offset, const Panel* selected) {
   rowOffset = offset;
   oled.setRotation(rotate);
   ready = false;
-  probeAt = millis() - 10000;
+  lastInputAt = millis();
+  probeAt = lastInputAt - 10000;
   return true;
 }
 bool configure(unsigned rotation, unsigned offset, const char* profile) {
@@ -94,11 +111,22 @@ bool selectController(const char* name) {
 void begin() {
   ready = false;
   activeAddress = 0;
+  founderOutputTest::stop();
   screen = Screen::Home;
   selection = 0;
-  welcome.reset(millis());
+  climate = {};
+  panelOff = false;
+  lastInputAt = millis();
+  welcome.reset(lastInputAt);
   lastFrameWelcome = false;
   storageReady = displaySettings.begin("founder-oled", false);
+  uint8_t idle = 0;
+  idleMode = IdleMode::Off;
+  if (storageReady && displaySettings.getBytesLength("idle") == sizeof(idle) &&
+      displaySettings.getBytes("idle", &idle, sizeof(idle)) == sizeof(idle) &&
+      idle <= static_cast<uint8_t>(IdleMode::AlwaysOn)) {
+    idleMode = static_cast<IdleMode>(idle);
+  }
   panel = &panels[0];
   rotate = 0;
   rowOffset = panel->defaultOffset;
@@ -121,18 +149,56 @@ void begin() {
   probeAt = millis() - 10000;
   drawAt = millis() - 1000;
 }
+static bool idleDue(uint32_t now) {
+  return idleMode != IdleMode::AlwaysOn && now - lastInputAt >= IdleTimeoutMs;
+}
+
+static int cycle(int current, int turn, int count) {
+  return (current + turn % count + count) % count;
+}
+
+static bool testPortAssigned() {
+  return testSelection > 0 && founderOutputs::assigned(testSelection - 1);
+}
+
+static void navigateTest(int turn, bool pressed) {
+  const int step = testSelection <= 3 ? 100 : 10;
+  const int target = constrain(testPercent + constrain(turn, -1, 1) * step, 0, 100);
+  if (founderOutputTest::running()) {
+    if (pressed) {
+      founderOutputTest::stop();
+      testPercent = 0;
+    } else if (turn && target != testPercent && founderOutputTest::setLevel(target)) {
+      testPercent = target;
+    }
+    return;
+  }
+  if (turn) {
+    testRejected = false;
+    testPercent = target;
+  }
+  if (pressed && testPercent == 0) {
+    screen = Screen::TestPorts;
+  } else if (pressed && ready && founderOutputTest::available() && !testPortAssigned()) {
+    testRejected = !founderOutputTest::start(testSelection - 1, testPercent);
+  }
+}
+
 void navigate(int turn, bool pressed, bool held) {
   if ((!turn && !pressed && !held) || wifiOTA_setupActive()) {
     return;
   }
-  if (welcome.active(millis())) {
+  const uint32_t now = millis();
+  const bool waking = idleDue(now) || panelOff;
+  lastInputAt = now;
+  drawAt = now - 500;
+  if (waking || welcome.active(now)) {
     welcome.dismiss();
-    drawAt = millis() - 500;
     return;
   }
   if (held) {
+    founderOutputTest::stop();
     screen = Screen::Home;
-    drawAt = millis() - 500;
     return;
   }
   switch (screen) {
@@ -141,9 +207,20 @@ void navigate(int turn, bool pressed, bool held) {
       selection = 1;
       break;
     case Screen::Menu:
-      selection = (selection + turn + MenuCount) % MenuCount;
+      selection = cycle(selection, turn, MenuCount);
       if (pressed) {
-        screen = selection == 0 ? Screen::Home : Screen::Detail;
+        if (selection == 0) {
+          screen = Screen::Home;
+        } else if (selection == 5) {
+          idleSelection = static_cast<int>(idleMode) + 1;
+          idleSaveFailed = false;
+          screen = Screen::IdleSettings;
+        } else if (selection == 6) {
+          testSelection = 0;
+          screen = Screen::TestPorts;
+        } else {
+          screen = Screen::Detail;
+        }
       }
       break;
     case Screen::Detail:
@@ -151,8 +228,35 @@ void navigate(int turn, bool pressed, bool held) {
         screen = Screen::Menu;
       }
       break;
+    case Screen::IdleSettings:
+      idleSelection = cycle(idleSelection, turn, 4);
+      if (pressed) {
+        if (idleSelection == 0) {
+          screen = Screen::Menu;
+          break;
+        }
+        const uint8_t choice = idleSelection - 1;
+        if (choice != static_cast<uint8_t>(idleMode)) {
+          idleSaveFailed = !storageReady ||
+              displaySettings.putBytes("idle", &choice, sizeof(choice)) != sizeof(choice);
+          if (!idleSaveFailed) {
+            idleMode = static_cast<IdleMode>(choice);
+          }
+        }
+      }
+      break;
+    case Screen::TestPorts:
+      testSelection = cycle(testSelection, turn, founderOutputTest::PortCount + 1);
+      if (pressed) {
+        testRejected = false;
+        testPercent = 0;
+        screen = testSelection == 0 ? Screen::Menu : Screen::TestLevel;
+      }
+      break;
+    case Screen::TestLevel:
+      navigateTest(turn, pressed);
+      break;
   }
-  drawAt = millis() - 500;
 }
 
 static void text(int x, int y, const char* label, int size = 1, bool inverted = false) {
@@ -184,6 +288,41 @@ static void reading(char* out, size_t length, SignalId id, const char* unit) {
   }
 }
 
+static void updateClimate() {
+  const auto reading = signalRegistry_read(SIGNAL_CLIMATE_TEMPERATURE_C);
+  climate.valid = reading.valid;
+  if (reading.valid) {
+    climate.sampledAt = reading.updatedAtMs;
+    snprintf(climate.source, sizeof(climate.source), "%s", reading.source);
+  }
+}
+
+static void climateInfo(bool wide) {
+  if (!climate.source[0]) {
+    text(0, 16, "Waiting");
+    text(wide ? 48 : 0, wide ? 16 : 26, "for sensor");
+    return;
+  }
+  char source[22];
+  char status[22];
+  const char* port = strchr(climate.source, '@');
+  const int length = port ? port - climate.source : strlen(climate.source);
+  snprintf(source, sizeof(source), "%.*s", length, climate.source);
+  if (port && !strncmp(port, "@ch", 3) && port[3] >= '0' && port[3] <= '7') {
+    if (wide) {
+      snprintf(source, sizeof(source), "%.*s / Port %c", length, climate.source, port[3]);
+    } else {
+      snprintf(status, sizeof(status), "Port %c", port[3]);
+      text(0, 26, status);
+    }
+  }
+  text(0, 16, source);
+  const auto seconds = uint32_t(millis() - climate.sampledAt) / 1000;
+  const char* label = !climate.valid ? "Offline" : seconds >= 4 ? "Last" : "Age";
+  snprintf(status, sizeof(status), "%s %lus", label, static_cast<unsigned long>(seconds));
+  text(wide ? 48 : 0, wide ? 5 : 36, status);
+}
+
 static void home() {
   const bool wide = oled.width() >= 128;
   const bool paused = restMode_isEnabled();
@@ -209,22 +348,83 @@ static void home() {
   text(climateX, climateY, value);
   reading(value, sizeof(value), SIGNAL_CLIMATE_HUMIDITY_PCT, " %");
   text(climateX, climateY + 10, value);
-  text(0, wide ? 44 : 100, wifiOTA_isConnected() ? "Wi-Fi on" : "No Wi-Fi");
+  if (!climate.valid && climate.source[0]) {
+    text(0, wide ? 44 : 100, wide ? "Sensor offline" : "Sens. off");
+  } else {
+    text(0, wide ? 44 : 100, wifiOTA_isConnected() ? "Wi-Fi on" : "No Wi-Fi");
+  }
   footer(wide ? "Press: Menu" : "Press Menu");
 }
 
-static void menu() {
-  text(0, 5, "Menu");
-  const bool wide = oled.width() >= 128;
+static void list(const char* title, const char* const* entries, int count, int selected,
+                 int saved = -1) {
+  text(0, 5, title);
   divider(13);
-  for (int i = 0; i < MenuCount; ++i) {
-    const int y = 15 + i * 8;
-    if (i == selection) {
-      founderBoot::rect(oled, LeftInset, y, oled.width() - LeftInset, 8, true);
+  const int rows = (oled.height() - 23) / 8;
+  const int maximumStart = count > rows ? count - rows : 0;
+  const int start = constrain(selected - rows / 2, 0, maximumStart);
+  for (int i = start; i < count && i < start + rows; ++i) {
+    const int y = 14 + (i - start) * 8;
+    if (i == selected) {
+      founderBoot::rect(oled, LeftInset, y, oled.width() - LeftInset, 7, true);
     }
-    text(0, y, i == 0 && !wide ? "Back" : menuItems[i], 1, i == selection);
+    text(0, y, entries[i], 1, i == selected);
+    if (i == saved) {
+      text(oled.width() - 8, y, "*", 1, i == selected);
+    }
   }
+}
+
+static void menu() {
+  const bool wide = oled.width() >= 128;
+  static constexpr const char* narrow[] = {"Back", "Climate", "Outputs", "Fans",
+                                          "Network", "Display", "Test"};
+  list("Menu", wide ? menuItems : narrow, MenuCount, selection);
   footer(wide ? "Turn/Press  Hold:Home" : "Turn/Press");
+}
+
+static void idleSettings() {
+  const bool wide = oled.width() >= 128;
+  static constexpr const char* narrow[] = {"Back", "Screen Off", "GROVA", "Always On"};
+  list(wide ? "Idle after 1 min" : "Idle 1 min", wide ? idleItems : narrow, 4, idleSelection,
+       static_cast<int>(idleMode) + 1);
+  footer(idleSaveFailed ? "Save error" : wide ? "Press: Save   * Saved" : "Press Save");
+}
+
+static void testPorts() {
+  list("Output Test", testItems, founderOutputTest::PortCount + 1, testSelection);
+  footer("Turn/Press");
+}
+
+static void testLevel() {
+  const bool wide = oled.width() >= 128;
+  text(0, 5, testItems[testSelection]);
+  divider(13);
+  char value[22];
+  if (testSelection <= 3) {
+    snprintf(value, sizeof(value), "%s", testPercent ? "ON" : "OFF");
+  } else if (testSelection <= 5) {
+    snprintf(value, sizeof(value), "%.1f V", testPercent / 10.0);
+  } else {
+    snprintf(value, sizeof(value), "%d%%", testPercent);
+  }
+  text(0, 17, value, 2);
+  if (founderOutputTest::running()) {
+    snprintf(value, sizeof(value), "%us left", (founderOutputTest::remainingMs() + 999) / 1000);
+    text(0, 38, value);
+    footer(wide ? "Turn/Press Stop" : "Press Stop");
+  } else if (testPortAssigned()) {
+    text(0, 36, "Assigned");
+    text(0, 45, wide ? "Unassign in web UI" : "Use web UI");
+    footer(wide ? "Hold: Home" : "Hold Home");
+  } else if (!founderOutputTest::available()) {
+    text(0, 38, restMode_isEnabled() ? (wide ? "Test unavailable" : "Locked")
+                                    : (wide ? "Pause in web UI" : "Pause web"));
+    footer("Hold Home");
+  } else {
+    text(0, 38, testRejected ? "Test error" : wide ? "Turn to set level" : "Turn level");
+    footer(testPercent ? "Press Run" : "Press Back");
+  }
 }
 
 static void detail() {
@@ -234,25 +434,26 @@ static void detail() {
   const bool wide = oled.width() >= 128;
   switch (selection) {
     case 1:
+      climateInfo(wide);
       if (!wide) {
         reading(value, sizeof(value), SIGNAL_CLIMATE_TEMPERATURE_C, " C");
-        text(0, 16, "Temp"); text(0, 25, value);
+        text(0, 48, "Temp"); text(0, 57, value);
         reading(value, sizeof(value), SIGNAL_CLIMATE_HUMIDITY_PCT, " %");
-        text(0, 42, "Humidity"); text(0, 51, value);
+        text(0, 69, "Humidity"); text(0, 78, value);
         reading(value, sizeof(value), SIGNAL_CLIMATE_PRESSURE_HPA, " hPa");
-        text(0, 68, "Pressure"); text(0, 77, value);
+        text(0, 90, "Pressure"); text(0, 99, value);
       } else {
         reading(value, sizeof(value), SIGNAL_CLIMATE_TEMPERATURE_C, " C");
-        text(0, 17, "Temperature"); text(76, 17, value);
+        text(0, 25, "Temperature"); text(76, 25, value);
         reading(value, sizeof(value), SIGNAL_CLIMATE_HUMIDITY_PCT, " %");
-        text(0, 28, "Humidity"); text(76, 28, value);
+        text(0, 34, "Humidity"); text(76, 34, value);
         reading(value, sizeof(value), SIGNAL_CLIMATE_PRESSURE_HPA, " hPa");
-        text(0, 39, "Pressure"); text(76, 39, value);
+        text(0, 43, "Pressure"); text(76, 43, value);
       }
       break;
     case 2: {
-      static constexpr const char* labels[] = {"12V 1", "5V 1", "12V 2", "0-10V 1", "0-10V 2"};
-      for (unsigned i = 0; i < sizeof(labels) / sizeof(labels[0]); ++i) {
+      text(wide ? 48 : 0, wide ? 5 : 106, "Setpoints");
+      for (unsigned i = 0; i < sizeof(portLabels) / sizeof(portLabels[0]); ++i) {
         const float percent = founderOutputs::applied(i);
         if (founder::OUTPUTS[i].analog) {
           snprintf(value, sizeof(value), "%.1f V", percent / 10);
@@ -260,7 +461,7 @@ static void detail() {
           snprintf(value, sizeof(value), "%s", percent > 0 ? "On" : "Off");
         }
         const int y = 15 + i * (wide ? 8 : 18);
-        text(0, y, labels[i]);
+        text(0, y, portLabels[i]);
         text(wide ? 65 : 0, wide ? y : y + 8, value);
       }
       break;
@@ -321,7 +522,27 @@ static void setupScreen() {
   }
 }
 
+static int bounce(uint32_t travel, int limit) {
+  const uint32_t step = travel % (2 * limit);
+  return step <= unsigned(limit) ? step : 2 * limit - step;
+}
+
+static void saver(uint32_t idleMs) {
+  const int scale = oled.width() >= 128 ? 2 : 1;
+  const int x = bounce(idleMs / 85, oled.width() - 29 * scale);
+  const int y = bounce(idleMs / 112, oled.height() - 7 * scale);
+  for (unsigned i = 0; i < 5; ++i) {
+    founderBoot::letter(oled, i, x + i * 6 * scale, y, scale);
+  }
+}
+
 void loop() {
+  founderOutputTest::loop();
+  updateClimate();
+  const bool setup = wifiOTA_setupActive();
+  if (setup) {
+    lastInputAt = millis();
+  }
   if (!ready && millis() - probeAt >= 10000) {
     probeAt = millis();
     founderBus::Scope bus;
@@ -331,46 +552,59 @@ void loop() {
       if (address) {
         ready = oled.begin(address, rowOffset, panel->profile);
         if (ready) {
+          panelOff = false;
           welcome.found(millis());
         }
       }
     }
   }
-  const bool showingWelcome = welcome.active(millis());
-  const uint32_t interval = showingWelcome ? founderBoot::FrameMs : lastFrameWelcome ? 0 : 500;
-  if (!ready || millis() - drawAt < interval) {
+  const uint32_t now = millis();
+  const bool idle = !setup && idleDue(now);
+  const bool screenOff = idle && idleMode == IdleMode::Off;
+  const bool showingWelcome = welcome.active(now);
+  const uint32_t interval = showingWelcome ? founderBoot::FrameMs :
+                            lastFrameWelcome ? 0 : idle ? 250 : 500;
+  if (!ready || (screenOff && panelOff) || (now - drawAt < interval && !panelOff)) {
     return;
   }
-  drawAt = millis();
+  drawAt = now;
   founderBus::Scope bus;
-  if (!bus) {
-    return;
-  }
-  if (!founderBus::probe(activeAddress)) {
-    ready = false;
-    return;
-  }
-  oled.clearDisplay();
-  if (showingWelcome) {
-    founderBoot::draw(oled, welcome.elapsed(millis()), LeftInset);
-    lastFrameWelcome = true;
-    if (!oled.display()) {
+  if (!bus || !founderBus::probe(activeAddress)) {
+    founderOutputTest::stop();
+    if (bus) {
       ready = false;
     }
     return;
   }
-  lastFrameWelcome = false;
-  if (wifiOTA_setupActive()) {
+  if (screenOff) {
+    panelOff = oled.setPower(false);
+    ready = panelOff;
+    founderOutputTest::stop();
+    return;
+  }
+
+  oled.clearDisplay();
+  lastFrameWelcome = showingWelcome;
+  if (showingWelcome) {
+    founderBoot::draw(oled, welcome.elapsed(now), LeftInset);
+  } else if (idle) {
+    saver(now - lastInputAt - IdleTimeoutMs);
+  } else if (setup) {
     setupScreen();
   } else {
     switch (screen) {
       case Screen::Home: home(); break;
       case Screen::Menu: menu(); break;
       case Screen::Detail: detail(); break;
+      case Screen::IdleSettings: idleSettings(); break;
+      case Screen::TestPorts: testPorts(); break;
+      case Screen::TestLevel: testLevel(); break;
     }
   }
-  if (!oled.display()) {
+  if (!oled.display() || (panelOff && !oled.setPower(true))) {
     ready = false;
+    founderOutputTest::stop();
   }
+  panelOff = false;
 }
 }  // namespace founderDisplay

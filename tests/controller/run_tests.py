@@ -31,7 +31,7 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     subprocess.run([str(inputs_binary)], cwd=root, check=True)
     display_binary=Path(temp)/'display_tests.exe'
     display_command=[a.compiler]+(['c++'] if a.zig else [])
-    subprocess.run(display_command+['-std=c++17','-Wall','-Wextra','-Itests/controller/include','-Itests/host/include','-Isrc','-Iinclude','-I.pio/libdeps/grova_founder_s3/ArduinoJson/src','tests/controller/display_test.cpp','src/controller/display.cpp','src/controller/i2c_bus.cpp','src/modules/signal_registry.cpp','-o',str(display_binary)],cwd=root,check=True)
+    subprocess.run(display_command+['-std=c++17','-Wall','-Wextra','-Itests/controller/include','-Itests/host/include','-Isrc','-Iinclude','-I.pio/libdeps/grova_founder_s3/ArduinoJson/src','-DGROVA_FOUNDER_APP=1','tests/controller/display_test.cpp','src/controller/display.cpp','src/controller/output_test.cpp','src/controller/i2c_bus.cpp','src/modules/signal_registry.cpp','-o',str(display_binary)],cwd=root,check=True)
     subprocess.run([str(display_binary)],cwd=root,check=True)
     binary=Path(temp)/'founder_tests.exe'
     command=[a.compiler]+(['c++'] if a.zig else [])

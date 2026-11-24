@@ -9,6 +9,8 @@
 
 #include "controller/boot_animation.h"
 #include "controller/i2c_bus.h"
+#include "controller/output_test.h"
+#include "modules/signal_registry.h"
 #include "controller/outputs.h"
 static unsigned long now = 100;
 unsigned long millis() {
@@ -22,8 +24,40 @@ const char* deviceId() {
   return "grova-test";
 }
 }  // namespace founderApp
+static bool paused = true;
 bool restMode_isEnabled() {
+  return paused;
+}
+static bool setupRequired = false, wifiTesting = false;
+bool wifiOTA_requiresSetup() {
+  return setupRequired;
+}
+bool wifiOTA_isTesting() {
+  return wifiTesting;
+}
+namespace founderEquipment {
+bool settingsReady() {
   return true;
+}
+}  // namespace founderEquipment
+static unsigned simulatedPort = 7, simulatedPercent = 0;
+static bool portAssigned = false;
+bool fan_startTest(int fan, int percent) {
+  simulatedPort = 4 + fan;
+  simulatedPercent = percent;
+  return true;
+}
+bool fan_testing() {
+  return simulatedPort == 5 || simulatedPort == 6;
+}
+bool fan_setTestLevel(int percent) {
+  assert(fan_testing());
+  simulatedPercent = percent;
+  return true;
+}
+void fan_stopTest() {
+  simulatedPort = 7;
+  simulatedPercent = 0;
 }
 static bool setupActive = true;
 bool wifiOTA_setupActive() {
@@ -33,8 +67,38 @@ bool isTimeSynced() {
   return false;
 }
 namespace founderOutputs {
-float applied(unsigned) {
-  return 0;
+float applied(unsigned channel) {
+  return channel == simulatedPort ? simulatedPercent : 0;
+}
+bool assigned(unsigned channel) {
+  return channel == 0 && portAssigned;
+}
+bool ready() {
+  return true;
+}
+bool inhibited() {
+  return false;
+}
+bool startTest(unsigned channel, unsigned percent, unsigned duration) {
+  assert(duration == founderOutputTest::DurationMs);
+  assert(!assigned(channel));
+  simulatedPort = channel;
+  simulatedPercent = percent;
+  return true;
+}
+bool testing() {
+  return simulatedPort < 5;
+}
+bool setTestLevel(unsigned percent) {
+  if (simulatedPort < 3 || simulatedPort >= 5) {
+    return false;
+  }
+  simulatedPercent = percent;
+  return true;
+}
+void stopTest() {
+  simulatedPort = 7;
+  simulatedPercent = 0;
 }
 }  // namespace founderOutputs
 const char* wifiOTA_setupSSID() {
@@ -170,6 +234,88 @@ int main() {
   assert(founderDisplay::rotation() == 2 && founderDisplay::offset() == 96);
   founderDisplay::loop();
   assert(founderDisplay::present());
-  std::cout << "Display service: welcome cadence, Wi-Fi handoff, user skip, recovery and rotation "
-               "reconfiguration passed\n";
+  check(0, true, "Press: Menu");  // Dismiss the welcome.
+  signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 23, "SHT4x@ch3/0x44");
+  check(0, true, "Climate");
+  check(0, true, "SHT4x / Port 3");
+  now += 4500;
+  testGraphics::lines.clear();
+  founderDisplay::loop();
+  assert(testGraphics::lines.find("Last 4s") != std::string::npos);
+  signalRegistry_invalidate(SIGNAL_CLIMATE_TEMPERATURE_C);
+  now += 500;
+  testGraphics::lines.clear();
+  founderDisplay::loop();
+  assert(testGraphics::lines.find("Offline 5s") != std::string::npos);
+  founderDisplay::navigate(0, false, true);
+  check(0, false, "Sensor offline");
+  signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 24, "SHT4x@ch3/0x44");
+  now += 500;
+  check(0, false, "No Wi-Fi");
+
+  now += 60000;
+  founderDisplay::loop();
+  assert(!Wire.oledPowered);
+  const auto sleepingBytes = Wire.oledBytes;
+  now += 3000;
+  founderDisplay::loop();
+  assert(Wire.oledBytes == sleepingBytes);
+  check(0, true, "Press: Menu");  // First input wakes without opening the menu.
+  assert(Wire.oledPowered);
+  check(0, true, "Climate");
+  check(4, true, "Idle after 1 min");
+  check(1, true, "GROVA Saver");
+  founderDisplay::begin();
+  founderDisplay::loop();
+  now += 60000;
+  const auto beforeSaver = Wire.oledBytes;
+  founderDisplay::loop();
+  assert(Wire.oledPowered && Wire.oledBytes > beforeSaver);
+  testGraphics::lines.clear();
+  now += 500;
+  founderDisplay::loop();
+  assert(testGraphics::lines.empty());  // Wordmark is drawn as graphics.
+  check(0, true, "Press: Menu");
+  check(0, true, "Climate");
+  check(4, true, "Idle after 1 min");
+  check(1, true, "Always On");
+  now += 60000;
+  check(0, false, "Always On");
+  assert(Wire.oledPowered);
+  founderDisplay::navigate(0, false, true);
+  check(0, true, "Climate");
+  check(5, true, "Output Test");
+  check(1, true, "Press Back");
+  portAssigned = true;
+  check(1, false, "Assigned");
+  check(0, true, "Assigned");
+  assert(!founderOutputTest::running());
+  portAssigned = false;
+  paused = false;
+  check(0, true, "Pause in web UI");
+  assert(!founderOutputTest::running());
+  paused = true;
+  check(0, true, "Press Stop");
+  assert(simulatedPort == 0 && simulatedPercent == 100);
+  assert(!founderOutputTest::start(1, 100));
+  check(0, true, "Press Back");
+  assert(simulatedPort == 7);
+  check(0, true, "Output Test");
+  check(-2, true, "Fan 2");
+  check(1, false, "Press Run");
+  check(0, true, "Press Stop");
+  assert(simulatedPort == 6 && simulatedPercent == 10);
+  now += 2000;
+  check(1, false, "Press Stop");
+  assert(simulatedPercent == 20);
+  assert(founderOutputTest::remainingMs() == 8000);
+  now += 8000;
+  check(0, false, "Press Run");
+  assert(simulatedPort == 7);
+  check(0, true, "Press Stop");
+  wifiTesting = true;
+  now += 500;
+  check(0, false, "Test unavailable");
+  assert(simulatedPort == 7);
+  std::cout << "OLED settings, sleep/wake, saver, sensor status and output test navigation passed\n";
 }

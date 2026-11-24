@@ -2,7 +2,7 @@
 
 ## Current checkpoint — 24 November 2026
 
-The GROVA Core runs `founder-dev.20261124.4`, verified after OTA. The GME64128-02
+The GROVA Core runs `founder-dev.20261124.5`, verified after OTA. The GME64128-02
 OLED and rotary encoder are connected. The Core reports an active OLED I²C
 connection using the SH1107 profile with 180° rotation. Visual alignment and
 physical menu operation with this build remain to be confirmed.
