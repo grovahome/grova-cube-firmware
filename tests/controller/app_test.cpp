@@ -958,6 +958,8 @@ int main(int argc, char** argv) {
   assert(run(R"({"cmd":"set_display_config","rotation":1,"offset":80})"));
   assert(!run(R"({"cmd":"set_display_config","rotation":4,"offset":80})"));
   assert(!run(R"({"cmd":"set_display_config","rotation":0,"offset":96})"));
+  assert(run(R"({"cmd":"set_display_config","controller":"sh1107","rotation":2,"offset":96})"));
+  assert(!run(R"({"cmd":"set_display_config","controller":null,"rotation":2,"offset":80})"));
   assert(!run(R"({"cmd":"set_grow_mode","mode":"GROWTH"})"));
   assert(!run(R"({"cmd":"pump_test","action":"start"})"));
   assert(run(R"({"cmd":"set_rest_mode","enabled":false})"));
@@ -1146,7 +1148,7 @@ unsigned rotation() {
 unsigned offset() {
   return 80;
 }
-bool configure(unsigned r, unsigned o) {
-  return r <= 3 && o <= 95;
+bool configure(unsigned r, unsigned o, const char* profile) {
+  return r <= 3 && (profile ? !strcmp(profile, "sh1107") && o <= 127 : o <= 95);
 }
 }  // namespace founderDisplay

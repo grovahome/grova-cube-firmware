@@ -9,6 +9,7 @@
 
 #include "controller/boot_animation.h"
 #include "controller/i2c_bus.h"
+#include "controller/outputs.h"
 static unsigned long now = 100;
 unsigned long millis() {
   return now;
@@ -24,9 +25,18 @@ const char* deviceId() {
 bool restMode_isEnabled() {
   return true;
 }
+static bool setupActive = true;
 bool wifiOTA_setupActive() {
-  return true;
+  return setupActive;
 }
+bool isTimeSynced() {
+  return false;
+}
+namespace founderOutputs {
+float applied(unsigned) {
+  return 0;
+}
+}  // namespace founderOutputs
 const char* wifiOTA_setupSSID() {
   return "GROVA-test";
 }
@@ -83,7 +93,7 @@ int main() {
   founderDisplay::loop();
   assert(Wire.oledBytes == bytes);
   now += 50;
-  founderDisplay::navigate(0);
+  founderDisplay::navigate(0, false);
   founderDisplay::loop();
   assert(Wire.oledBytes > bytes && testGraphics::textCalls == 0);
   now += founderBoot::DurationMs;
@@ -102,9 +112,31 @@ int main() {
   testGraphics::textCalls = 0;
   founderDisplay::loop();
   assert(testGraphics::textCalls == 0);
-  founderDisplay::navigate(1);
+  setupActive = false;
+  founderDisplay::navigate(1, false);
   founderDisplay::loop();
-  assert(testGraphics::textCalls > 0);  // User can skip immediately.
+  assert(testGraphics::lines.find("Press: Menu") != std::string::npos);
+  auto check = [](int turn, bool pressed, const char* expected) {
+    testGraphics::lines.clear();
+    founderDisplay::navigate(turn, pressed);
+    founderDisplay::loop();
+    assert(testGraphics::lines.find(expected) != std::string::npos);
+  };
+  check(0, true, "Turn/Press  Hold:Home");
+  check(0, true, "Temperature");
+  check(0, true, "Turn/Press  Hold:Home");
+  check(1, false, "Turn/Press  Hold:Home");
+  check(0, true, "0-10V 2");
+  check(0, true, "Turn/Press  Hold:Home");
+  check(-1, false, "Turn/Press  Hold:Home");
+  check(-1, false, "Turn/Press  Hold:Home");
+  check(0, true, "Press: Menu");
+  check(0, true, "Back to Home");
+  check(0, true, "Temperature");
+  testGraphics::lines.clear();
+  founderDisplay::navigate(0, false, true);
+  founderDisplay::loop();
+  assert(testGraphics::lines.find("Press: Menu") != std::string::npos);
   assert(founderDisplay::configure(1, 80));
   testGraphics::textCalls = 0;
   now += 500;
@@ -122,6 +154,22 @@ int main() {
   assert(founderDisplay::rotation() == 1 && founderDisplay::offset() == 0);
   assert(founderDisplay::selectController("ssd1317"));
   assert(founderDisplay::offset() == 80);
+  assert(founderDisplay::configure(2, 0, "ssd1312"));
+  assert(std::string(founderDisplay::controller()) == "SSD1312");
+  assert(!founderDisplay::configure(2, 64, "ssd1312"));
+  founderDisplay::begin();
+  assert(std::string(founderDisplay::controller()) == "SSD1312");
+  assert(founderDisplay::rotation() == 2 && founderDisplay::offset() == 0);
+  founderDisplay::loop();
+  assert(founderDisplay::present());
+  assert(founderDisplay::selectController("sh1107"));
+  assert(founderDisplay::offset() == 96);
+  assert(!founderDisplay::configure(2, 128));
+  founderDisplay::begin();
+  assert(std::string(founderDisplay::controller()) == "SH1107");
+  assert(founderDisplay::rotation() == 2 && founderDisplay::offset() == 96);
+  founderDisplay::loop();
+  assert(founderDisplay::present());
   std::cout << "Display service: welcome cadence, Wi-Fi handoff, user skip, recovery and rotation "
                "reconfiguration passed\n";
 }

@@ -25,4 +25,16 @@ inline uint8_t pageByte(const uint8_t* canvas, int x, int page) {
   }
   return value;
 }
+// Turn the landscape canvas into 16 native pages of 64 columns for SH1107.
+inline uint8_t portraitPageByte(const uint8_t* canvas, int column, int page) {
+  const int y = Height - 1 - column;
+  const uint8_t pixels = canvas[y * (Width / 8) + page];
+  uint8_t value = 0;
+  for (int bit = 0; bit < 8; ++bit) {
+    if (pixels & (0x80 >> bit)) {
+      value |= 1U << bit;
+    }
+  }
+  return value;
+}
 }  // namespace ssd1317

@@ -51,7 +51,7 @@ void loop() {
     founderApp::setRest(true);
     wifiOTA_requestSetup();
   }
-  founderDisplay::navigate(input.pageDelta);
+  founderDisplay::navigate(input.turn, input.pressed, input.held);
   founderDisplay::loop();
   founderWeb::loop();
   founderSerial::loop();

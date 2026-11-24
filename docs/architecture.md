@@ -66,12 +66,17 @@ This is Wi-Fi provisioning, not the final product onboarding wizard.
 After joining the LAN, open the board IP for the neutral webapp: signals,
 devices, both fans, three switch outputs, two 0-10V setpoints, RTC, targets and
 MQTT configuration. CONFIG held for five seconds enters Rest and opens setup
-without deleting the last validated WLAN. Encoder rotation/click navigates four
-OLED information pages; it does not activate outputs. OLED uses the user-confirmed SSD1317 and a 128 SEG x 64 COM framebuffer,
-probes 0x3C/0x3D on root and retries after missing/failed transfers. Rotation
-0..3 and COM offset 0..95 are persistent settings. The provisional default
-(rotation 0, offset 80) follows a manufacturer 64-MUX reference panel; exact
-module mapping remains to be verified on the supplied display.
+without deleting the last validated WLAN.
+
+The English OLED home screen shows the clock, operating state, climate readings
+and Wi-Fi status. Turn the encoder to choose a view and press to open it. Press
+again to return to the menu. Select Back to Home or hold the encoder to go
+directly to the home screen. The OLED menu is read-only.
+
+The display probes 0x3C and 0x3D on the root bus and retries failed transfers.
+The transport converts the 128×64 canvas to native 64×128 pages for SH1107.
+System → Display stores the selected controller, rotation and line offset.
+The supported controller profiles are SSD1317, SSD1306, SSD1312 and SH1107.
 
 The application always boots in Rest and clears all five output commands.
 Leaving Rest requires an explicit command and successful Rest persistence.
@@ -128,6 +133,8 @@ POST `/api/v1/control` requires JSON and is disabled on the setup interface.
 Commands: `set_rest_mode`, `set_output`, `set_fan_manual`, `set_fan_auto`,
 `set_fan_policy`, `set_targets`, `set_display_config`, `set_rtc_config`,
 `set_mqtt_config` (HTTP only).
+On the local HTTP interface, `set_display_config` optionally accepts a
+`controller` value of `ssd1317`, `ssd1306`, `ssd1312` or `sh1107`.
 Old pump/light/grow commands are rejected, not redirected to a guessed channel.
 
 The optional broker is configured locally (host, port, user, password). Empty

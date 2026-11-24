@@ -63,7 +63,7 @@ static void handle() {
   } else if (!strncmp(line, "panel ", 6)) {
     if (!restMode_isEnabled()) Serial.println("Panel selection requires Rest mode");
     else if (founderDisplay::selectController(line + 6)) Serial.println("Panel profile saved");
-    else Serial.println("Use panel ssd1306 | panel ssd1317");
+    else Serial.println("Use panel <ssd1306|ssd1312|ssd1317|sh1107>");
   } else if (!strncmp(line, "display ", 8)) {
     unsigned rotation = 0, offset = 0;
     char extra = 0;
@@ -71,7 +71,7 @@ static void handle() {
         founderDisplay::configure(rotation, offset)) {
       Serial.println("Display configuration saved");
     } else {
-      Serial.println("Use display <rotation 0..3> <offset 0..95>");
+      Serial.println("Use display <rotation 0..3> <panel-specific offset>");
     }
   } else if (length) {
     Serial.println(
@@ -82,7 +82,7 @@ void loop() {
   bool open = bool(Serial);
   if (open && !wasOpen) {
     Serial.println("GROVA Founder USB: status | i2c | setup | display "
-                   "<rotation 0..3> <offset 0..95>");
+                   "<rotation 0..3> <offset> | panel <controller>");
   }
   wasOpen = open;
   // Bound serial work so a busy USB host cannot starve sensor/control updates.

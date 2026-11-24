@@ -120,7 +120,17 @@ dialog::backdrop{background:#0008}dialog li{overflow-wrap:anywhere}
 <section class="card"><h3>WLAN</h3><p id="wifiStatus" class="sub"></p><a href="/wifi">WLAN einrichten oder wechseln →</a></section>
 <section class="card"><h3>Uhrzeit</h3><div id="clock"></div><button id="rtcToggle" onclick="send({cmd:'set_rtc_config',enabled:!state.rtc.enabled})" disabled>Hardware-Uhr umschalten</button></section>
 <section class="card"><h3>Geräte und Regeln sichern</h3><p class="sub">Sichert Zuordnungen, Betriebsarten und Regeln als JSON-Datei. Ohne WLAN-/MQTT-Passwörter, aktuelle Ein-/Auszustände, Messwertverlauf oder Laufjournale.</p><button id="exportConfiguration" onclick="downloadConfiguration()">Konfiguration herunterladen</button><label>Sicherung auswählen<input id="backupFile" type="file" accept="application/json,.json" onchange="previewConfiguration(this.files[0])"></label><p id="backupPreview" class="sub">Noch keine Sicherung ausgewählt.</p><details id="backupDetails" hidden><summary>Geräte in der Sicherung</summary><div id="backupItems"></div></details><p class="notice">Wiederherstellen pausiert alle Geräte. Danach bleiben die Ausgänge gesperrt, bis du den Betrieb ausdrücklich fortsetzt. Ungespeicherte Entwürfe werden ersetzt.</p><button id="restoreConfiguration" onclick="restoreConfiguration()" disabled>Ausgewählte Sicherung wiederherstellen</button></section>
-<section class="card"><h3>Display</h3><p id="displayStatus" class="sub"></p><details><summary>Ausrichtung anpassen</summary><label>Ausrichtung<select id="displayRotation"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label><label>Zeilenoffset (0–95)<input id="displayOffset" type="number" min="0" max="95" value="80"></label><button onclick="send({cmd:'set_display_config',rotation:Number(el('displayRotation').value),offset:Number(el('displayOffset').value)})">Display speichern</button></details></section>
+<section class="card"><h3>Display</h3><p id="displayStatus" class="sub"></p>
+<details><summary>Display einstellen</summary><form onsubmit="event.preventDefault();saveDisplay()">
+<label>Controller<select id="displayController" onchange="updateDisplayOffset(true)">
+<option value="ssd1317" data-offset="80" data-max="95">SSD1317</option>
+<option value="ssd1306" data-offset="0" data-max="63">SSD1306</option>
+<option value="ssd1312" data-offset="0" data-max="63">SSD1312 · GME64128-02</option>
+<option value="sh1107" data-offset="96" data-max="127">SH1107 · GME64128-02</option>
+</select></label>
+<label>Ausrichtung<select id="displayRotation"><option value="0">0°</option><option value="1">90°</option><option value="2">180°</option><option value="3">270°</option></select></label>
+<label>Zeilenoffset<input id="displayOffset" type="number" min="0" max="95" value="80" required></label>
+<button id="saveDisplay" type="submit" disabled>Display speichern</button></form></details></section>
 <section class="card"><details><summary>Erweitert</summary><details><summary>MQTT-Verbindung</summary><label>Broker<input id="mqttHost" maxlength="128" placeholder="IP-Adresse oder Hostname"></label><label>Port<input id="mqttPort" type="number" min="1" max="65535" value="1883"></label><label>Benutzer<input id="mqttUser" maxlength="64" autocomplete="username"></label><label>Passwort<input id="mqttPassword" type="password" maxlength="128" autocomplete="new-password"></label><button onclick="saveMqtt()">MQTT speichern</button><p class="sub">Optional. Passwort beim Speichern erneut eingeben. Leerer Broker deaktiviert MQTT.</p></details>
 
 <details><summary>Diagnose &amp; Ausgangstests</summary><div id="system"></div><details><summary>Freie Ausgänge testen</summary><p class="notice">Nur ohne schutzbedürftige Last testen. Zugeordnete Anschlüsse sind gesperrt. 0–10 V sind Sollwerte, keine Spannungsmessung.</p><div id="outputs"></div></details><details><summary>Sensor-Rohdaten</summary><pre id="devices"></pre></details></details></details></section></div></section>
@@ -190,11 +200,20 @@ function resumeOperation(){
  send({cmd:'set_rest_mode',enabled:false});
 }
 function saveMqtt(){send({cmd:'set_mqtt_config',host:el('mqttHost').value,port:Number(el('mqttPort').value),user:el('mqttUser').value,password:el('mqttPassword').value});el('mqttPassword').value='';}
+function updateDisplayOffset(reset){
+ const profile=el('displayController').selectedOptions[0],offset=el('displayOffset');
+ offset.max=profile.dataset.max;
+ if(reset)offset.value=profile.dataset.offset;
+}
+function saveDisplay(){
+ send({cmd:'set_display_config',controller:el('displayController').value,rotation:Number(el('displayRotation').value),offset:Number(el('displayOffset').value)});
+}
 function buildControls(d){
  for(const o of d.outputs){const box=document.createElement('div'),title=document.createElement('label'),live=document.createElement('p');title.textContent=o.id;live.id='live_'+o.id;live.className='sub';box.append(title,live);
  if(o.kind==='switch'){for(const on of [true,false]){const b=button(box,on?'Ein':'Aus',()=>send({cmd:'test_output',output:o.id,state:on}),on);b.dataset.output=o.id;}}
  else{const input=numberField(box,'value_'+o.id,'Sollspannung / V',0,0,10,.1);const b=button(box,'Spannung setzen',()=>send({cmd:'test_output',output:o.id,percent:Number(input.value)*10}),true);b.dataset.output=o.id;}el('outputs').append(box);}
 
+ el('displayController').value=(d.display.controller||'SSD1317').toLowerCase();updateDisplayOffset(false);
  el('displayRotation').value=d.display.rotation;el('displayOffset').value=d.display.offset;
  el('mqttHost').value=d.mqtt.host||'';el('mqttPort').value=d.mqtt.port||1883;el('mqttUser').value=d.mqtt.user||'';
 }
@@ -210,13 +229,13 @@ function gateControls(){const locked=!connected||!state||state.rest_mode.enabled
  el('bulkEquipment').disabled=!connected||busy||equipmentSaving||!!pendingEquipment;
  el('wizardNext').disabled=!connected||!state?.settings_ok||busy||equipmentSaving||!!pendingEquipment||conflict;
  for(const id of ['wizardBack','wizardCancel','wizardRemove'])el(id).disabled=busy||equipmentSaving||!!pendingEquipment;
- if(wizard&&conflict&&!pendingEquipment)el('wizardError').textContent='Belegung wurde auf dem Core geändert. Brich den Entwurf ab und öffne das Gerät erneut.';el('rtcToggle').disabled=!connected;el('exportConfiguration').disabled=!connected||busy;el('backupFile').disabled=busy||!!pendingEquipment;el('restoreConfiguration').disabled=!connected||busy||!!pendingEquipment||!backupDraft||backupRevision!==state?.equipment_revision;}
+ if(wizard&&conflict&&!pendingEquipment)el('wizardError').textContent='Belegung wurde auf dem Core geändert. Brich den Entwurf ab und öffne das Gerät erneut.';el('rtcToggle').disabled=!connected;el('saveDisplay').disabled=!connected||busy;el('exportConfiguration').disabled=!connected||busy;el('backupFile').disabled=busy||!!pendingEquipment;el('restoreConfiguration').disabled=!connected||busy||!!pendingEquipment||!backupDraft||backupRevision!==state?.equipment_revision;}
 async function refresh(){if(statusBusy)return false;statusBusy=true;try{const wasConnected=connected;const {response:r,data:d}=await apiRequest('/api/v1/status',{cache:'no-store'});if(!r.ok)throw Error('Status nicht erreichbar');state=d;connected=true;if(!initialized){buildControls(d);initialized=true;}
  el('connection').textContent=d.wifi_connected?'WLAN verbunden · '+d.ip:'WLAN nicht verbunden';el('boardHealth').textContent=d.healthy?'Board bereit':'Board prüfen';el('rest').textContent=d.rest_mode.enabled?'Betrieb fortsetzen':'Alles pausieren';el('lockState').textContent=d.rest_mode.enabled?'Ausgänge pausiert':'Ausgänge freigegeben';el('operationState').dataset.paused=String(d.rest_mode.enabled);el('lockHelp').textContent=d.rest_mode.enabled?'Betrieb pausiert. Einstellungen bleiben gespeichert; zum Fortsetzen freigeben.':d.equipment.some(e=>e.plan?.enabled||e.mode==='automatic')?'Automatisierung aktiv. Zeit- und Sensorregeln laufen selbstständig weiter.':d.fan_ports?.some(f=>f.enabled&&(f.plan?.enabled||f.mode==='automatic'))?'Automatisierung aktiv. Zeit- und Sensorregeln laufen selbstständig weiter.':'Manuelle Bedienung freigegeben.';
  renderSensors(d);renderEquipment(d);refreshSensorOptions();settleEquipment(d);updateControllerMap();el('emptyEquipment').hidden=!!d.equipment.length||!!d.fan_ports?.some(f=>f.enabled);
  for(const o of d.outputs)el('live_'+o.id).textContent=(o.assigned?'Zugeordnet · ':'Frei · ')+(o.kind==='switch'?(o.percent>0?'Ein':'Aus'):o.voltage_setpoint.toFixed(2)+' V Soll');
  renderFans(d);renderWarnings(d);renderEvents(d);
- el('wifiStatus').textContent=d.wifi_connected?'Verbunden · '+d.ip:'Nicht verbunden';el('displayStatus').textContent=d.oled_present?'Display erreichbar':'Kein Display erreichbar';el('clock').replaceChildren();row(el('clock'),'Uhrzeit',d.time_synced?new Date(d.epoch_s*1000).toLocaleString('de-DE',{timeZone:d.schedule_timezone||'Europe/Berlin'}):'Noch nicht synchronisiert');row(el('clock'),'Hardware-Uhr',!d.rtc.enabled?'Deaktiviert':d.rtc.present?(d.rtc.valid?'Bereit':'Zeit prüfen'):'Nicht erkannt');el('rtcToggle').textContent=d.rtc.enabled?'Hardware-Uhr deaktivieren':'Hardware-Uhr aktivieren';
+ el('wifiStatus').textContent=d.wifi_connected?'Verbunden · '+d.ip:'Nicht verbunden';el('displayStatus').textContent=(d.oled_present?'I²C-Verbindung aktiv':'Kein Display erreichbar')+' · '+(d.display.controller||'SSD1317');el('clock').replaceChildren();row(el('clock'),'Uhrzeit',d.time_synced?new Date(d.epoch_s*1000).toLocaleString('de-DE',{timeZone:d.schedule_timezone||'Europe/Berlin'}):'Noch nicht synchronisiert');row(el('clock'),'Hardware-Uhr',!d.rtc.enabled?'Deaktiviert':d.rtc.present?(d.rtc.valid?'Bereit':'Zeit prüfen'):'Nicht erkannt');el('rtcToggle').textContent=d.rtc.enabled?'Hardware-Uhr deaktivieren':'Hardware-Uhr aktivieren';
  el('system').replaceChildren();row(el('system'),'Board-ID',d.cube_id);row(el('system'),'Firmware',d.firmware_version||'Unbekannt');row(el('system'),'Build',(d.firmware_build_date||'')+' '+(d.firmware_build_time||''));row(el('system'),'OTA',d.ota_ready?'Bereit im Heimnetz':'Nicht bereit');row(el('system'),'Softwarestatus',d.warning);row(el('system'),'Ausgangstreiber',d.outputs_ready?'Bereit':'Initialisierung fehlgeschlagen');row(el('system'),'Zeitquelle',d.time_source);row(el('system'),'Batterieumschaltung',d.rtc.backup_configured?'Konfiguriert':'Nicht konfiguriert');row(el('system'),'I²C-Multiplexer',d.mux_present?'Erkannt':'Nicht erkannt');row(el('system'),'MQTT',d.mqtt_connected?'Verbunden':'Getrennt');row(el('system'),'Speicher',Math.round(d.flash_bytes/1048576)+' MB Flash / '+Math.round(d.psram_bytes/1048576)+' MB PSRAM');
  el('devices').textContent=JSON.stringify(d.devices,null,2);gateControls();if(!wasConnected&&currentView==='overview')refreshHistory();
  }catch(e){showOffline();return false;}finally{statusBusy=false;}}
@@ -250,7 +269,7 @@ function filterConnectorEditor(){
  }
 }
 function mapAction(id){
- if(id==='display'){showView('settings');el('displayRotation').closest('details').open=true;el('displayRotation').focus();return;}
+ if(id==='display'){showView('settings');el('displayController').closest('details').open=true;el('displayController').focus();return;}
  if(id==='sensors'){showView('sensors');return;}
  if(futureConnectors[id]){el('mapInfo').textContent=futureConnectors[id].join(' · ');return;}
  if(!connected||!state)return;

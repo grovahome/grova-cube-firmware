@@ -365,7 +365,12 @@ bool command(const String& body, String& response, bool remote) {
     }
   } else if (!strcmp(cmd, "set_display_config") && j["rotation"].is<unsigned>() &&
              j["offset"].is<unsigned>()) {
-    ok = founderDisplay::configure(j["rotation"], j["offset"]);
+    const JsonVariantConst profile = j["controller"];
+    if (profile.isUnbound()) {
+      ok = founderDisplay::configure(j["rotation"], j["offset"]);
+    } else if (!remote && profile.is<const char*>()) {
+      ok = founderDisplay::configure(j["rotation"], j["offset"], profile.as<const char*>());
+    }
   } else if (!strcmp(cmd, "set_rtc_config") && j["enabled"].is<bool>()) {
     ok = rtc_setEnabled(j["enabled"]);
   } else if (!strcmp(cmd, "set_mqtt_config") && !remote) {

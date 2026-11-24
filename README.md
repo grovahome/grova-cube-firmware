@@ -95,10 +95,12 @@ The current GROVA Core platform uses an **ESP32-S3**, with **16 MB flash** and
 GROVA is under active development. The current S3 firmware includes local Wi-Fi
 setup, the browser interface, manual/scheduled/sensor-driven device control,
 diagnostics, events, measurement history, backup/restore and OTA updates.
+The OLED home screen shows the clock, operating state and climate readings.
+Use the rotary encoder to check climate, outputs, fans and network details.
 
-Hardware validation is ongoing, including electrical output and load tests,
-sensor fault/recovery tests and long-term RTC operation. Display/encoder integration
-is deferred. Expansion connectors describe hardware possibilities; driver support
+Hardware validation is ongoing, including OLED alignment and encoder operation,
+electrical output and load tests, sensor fault/recovery and long-term RTC operation.
+Expansion connectors describe hardware possibilities. Driver support
 and validation vary by interface. Multi-day growing programs and additional interface
 integrations are future work.
 

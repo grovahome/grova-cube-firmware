@@ -39,9 +39,9 @@ void letter(Canvas& c, unsigned index, int x, int y, int scale) {
   }
 }
 template <class Canvas>
-void draw(Canvas& c, uint32_t elapsed) {
+void draw(Canvas& c, uint32_t elapsed, int xOffset = 0) {
   const bool portrait = c.width() < c.height();
-  const int markX = portrait ? (c.width() - 24) / 2 : 14, markY = portrait ? 18 : 12;
+  const int markX = (portrait ? (c.width() - 24) / 2 : 14) + xOffset, markY = portrait ? 18 : 12;
   const unsigned rows = elapsed >= 480 ? 24 : elapsed * 24 / 480;
   for (unsigned y = 24 - rows; y < 24; ++y) {
     for (int x = 0; x < 24; ++x) {
@@ -50,7 +50,7 @@ void draw(Canvas& c, uint32_t elapsed) {
       }
     }
   }
-  const int titleX = portrait ? (c.width() - 58) / 2 : 49, titleY = portrait ? 55 : 17;
+  const int titleX = (portrait ? (c.width() - 58) / 2 : 49) + xOffset, titleY = portrait ? 55 : 17;
   for (unsigned i = 0; i < 5; ++i) {
     if (elapsed >= 220 + i * 120) {
       letter(c, i, titleX + i * 12, titleY, 2);
@@ -58,13 +58,14 @@ void draw(Canvas& c, uint32_t elapsed) {
   }
   if (elapsed >= 850) {
     const unsigned core[] = {5, 2, 1, 6};
-    const int x = portrait ? (c.width() - 23) / 2 : 50, y = portrait ? 78 : 35;
+    const int x = (portrait ? (c.width() - 23) / 2 : 50) + xOffset, y = portrait ? 78 : 35;
     for (unsigned i = 0; i < 4; ++i) {
       letter(c, core[i], x + i * 6, y, 1);
     }
   }
-  const int barX = portrait ? 8 : 16, barY = portrait ? c.height() - 22 : c.height() - 13;
-  const int barWidth = c.width() - 2 * barX;
+  const int barInset = portrait ? 8 : 16;
+  const int barX = barInset + xOffset, barY = portrait ? c.height() - 22 : c.height() - 13;
+  const int barWidth = c.width() - 2 * barInset;
   rect(c, barX, barY, barWidth, 5, false);
   const uint32_t fillMs = DurationMs - 200;
   const uint32_t t = elapsed > fillMs ? fillMs : elapsed;

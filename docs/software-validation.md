@@ -1,6 +1,21 @@
 # Software validation
 
-## Current checkpoint — 18 November 2026
+## Current checkpoint — 24 November 2026
+
+Installed `founder-dev.20261124.3` via ArduinoOTA on the GROVA Core ESP32-S3
+(`grova_founder_s3`). The build and controller host tests passed, including
+display profile persistence, SH1107 page mapping and menu navigation.
+
+After reboot the board reported an active OLED I²C connection and valid RV-3032
+time. Equipment revision **9**, the exported configuration and the paused state
+matched the pre-update snapshot. The saved SH1107 profile kept its 180° rotation
+and line offset of 96. Visual alignment and operation of the physical encoder
+with this build remain to be confirmed.
+
+Installed application SHA-256:
+`9dda6a59c8c50815cba7d7768d60e85715555f814e947e4cce1a4f23e6d0b410`.
+
+## WLAN and web UI checkpoint — 18 November 2026
 
 Installed `founder-dev.20261118.2` on the GROVA Core ESP32-S3 via ArduinoOTA.
 Build target: `grova_founder_s3`. Development branch: `main`.

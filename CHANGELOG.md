@@ -15,6 +15,13 @@ releases; installed versions and physical acceptance are tracked in
 - Leave all outputs paused when saving and review affected automations before
   resuming operation. Guide Wi-Fi setup through selection, testing and handover.
 
+### OLED and rotary encoder
+
+- Add SSD1312 and SH1107 profiles, including native 64×128 pixel mapping for SH1107.
+  Select the controller, orientation and line offset under System → Display.
+- Add an English OLED home screen and detail views for climate, outputs, fans
+  and network. Turn to select, press to open or go back, and hold to return home.
+
 ### Branch organization
 
 - Rename current development/default branch to `main` and frozen V1 reference to

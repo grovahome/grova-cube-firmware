@@ -62,6 +62,10 @@ int main(int argc, char**) {
   assert(ssd1317::pageByte(canvas, 127, 0) == 128);
   assert(ssd1317::pageByte(canvas, 0, 1) == 1);
   assert(ssd1317::pageByte(canvas, 1, 0) == 0);
+  assert(ssd1317::portraitPageByte(canvas, 63, 0) == 1);
+  assert(ssd1317::portraitPageByte(canvas, 56, 15) == 128);
+  assert(ssd1317::portraitPageByte(canvas, 55, 0) == 1);
+  assert(ssd1317::portraitPageByte(canvas, 0, 15) == 0);
   // Invalid dates, BCD and loss-of-time flags must never seed the system clock.
   uint8_t date[] = {0, 0, 0x12, 4, 0x29, 0x02, 0x24};
   uint32_t stamp = 0;

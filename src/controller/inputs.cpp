@@ -20,7 +20,7 @@ Event poll() {
   Event event;
   int clk = digitalRead(founder::ENC_CLK);
   if (clk != lastClock && clk == LOW && millis() - moveAt >= 80) {
-    event.pageDelta = digitalRead(founder::ENC_DT) != clk ? 1 : -1;
+    event.turn = digitalRead(founder::ENC_DT) != clk ? 1 : -1;
     moveAt = millis();
   }
   lastClock = clk;
@@ -28,8 +28,10 @@ Event poll() {
   if (!button && lastButton) {
     buttonAt = millis();
   }
-  if (button && !lastButton && millis() - buttonAt >= 40) {
-    event.pageDelta = 1;
+  if (button && !lastButton) {
+    const uint32_t duration = millis() - buttonAt;
+    event.pressed = duration >= 40 && duration < 700;
+    event.held = duration >= 700;
   }
   lastButton = button;
   if (digitalRead(founder::CONFIG_BUTTON) == LOW) {
