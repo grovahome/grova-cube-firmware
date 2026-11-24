@@ -14,6 +14,10 @@ int main() {
   assert(percent(p, 480) == 100);
   assert(percent(p, 599) == 100 && percent(p, 600) == 0 && percent(p, 720) == 50 &&
          percent(p, 840) == 0);
+  assert(nextChange(p, 479, false).minute == 480);
+  assert(nextChange(p, 480, false).minute == 600 && nextChange(p, 480, false).percent == 0);
+  assert(nextChange(p, 599, false, 15).minute == 720);
+  assert(nextChange(p, 1439, false).delta == 481);
   p.slots[1].start = 590;
   assert(!valid(p, false, 0));
   p.count = 1;
@@ -23,6 +27,7 @@ int main() {
          percent(p, 1320) == 100);
   p.slots[0] = {0, 1440, 0, 100};
   assert(valid(p, false, 0) && percent(p, 1439) == 100);
+  assert(nextChange(p, 120, false).delta == 1441);
   p.slots[0].end = 0;
   assert(!valid(p, false, 0));
   p.slots[0] = {480, 0, 1000, 100};
@@ -66,6 +71,8 @@ int main() {
   assert(latest(interval, 2026001, 0).token == token(2026000, 1435));
   interval.interval.runtimeMs = 500;
   assert(valid(interval, true, 500));
+  assert(nextChange(interval, 1439, false).minute == 5);
+  assert(nextChange(interval, 1400, true).minute == 1435);
   assert(!valid(interval, true, 499));
   interval.interval.everyMinutes = 0;
   assert(!valid(interval, false, 0));

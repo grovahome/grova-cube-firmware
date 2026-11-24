@@ -8,6 +8,7 @@
 #include <iostream>
 
 #include "controller/boot_animation.h"
+#include "controller/equipment.h"
 #include "controller/i2c_bus.h"
 #include "controller/output_test.h"
 #include "modules/signal_registry.h"
@@ -19,12 +20,16 @@ unsigned long millis() {
 void delay(unsigned long ms) {
   now += ms;
 }
+static bool paused = true;
 namespace founderApp {
+bool setRest(bool enabled) {
+  paused = enabled;
+  return true;
+}
 const char* deviceId() {
   return "grova-test";
 }
 }  // namespace founderApp
-static bool paused = true;
 bool restMode_isEnabled() {
   return paused;
 }
@@ -36,8 +41,39 @@ bool wifiOTA_isTesting() {
   return wifiTesting;
 }
 namespace founderEquipment {
+static uint32_t configRevision = 1;
+static unsigned lightLevel = 0, overrideSeconds = 0;
 bool settingsReady() {
   return true;
+}
+uint32_t localRevision() {
+  return configRevision;
+}
+bool localDevice(unsigned index, LocalDevice& device) {
+  if (index != 0) return false;
+  device = {"Grow Light", LocalMode::Scheduled, false, false, lightLevel, overrideSeconds};
+  return true;
+}
+bool setLocalLevel(unsigned index, unsigned percent) {
+  if (index != 0 || paused) return false;
+  lightLevel = percent;
+  overrideSeconds = 900;
+  return true;
+}
+bool stopLocalTimed(unsigned) {
+  return false;
+}
+bool cancelLocalOverride(unsigned) {
+  overrideSeconds = 0;
+  return true;
+}
+NextAction nextAction() {
+  NextAction action;
+  if (!paused) {
+    action.name = "Grow Light";
+    action.minute = 720;
+  }
+  return action;
 }
 }  // namespace founderEquipment
 static unsigned simulatedPort = 7, simulatedPercent = 0;
@@ -189,12 +225,11 @@ int main() {
   check(0, true, "Turn/Press  Hold:Home");
   check(0, true, "Temperature");
   check(0, true, "Turn/Press  Hold:Home");
-  check(1, false, "Turn/Press  Hold:Home");
-  check(0, true, "0-10V 2");
-  check(0, true, "Turn/Press  Hold:Home");
-  check(-1, false, "Turn/Press  Hold:Home");
-  check(-1, false, "Turn/Press  Hold:Home");
-  check(0, true, "Press: Menu");
+  check(-2, true, "Output Test");   // Service.
+  check(2, true, "0-10V 2");
+  check(0, true, "Output Test");
+  check(-2, true, "Turn/Press  Hold:Home");
+  check(1, true, "Press: Menu");
   check(0, true, "Back to Home");
   check(0, true, "Temperature");
   testGraphics::lines.clear();
@@ -251,7 +286,7 @@ int main() {
   check(0, false, "Sensor offline");
   signalRegistry_publish(SIGNAL_CLIMATE_TEMPERATURE_C, 24, "SHT4x@ch3/0x44");
   now += 500;
-  check(0, false, "No Wi-Fi");
+  check(0, false, "Schedule paused");
 
   now += 60000;
   founderDisplay::loop();
@@ -263,7 +298,8 @@ int main() {
   check(0, true, "Press: Menu");  // First input wakes without opening the menu.
   assert(Wire.oledPowered);
   check(0, true, "Climate");
-  check(4, true, "Idle after 1 min");
+  check(3, true, "Settings");
+  check(1, true, "Idle after 1 min");
   check(1, true, "GROVA Saver");
   founderDisplay::begin();
   founderDisplay::loop();
@@ -277,14 +313,16 @@ int main() {
   assert(testGraphics::lines.empty());  // Wordmark is drawn as graphics.
   check(0, true, "Press: Menu");
   check(0, true, "Climate");
-  check(4, true, "Idle after 1 min");
+  check(3, true, "Settings");
+  check(1, true, "Idle after 1 min");
   check(1, true, "Always On");
   now += 60000;
   check(0, false, "Always On");
   assert(Wire.oledPowered);
   founderDisplay::navigate(0, false, true);
   check(0, true, "Climate");
-  check(5, true, "Output Test");
+  check(4, true, "Service");
+  check(1, true, "Output Test");
   check(1, true, "Press Back");
   portAssigned = true;
   check(1, false, "Assigned");
@@ -292,7 +330,7 @@ int main() {
   assert(!founderOutputTest::running());
   portAssigned = false;
   paused = false;
-  check(0, true, "Pause in web UI");
+  check(0, true, "Pause via Operation");
   assert(!founderOutputTest::running());
   paused = true;
   check(0, true, "Press Stop");
@@ -317,5 +355,43 @@ int main() {
   now += 500;
   check(0, false, "Test unavailable");
   assert(simulatedPort == 7);
-  std::cout << "OLED settings, sleep/wake, saver, sensor status and output test navigation passed\n";
+  wifiTesting = false;
+  founderDisplay::navigate(0, false, true);
+  check(0, true, "Operation");
+  check(1, true, "Resume");
+  check(1, true, "Schedule Grow Light");
+  assert(paused);
+  ++founderEquipment::configRevision;
+  check(3, true, "Operation");
+  assert(paused);  // Confirm cannot release a different configuration.
+  check(1, true, "Resume");
+  check(3, true, "ACTIVE");
+  assert(!paused);
+  founderDisplay::navigate(0, false, true);
+  check(0, false, "12:00 Off Grow Light");
+  check(0, true, "Devices");
+  check(2, true, "Grow Light");
+  check(1, true, "OFF");
+  check(1, false, "15 min");
+  check(0, true, "Override 15:00 left");
+  assert(founderEquipment::lightLevel == 100);
+  check(0, true, "Schedule");
+  assert(founderEquipment::overrideSeconds == 0);
+  founderDisplay::navigate(0, false, true);
+  check(0, true, "Operation");
+  check(1, true, "Pause all");
+  check(1, true, "All outputs off");
+  assert(!paused);
+  check(2, true, "PAUSED");
+  assert(paused);
+  founderDisplay::navigate(0, false, true);
+  check(0, true, "Settings");
+  check(3, true, "Brightness");
+  check(2, true, "Medium");
+  check(-2, true, "Low");
+  assert(Wire.oledContrast == 0x13);  // First brightness preset in SH1107.
+  founderDisplay::begin();
+  founderDisplay::loop();
+  assert(Wire.oledContrast == 0x13);  // Saved preset survives restart.
+  std::cout << "OLED daily operation, configuration review, brightness and diagnostics passed\n";
 }

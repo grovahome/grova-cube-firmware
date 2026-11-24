@@ -7,7 +7,9 @@
 
 #include "boards/grova_core_s3.h"
 #include "drivers/ssd1317.h"
+#include "controller/app.h"
 #include "controller/boot_animation.h"
+#include "controller/equipment.h"
 #include "controller/i2c_bus.h"
 #include "controller/output_test.h"
 #include "controller/outputs.h"
@@ -60,12 +62,48 @@ static bool lastFrameWelcome = false;
 bool present() {
   return ready;
 }
-enum class Screen { Home, Menu, Detail, IdleSettings, TestPorts, TestLevel };
-static constexpr const char* menuItems[] = {"Back to Home", "Climate", "Outputs", "Fans", "Network", "Display Settings", "Output Test"};
+enum class Screen {
+  Home, Menu, Detail, Operation, ConfirmOperation, Devices, Device, Settings,
+  IdleSettings, Brightness, Service, TestPorts, TestLevel
+};
+enum class Detail { Climate, Outputs, Fans, Network };
+static constexpr const char* menuItems[] = {"Back to Home", "Climate", "Operation", "Devices", "Settings", "Service"};
+static constexpr const char* settingsItems[] = {"Back", "Idle Mode", "Brightness", "Network"};
+static constexpr const char* serviceItems[] = {"Back", "Output Test", "Outputs", "Fans"};
+static constexpr const char* brightnessItems[] = {"Back", "Low", "Medium", "High"};
 static constexpr int MenuCount = sizeof(menuItems) / sizeof(menuItems[0]);
 static constexpr int LeftInset = 2;
 static Screen screen = Screen::Home;
 static int selection = 0, idleSelection = 0, testSelection = 0, testPercent = 0;
+static int subSelection = 0, deviceSelection = 0, confirmSelection = 0;
+static uint8_t brightness = 2;
+static bool brightnessPending = false;
+static Screen detailBack = Screen::Menu;
+static Detail detailPage = Detail::Climate;
+static uint32_t reviewRevision = 0;
+static bool reviewPause = false, draftPending = false, timedStopPending = false, deviceRejected = false;
+static unsigned deviceIndex = 0, draftPercent = 0;
+
+using founderEquipment::LocalDevice;
+using founderEquipment::LocalMode;
+constexpr unsigned DeviceCount = founderEquipment::LocalDeviceCount;
+struct DeviceList {
+  const char* names[DeviceCount + 1] = {"Back"};
+  unsigned indices[DeviceCount] = {};
+  int count = 1;
+};
+static DeviceList devices(bool automatedOnly = false) {
+  DeviceList list;
+  for (unsigned index = 0; index < DeviceCount; ++index) {
+    LocalDevice device{};
+    if (founderEquipment::localDevice(index, device) &&
+        (!automatedOnly || device.mode != LocalMode::Manual)) {
+      list.indices[list.count - 1] = index;
+      list.names[list.count++] = device.name;
+    }
+  }
+  return list;
+}
 static bool testRejected = false, idleSaveFailed = false, panelOff = false;
 enum class IdleMode : uint8_t { Off, Grova, AlwaysOn };
 static IdleMode idleMode = IdleMode::Off;
@@ -127,6 +165,14 @@ void begin() {
       idle <= static_cast<uint8_t>(IdleMode::AlwaysOn)) {
     idleMode = static_cast<IdleMode>(idle);
   }
+  brightness = 2;
+  uint8_t storedBrightness = 2;
+  if (storageReady && displaySettings.getBytesLength("brightness") == sizeof(storedBrightness) &&
+      displaySettings.getBytes("brightness", &storedBrightness, sizeof(storedBrightness)) ==
+          sizeof(storedBrightness) && storedBrightness <= 2) {
+    brightness = storedBrightness;
+  }
+  brightnessPending = false;
   panel = &panels[0];
   rotate = 0;
   rowOffset = panel->defaultOffset;
@@ -184,6 +230,71 @@ static void navigateTest(int turn, bool pressed) {
   }
 }
 
+static void showDetail(Detail page, Screen back) {
+  detailPage = page;
+  detailBack = back;
+  screen = Screen::Detail;
+}
+
+static void confirmOperation(int turn, bool pressed) {
+  if (reviewRevision != founderEquipment::localRevision() ||
+      reviewPause == restMode_isEnabled() || founderOutputTest::running()) {
+    screen = Screen::Operation;
+    subSelection = 0;
+    return;
+  }
+  const int confirm = reviewPause ? 2 : devices(true).count + 1;
+  confirmSelection = constrain(confirmSelection + turn, 0, confirm);
+  if (!pressed) return;
+  if (confirmSelection == confirm) {
+    deviceRejected = !ready || !founderApp::setRest(reviewPause);
+    screen = Screen::Operation;
+    subSelection = 0;
+  } else if (confirmSelection == 0) {
+    screen = Screen::Operation;
+  }
+}
+
+static void navigateDevice(int turn, bool pressed) {
+  LocalDevice device{};
+  if (reviewRevision != founderEquipment::localRevision() ||
+      !founderEquipment::localDevice(deviceIndex, device)) {
+    deviceSelection = 0;
+    screen = Screen::Devices;
+    return;
+  }
+  if (device.timed) {
+    if (turn) {
+      timedStopPending = turn > 0 && device.percent != 0;
+      deviceRejected = false;
+    }
+    if (pressed && timedStopPending && ready && device.percent) {
+      deviceRejected = !(device.mode == LocalMode::Manual
+          ? founderEquipment::stopLocalTimed(deviceIndex) : founderApp::setRest(true));
+      timedStopPending = false;
+    } else if (pressed) {
+      screen = Screen::Devices;
+    }
+    return;
+  }
+  if (turn) {
+    const int current = draftPending ? draftPercent : device.percent;
+    const int step = device.variable ? 10 : 100;
+    const int target = constrain(current + constrain(turn, -1, 1) * step, 0, 100);
+    draftPercent = target;
+    draftPending = draftPercent != device.percent;
+    deviceRejected = false;
+  }
+  if (pressed && draftPending) {
+    deviceRejected = !ready || !founderEquipment::setLocalLevel(deviceIndex, draftPercent);
+    if (!deviceRejected) draftPending = false;
+  } else if (pressed && device.overrideSeconds) {
+    founderEquipment::cancelLocalOverride(deviceIndex);
+  } else if (pressed) {
+    screen = Screen::Devices;
+  }
+}
+
 void navigate(int turn, bool pressed, bool held) {
   if ((!turn && !pressed && !held) || wifiOTA_setupActive()) {
     return;
@@ -193,6 +304,11 @@ void navigate(int turn, bool pressed, bool held) {
   lastInputAt = now;
   drawAt = now - 500;
   if (waking || welcome.active(now)) {
+    if (waking && screen == Screen::ConfirmOperation) screen = Screen::Operation;
+    if (waking && screen == Screen::Device) {
+      draftPending = false;
+      timedStopPending = false;
+    }
     welcome.dismiss();
     return;
   }
@@ -209,30 +325,103 @@ void navigate(int turn, bool pressed, bool held) {
     case Screen::Menu:
       selection = cycle(selection, turn, MenuCount);
       if (pressed) {
-        if (selection == 0) {
-          screen = Screen::Home;
-        } else if (selection == 5) {
-          idleSelection = static_cast<int>(idleMode) + 1;
-          idleSaveFailed = false;
-          screen = Screen::IdleSettings;
-        } else if (selection == 6) {
-          testSelection = 0;
-          screen = Screen::TestPorts;
-        } else {
-          screen = Screen::Detail;
+        subSelection = 0;
+        deviceRejected = false;
+        switch (selection) {
+          case 0: screen = Screen::Home; break;
+          case 1: showDetail(Detail::Climate, Screen::Menu); break;
+          case 2: screen = Screen::Operation; break;
+          case 3: deviceSelection = 0; screen = Screen::Devices; break;
+          case 4: screen = Screen::Settings; break;
+          case 5: screen = Screen::Service; break;
         }
       }
       break;
     case Screen::Detail:
-      if (pressed) {
+      if (pressed) screen = detailBack;
+      break;
+    case Screen::Operation:
+      if (turn) deviceRejected = false;
+      subSelection = cycle(subSelection, turn, 2);
+      if (pressed && subSelection) {
+        reviewRevision = founderEquipment::localRevision();
+        reviewPause = !restMode_isEnabled();
+        confirmSelection = 0;
+        screen = Screen::ConfirmOperation;
+      } else if (pressed) {
         screen = Screen::Menu;
+      }
+      break;
+    case Screen::ConfirmOperation:
+      confirmOperation(turn, pressed);
+      break;
+    case Screen::Devices: {
+      const auto list = devices();
+      deviceSelection = cycle(deviceSelection, turn, list.count);
+      if (pressed && deviceSelection) {
+        deviceIndex = list.indices[deviceSelection - 1];
+        reviewRevision = founderEquipment::localRevision();
+        draftPending = timedStopPending = deviceRejected = false;
+        screen = Screen::Device;
+      } else if (pressed) {
+        screen = Screen::Menu;
+      }
+      break;
+    }
+    case Screen::Device:
+      navigateDevice(turn, pressed);
+      break;
+    case Screen::Settings:
+      subSelection = cycle(subSelection, turn, 4);
+      if (pressed) {
+        switch (subSelection) {
+          case 0: screen = Screen::Menu; break;
+          case 1:
+            idleSelection = static_cast<int>(idleMode) + 1;
+            idleSaveFailed = false;
+            screen = Screen::IdleSettings;
+            break;
+          case 2:
+            idleSelection = brightness + 1;
+            idleSaveFailed = false;
+            screen = Screen::Brightness;
+            break;
+          case 3: showDetail(Detail::Network, Screen::Settings); break;
+        }
+      }
+      break;
+    case Screen::Brightness:
+      idleSelection = cycle(idleSelection, turn, 4);
+      if (pressed && idleSelection == 0) {
+        screen = Screen::Settings;
+      } else if (pressed) {
+        const uint8_t choice = idleSelection - 1;
+        if (choice != brightness) {
+          idleSaveFailed = !storageReady ||
+              displaySettings.putBytes("brightness", &choice, sizeof(choice)) != sizeof(choice);
+          if (!idleSaveFailed) {
+            brightness = choice;
+            brightnessPending = true;
+          }
+        }
+      }
+      break;
+    case Screen::Service:
+      subSelection = cycle(subSelection, turn, 4);
+      if (pressed) {
+        switch (subSelection) {
+          case 0: screen = Screen::Menu; break;
+          case 1: testSelection = 0; screen = Screen::TestPorts; break;
+          case 2: showDetail(Detail::Outputs, Screen::Service); break;
+          case 3: showDetail(Detail::Fans, Screen::Service); break;
+        }
       }
       break;
     case Screen::IdleSettings:
       idleSelection = cycle(idleSelection, turn, 4);
       if (pressed) {
         if (idleSelection == 0) {
-          screen = Screen::Menu;
+          screen = Screen::Settings;
           break;
         }
         const uint8_t choice = idleSelection - 1;
@@ -250,7 +439,7 @@ void navigate(int turn, bool pressed, bool held) {
       if (pressed) {
         testRejected = false;
         testPercent = 0;
-        screen = testSelection == 0 ? Screen::Menu : Screen::TestLevel;
+        screen = testSelection == 0 ? Screen::Service : Screen::TestLevel;
       }
       break;
     case Screen::TestLevel:
@@ -350,8 +539,27 @@ static void home() {
   text(climateX, climateY + 10, value);
   if (!climate.valid && climate.source[0]) {
     text(0, wide ? 44 : 100, wide ? "Sensor offline" : "Sens. off");
+  } else if (paused) {
+    text(0, wide ? 44 : 100, wide ? "Schedule paused" : "Paused");
   } else {
-    text(0, wide ? 44 : 100, wifiOTA_isConnected() ? "Wi-Fi on" : "No Wi-Fi");
+    const auto action = founderEquipment::nextAction();
+    if (action.name) {
+      char target[6];
+      if (action.pulse || !action.percent || !action.variable) {
+        snprintf(target, sizeof(target), "%s", action.pulse ? "Run" : action.percent ? "On" : "Off");
+      } else {
+        snprintf(target, sizeof(target), "%u%%", action.percent);
+      }
+      if (wide) {
+        snprintf(value, sizeof(value), "%02u:%02u %s %.*s", action.minute / 60, action.minute % 60,
+                 target, 14 - int(strlen(target)), action.name);
+      } else {
+        snprintf(value, sizeof(value), "%02u:%02u %s", action.minute / 60, action.minute % 60, target);
+      }
+      text(0, wide ? 44 : 100, value);
+    } else {
+      text(0, wide ? 44 : 100, wifiOTA_isConnected() ? "Wi-Fi on" : "No Wi-Fi");
+    }
   }
   footer(wide ? "Press: Menu" : "Press Menu");
 }
@@ -377,10 +585,107 @@ static void list(const char* title, const char* const* entries, int count, int s
 
 static void menu() {
   const bool wide = oled.width() >= 128;
-  static constexpr const char* narrow[] = {"Back", "Climate", "Outputs", "Fans",
-                                          "Network", "Display", "Test"};
+  static constexpr const char* narrow[] = {"Back", "Climate", "Operation", "Devices", "Settings", "Service"};
   list("Menu", wide ? menuItems : narrow, MenuCount, selection);
   footer(wide ? "Turn/Press  Hold:Home" : "Turn/Press");
+}
+
+static const char* modeLabel(LocalMode mode) {
+  switch (mode) {
+    case LocalMode::Manual: return "Manual";
+    case LocalMode::Scheduled: return "Schedule";
+    case LocalMode::Sensor: return "Sensor";
+  }
+  return "";
+}
+
+static void operation() {
+  const bool paused = restMode_isEnabled();
+  const char* actions[] = {"Back", paused ? "Resume" : "Pause all"};
+  list("Operation", actions, 2, subSelection);
+  text(0, 37, paused ? "PAUSED" : "ACTIVE");
+  footer(deviceRejected ? "Action blocked" : "Turn/Press");
+}
+
+static void operationReview() {
+  if (reviewPause) {
+    static constexpr const char* entries[] = {"Cancel", "All outputs off", "Confirm"};
+    list("Pause all", entries, 3, confirmSelection);
+  } else {
+    const auto automated = devices(true);
+    const bool wide = oled.width() >= 128;
+    const char* entries[DeviceCount + 3] = {"Cancel", "Enable outputs"};
+    char rows[DeviceCount][22] = {};
+    for (int i = 1; i < automated.count; ++i) {
+      LocalDevice device{};
+      founderEquipment::localDevice(automated.indices[i - 1], device);
+      if (wide) {
+        snprintf(rows[i - 1], sizeof(rows[i - 1]), "%s %.11s", modeLabel(device.mode), device.name);
+      } else {
+        snprintf(rows[i - 1], sizeof(rows[i - 1]), "%c %.8s",
+                 device.mode == LocalMode::Scheduled ? 'T' : 'S', device.name);
+      }
+      entries[i + 1] = rows[i - 1];
+    }
+    entries[automated.count + 1] = "Confirm";
+    list("Resume", entries, automated.count + 2, confirmSelection);
+  }
+  footer("Review/OK");
+}
+
+static void deviceList() {
+  const auto listData = devices();
+  list("Devices", listData.names, listData.count, constrain(deviceSelection, 0, listData.count - 1));
+  if (listData.count == 1) text(0, 29, "No devices");
+  footer("Turn/Press");
+}
+
+static void deviceScreen() {
+  LocalDevice device{};
+  if (!founderEquipment::localDevice(deviceIndex, device) ||
+      reviewRevision != founderEquipment::localRevision()) {
+    text(0, 12, "Config changed");
+    footer("Press Back");
+    return;
+  }
+  text(0, 5, device.name);
+  divider(13);
+  char line[22];
+  const bool wide = oled.width() >= 128;
+  if (device.timed) {
+    text(0, 17, device.percent ? "RUNNING" : "STOPPED");
+    text(0, 29, modeLabel(device.mode));
+    if (timedStopPending) {
+      text(0, 40, device.mode == LocalMode::Manual ? "Stop device" : (wide ? "Pause all to stop" : "Pause all"));
+    } else if (device.percent) {
+      text(0, 40, wide ? "Turn to stop" : "Turn: Stop");
+    }
+    footer(deviceRejected ? "Stop error" : timedStopPending ? "Press Stop" : "Press Back");
+    return;
+  }
+  const unsigned level = draftPending ? draftPercent : device.percent;
+  if (device.variable) {
+    snprintf(line, sizeof(line), "%u%%", level);
+  } else {
+    snprintf(line, sizeof(line), "%s", level ? "ON" : "OFF");
+  }
+  text(0, 17, line, 2);
+  if (device.overrideSeconds) {
+    snprintf(line, sizeof(line), wide ? "Override %u:%02u left" : "Ov. %u:%02u",
+             device.overrideSeconds / 60, device.overrideSeconds % 60);
+    text(0, 37, line);
+  } else if (draftPending && device.mode != LocalMode::Manual) {
+    text(0, 37, wide ? "Override for 15 min" : "15 min");
+  } else {
+    text(0, 37, modeLabel(device.mode));
+  }
+  footer(deviceRejected ? "Blocked" : draftPending ? "Press Save"
+      : device.overrideSeconds ? "Press Auto" : wide ? "Turn: Set  Press:Back" : "Turn/Back");
+}
+
+static void brightnessScreen() {
+  list("Brightness", brightnessItems, 4, idleSelection, brightness + 1);
+  footer(idleSaveFailed ? "Save error" : "Press Save");
 }
 
 static void idleSettings() {
@@ -419,7 +724,7 @@ static void testLevel() {
     footer(wide ? "Hold: Home" : "Hold Home");
   } else if (!founderOutputTest::available()) {
     text(0, 38, restMode_isEnabled() ? (wide ? "Test unavailable" : "Locked")
-                                    : (wide ? "Pause in web UI" : "Pause web"));
+                                    : (wide ? "Pause via Operation" : "Pause Core"));
     footer("Hold Home");
   } else {
     text(0, 38, testRejected ? "Test error" : wide ? "Turn to set level" : "Turn level");
@@ -428,12 +733,13 @@ static void testLevel() {
 }
 
 static void detail() {
-  text(0, 5, menuItems[selection]);
+  static constexpr const char* titles[] = {"Climate", "Outputs", "Fans", "Network"};
+  text(0, 5, titles[static_cast<unsigned>(detailPage)]);
   divider(13);
   char value[24];
   const bool wide = oled.width() >= 128;
-  switch (selection) {
-    case 1:
+  switch (detailPage) {
+    case Detail::Climate:
       climateInfo(wide);
       if (!wide) {
         reading(value, sizeof(value), SIGNAL_CLIMATE_TEMPERATURE_C, " C");
@@ -451,7 +757,7 @@ static void detail() {
         text(0, 43, "Pressure"); text(76, 43, value);
       }
       break;
-    case 2: {
+    case Detail::Outputs: {
       text(wide ? 48 : 0, wide ? 5 : 106, "Setpoints");
       for (unsigned i = 0; i < sizeof(portLabels) / sizeof(portLabels[0]); ++i) {
         const float percent = founderOutputs::applied(i);
@@ -466,7 +772,7 @@ static void detail() {
       }
       break;
     }
-    case 3:
+    case Detail::Fans:
       if (wide) {
         snprintf(value, sizeof(value), "Fan 1 %d%% / %d RPM", getFanPercent(), getFanRPM());
         text(0, 17, value);
@@ -483,7 +789,7 @@ static void detail() {
         text(0, 53, value);
       }
       break;
-    case 4:
+    case Detail::Network:
       if (wifiOTA_isConnected()) {
         text(0, 17, wide ? "Wi-Fi connected" : "Wi-Fi OK");
         text(0, 29, wide ? "Open in browser" : "Web IP");
@@ -553,6 +859,7 @@ void loop() {
         ready = oled.begin(address, rowOffset, panel->profile);
         if (ready) {
           panelOff = false;
+          brightnessPending = brightness != 2;
           welcome.found(millis());
         }
       }
@@ -583,6 +890,14 @@ void loop() {
     return;
   }
 
+  if (brightnessPending) {
+    if (!oled.setContrast(brightness)) {
+      ready = false;
+      founderOutputTest::stop();
+      return;
+    }
+    brightnessPending = false;
+  }
   oled.clearDisplay();
   lastFrameWelcome = showingWelcome;
   if (showingWelcome) {
@@ -596,6 +911,21 @@ void loop() {
       case Screen::Home: home(); break;
       case Screen::Menu: menu(); break;
       case Screen::Detail: detail(); break;
+      case Screen::Operation: operation(); break;
+      case Screen::ConfirmOperation: operationReview(); break;
+      case Screen::Devices: deviceList(); break;
+      case Screen::Device: deviceScreen(); break;
+      case Screen::Settings:
+        list("Settings", settingsItems, 4, subSelection);
+        footer("Turn/Press");
+        break;
+      case Screen::Brightness: brightnessScreen(); break;
+      case Screen::Service: {
+        static constexpr const char* narrow[] = {"Back", "Out Test", "Outputs", "Fans"};
+        list("Service", oled.width() >= 128 ? serviceItems : narrow, 4, subSelection);
+        footer("Turn/Press");
+        break;
+      }
       case Screen::IdleSettings: idleSettings(); break;
       case Screen::TestPorts: testPorts(); break;
       case Screen::TestLevel: testLevel(); break;

@@ -176,6 +176,16 @@ String status() {
   j["schedule_resume_pending"] = resumePlans;
   j["schedule_run_enabled"] = intentActive;
   j["schedule_resume_error"] = resumeFailed;
+  const auto next = founderEquipment::nextAction();
+  if (next.name) {
+    auto action = j["next_action"].to<JsonObject>();
+    action["name"] = next.name;
+    action["minute"] = next.minute;
+    action["tomorrow"] = next.minute <= unsigned(getHour() * 60 + getMinute());
+    action["percent"] = next.percent;
+    action["pulse"] = next.pulse;
+    action["variable"] = next.variable;
+  }
   j["output_roles_assigned"] = founderEquipment::hasAssignments();
   j["mux_present"] = founderBus::hasMux();
   j["rtc"]["type"] = "RV-3032";

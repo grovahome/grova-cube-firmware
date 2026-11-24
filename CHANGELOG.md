@@ -30,6 +30,13 @@ releases; installed versions and physical acceptance are tracked in
 - Add timed output tests for both fans and free 5 V, 12 V and 0–10 V connections
   while automation is paused.
 
+- Add daily controls on the OLED: confirmed pause and resume, configured
+  device controls and 15-minute overrides for automated lights, fans and
+  other non-timed outputs. The timed-device screen offers status and stop.
+- Preview the next scheduled action on the home screen and in the web
+  overview. Display brightness is saved in Settings and port tests are under
+  Service.
+
 ### Branch organization
 
 - Rename current development/default branch to `main` and frozen V1 reference to

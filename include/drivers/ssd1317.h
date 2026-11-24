@@ -45,6 +45,13 @@ class GrovaSSD1317 : public GFXcanvas1 {
     const uint8_t instruction = on ? 0xAF : 0xAE;
     return command(&instruction, 1);
   }
+  bool setContrast(unsigned level) {
+    if (level > 2) return false;
+    const unsigned defaults[] = {0x35, 0x7F, 0xCF, 0x4F};
+    const unsigned original = defaults[static_cast<uint16_t>(profile_) >> 14];
+    const uint8_t instructions[] = {0x81, uint8_t(original / (1U << (2 - level)))};
+    return command(instructions, sizeof(instructions));
+  }
   void clearDisplay() {
     fillScreen(0);
   }

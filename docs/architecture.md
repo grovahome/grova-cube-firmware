@@ -75,11 +75,23 @@ directly to the home screen. Climate shows the active temperature source and
 sample age. When that signal drops out, the display keeps the last known
 source and marks the sensor offline.
 
-Display Settings saves the idle behavior after one minute without encoder
+Operation confirms Pause all or Resume. The resume screen lists affected
+schedules and sensor-controlled devices. A configuration change invalidates
+the review. The home screen and web overview preview the next regular timer
+change. Paused schedules do not show an upcoming action.
+
+Devices uses configured device and fan assignments. Turn to stage a change
+and press to apply it. An automated device can be overridden for 15 minutes.
+The override is volatile, preserves the automation settings and ends on
+expiry, Pause or loss of the automation interlock. Adjusting an active override
+keeps the original deadline. A timed device can be stopped from the OLED.
+Stopping an automated timed device uses the same Pause all behavior as the web.
+
+Settings saves brightness and the idle mode after one minute without encoder
 input. Choose Screen Off, GROVA Saver or Always On. A turn or press wakes the
 screen without changing the selected menu item.
 
-Output Test runs one physical connection at a time while operation is paused.
+Service → Output Test runs one physical connection at a time while operation is paused.
 Select a port, turn to choose a level and press to start. Turn to change the
 level during the test or press to stop. The test ends after ten seconds.
 The existing output timer also cuts off the 5 V and 12 V switches. A connected
