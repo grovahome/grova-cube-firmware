@@ -2,6 +2,20 @@
 
 ## Current checkpoint — 24 November 2026
 
+Installed `founder-dev.20261124.4` via ArduinoOTA on the GROVA Core ESP32-S3
+(`grova_founder_s3`). The build and controller tests passed, including encoder
+bounce, reversal, fast turns, short presses and holds.
+
+After reboot the board reported OLED I²C, valid RV-3032 time and OTA readiness.
+The exported configuration matched the pre-update snapshot at revision
+**9**. The SH1107 profile and paused state were retained.
+The feel of the physical rotary encoder remains to be checked on the board.
+
+Installed application SHA-256:
+`ae251ee3814c25fbcc20f61a683bc1a72ba44ce8ad5f9e18de0c09e62fc3e884`.
+
+## OLED menu checkpoint — 24 November 2026
+
 Installed `founder-dev.20261124.3` via ArduinoOTA on the GROVA Core ESP32-S3
 (`grova_founder_s3`). The build and controller host tests passed, including
 display profile persistence, SH1107 page mapping and menu navigation.

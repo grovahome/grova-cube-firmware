@@ -21,6 +21,8 @@ releases; installed versions and physical acceptance are tracked in
   Select the controller, orientation and line offset under System → Display.
 - Add an English OLED home screen and detail views for climate, outputs, fans
   and network. Turn to select, press to open or go back, and hold to return home.
+- Count complete encoder detents and filter contact bounce. Fast turns are
+  limited to one menu step per 140 ms and do not queue delayed steps.
 
 ### Branch organization
 

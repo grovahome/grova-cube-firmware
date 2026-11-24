@@ -23,6 +23,12 @@ with tempfile.TemporaryDirectory(prefix='grova-founder-tests-') as temp:
     boot_command=[a.compiler]+(['c++'] if a.zig else [])
     subprocess.run(boot_command+['-std=c++17','-Wall','-Wextra','-Isrc','tests/controller/boot_test.cpp','-o',str(boot_binary)],cwd=root,check=True)
     subprocess.run([str(boot_binary)]+([str(a.boot_frames)] if a.boot_frames else []),cwd=root,check=True)
+    inputs_binary = Path(temp) / 'inputs_tests.exe'
+    subprocess.run(boot_command + ['-std=c++17', '-Wall', '-Wextra',
+                   '-Itests/controller/include', '-Isrc', '-Iinclude',
+                   'tests/controller/inputs_test.cpp', 'src/controller/inputs.cpp',
+                   '-o', str(inputs_binary)], cwd=root, check=True)
+    subprocess.run([str(inputs_binary)], cwd=root, check=True)
     display_binary=Path(temp)/'display_tests.exe'
     display_command=[a.compiler]+(['c++'] if a.zig else [])
     subprocess.run(display_command+['-std=c++17','-Wall','-Wextra','-Itests/controller/include','-Itests/host/include','-Isrc','-Iinclude','-I.pio/libdeps/grova_founder_s3/ArduinoJson/src','tests/controller/display_test.cpp','src/controller/display.cpp','src/controller/i2c_bus.cpp','src/modules/signal_registry.cpp','-o',str(display_binary)],cwd=root,check=True)
