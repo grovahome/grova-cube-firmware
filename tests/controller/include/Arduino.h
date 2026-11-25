@@ -5,6 +5,11 @@
 #define HIGH 1
 #define LOW 0
 #define OUTPUT 1
+#define INPUT 0
+#define INPUT_PULLUP 2
+#define CHANGE 3
+int digitalRead(int);
+void attachInterrupt(int, void (*)(), int);
 void digitalWrite(int, int);
 void pinMode(int, int);
 double ledcSetup(int, double, int);

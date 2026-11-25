@@ -526,6 +526,13 @@ int main(int argc, char** argv) {
     assert(!run(R"({"cmd":"set_fan_manual","fan":2,"percent":90})"));
     assert(!run(R"({"cmd":"set_fan_auto","fan":1})"));
     assert(!run(R"({"cmd":"set_device","id":"dev1","percent":90})"));
+    assert(founderEquipment::setLocalLevel(5, 55));
+    founderApp::loop();
+    assert(manualFans[0] == 55 && manualFans[1] == 0);
+    assert(statusJson()["fan_ports"][0]["override_remaining_s"] == 900);
+    assert(founderEquipment::cancelLocalOverride(5));
+    founderApp::loop();
+    assert(manualFans[0] == 35);
     minuteOfDay = 540;
     founderApp::loop();
     assert(manualFans[0] == 0);
@@ -767,6 +774,31 @@ int main(int argc, char** argv) {
     assert(!restMode_isEnabled());
     founderApp::loop();
     assert(founderOutputs::applied(0) == 100 && founderOutputs::applied(1) == 0);
+    if (!strcmp(argv[1], "--plan-local")) {
+      assert(!founderEquipment::setLocalLevel(1, 100));  // Timed starts remain unavailable.
+      minuteOfDay = 500;
+      assert(founderEquipment::nextAction().minute == 540);
+      assert(founderEquipment::setLocalLevel(0, 0));
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 0);
+      auto state = statusJson();
+      assert(state["equipment"][0]["override_remaining_s"] == 900);
+      assert(state["next_action"]["minute"] == 540);
+      nowMs += 60000;
+      assert(founderEquipment::setLocalLevel(0, 0));
+      assert(statusJson()["equipment"][0]["override_remaining_s"] == 840);  // Edit does not extend it.
+      nowMs += 840000;
+      founderApp::loop();
+      assert(founderOutputs::applied(0) == 100);
+      assert(statusJson()["equipment"][0]["override_remaining_s"] == 0);
+      assert(founderEquipment::setLocalLevel(0, 0));
+      assert(founderApp::setRest(true));
+      assert(!founderEquipment::setLocalLevel(0, 100));
+      assert(!founderEquipment::nextAction().name);
+      assert(statusJson()["equipment"][0]["override_remaining_s"] == 0);
+      std::cout << "Local override, expiry, pause, pump start prevention and next action passed\n";
+      return 0;
+    }
     if (!strcmp(argv[1], "--plan-integration")) {
       minuteOfDay = 540;
       founderApp::loop();
@@ -958,6 +990,8 @@ int main(int argc, char** argv) {
   assert(run(R"({"cmd":"set_display_config","rotation":1,"offset":80})"));
   assert(!run(R"({"cmd":"set_display_config","rotation":4,"offset":80})"));
   assert(!run(R"({"cmd":"set_display_config","rotation":0,"offset":96})"));
+  assert(run(R"({"cmd":"set_display_config","controller":"sh1107","rotation":2,"offset":96})"));
+  assert(!run(R"({"cmd":"set_display_config","controller":null,"rotation":2,"offset":80})"));
   assert(!run(R"({"cmd":"set_grow_mode","mode":"GROWTH"})"));
   assert(!run(R"({"cmd":"pump_test","action":"start"})"));
   assert(run(R"({"cmd":"set_rest_mode","enabled":false})"));
@@ -1146,7 +1180,7 @@ unsigned rotation() {
 unsigned offset() {
   return 80;
 }
-bool configure(unsigned r, unsigned o) {
-  return r <= 3 && o <= 95;
+bool configure(unsigned r, unsigned o, const char* profile) {
+  return r <= 3 && (profile ? !strcmp(profile, "sh1107") && o <= 127 : o <= 95);
 }
 }  // namespace founderDisplay

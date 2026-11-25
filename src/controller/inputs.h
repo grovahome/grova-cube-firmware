@@ -1,7 +1,9 @@
 #pragma once
 namespace founderInputs {
 struct Event {
-  int pageDelta = 0;
+  int turn = 0;
+  bool pressed = false;
+  bool held = false;
   bool requestSetup = false;
 };
 void begin();

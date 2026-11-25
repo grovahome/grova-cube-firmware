@@ -62,6 +62,10 @@ int main(int argc, char**) {
   assert(ssd1317::pageByte(canvas, 127, 0) == 128);
   assert(ssd1317::pageByte(canvas, 0, 1) == 1);
   assert(ssd1317::pageByte(canvas, 1, 0) == 0);
+  assert(ssd1317::portraitPageByte(canvas, 63, 0) == 1);
+  assert(ssd1317::portraitPageByte(canvas, 56, 15) == 128);
+  assert(ssd1317::portraitPageByte(canvas, 55, 0) == 1);
+  assert(ssd1317::portraitPageByte(canvas, 0, 15) == 0);
   // Invalid dates, BCD and loss-of-time flags must never seed the system clock.
   uint8_t date[] = {0, 0, 0x12, 4, 0x29, 0x02, 0x24};
   uint32_t stamp = 0;
@@ -155,7 +159,27 @@ int main(int argc, char**) {
   assert(pins[4] == 0 && pwm[2] == 0);
   assert(!founderOutputs::set("OUT12_1", 100));
   assert(founderOutputs::set("OUT12_1", 0));
+  assert(!founderOutputs::startTest(0, 50, 10000));
+  assert(!founderOutputs::startTest(0, 100, 10001));
+  const int8_t assignedOwners[5] = {0, -1, -1, -1, -1};
+  const bool untimed[5] = {};
+  founderOutputs::assignOwners(assignedOwners, untimed);
+  assert(!founderOutputs::startTest(0, 100, 10000));
+  assert(founderOutputs::startTest(1, 100, 10000));
+  founderOutputs::interlock(true, false);
+  assert(pins[5] == 1 && pins[4] == 0);
+  nowMs += 10000;
+  testTimer::fire();
+  assert(pins[5] == 0);
+  nowMs -= 10000;
+  founderOutputs::stopTest();
+  assert(founderOutputs::startTest(3, 50, 10000));
+  founderOutputs::interlock(true, false);
+  assert(pwm[2] == 2048 && pwm[3] == 0);
+  assert(founderOutputs::setTestLevel(100) && pwm[2] == 4095);
   founderOutputs::interlock(false, true);
+  assert(!founderOutputs::testing() && pwm[2] == 0);
+  assert(!founderOutputs::startTest(3, 50, 10000));
   assert(!founderOutputs::set("OUT12_1", 100));
   founderOutputs::interlock(false, false);
   assert(pins[4] == 0 && pwm[2] == 0);

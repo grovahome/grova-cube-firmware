@@ -97,6 +97,7 @@ bool setRest(bool enabled) {
     intentActive = false;
     restMode_setEnabled(true, false);
     founderOutputs::interlock(true, wifiOTA_requiresSetup());
+    founderOutputs::stopAll();
     founderEquipment::stopAll();
     fan_forceOff();
   }
@@ -175,6 +176,16 @@ String status() {
   j["schedule_resume_pending"] = resumePlans;
   j["schedule_run_enabled"] = intentActive;
   j["schedule_resume_error"] = resumeFailed;
+  const auto next = founderEquipment::nextAction();
+  if (next.name) {
+    auto action = j["next_action"].to<JsonObject>();
+    action["name"] = next.name;
+    action["minute"] = next.minute;
+    action["tomorrow"] = next.minute <= unsigned(getHour() * 60 + getMinute());
+    action["percent"] = next.percent;
+    action["pulse"] = next.pulse;
+    action["variable"] = next.variable;
+  }
   j["output_roles_assigned"] = founderEquipment::hasAssignments();
   j["mux_present"] = founderBus::hasMux();
   j["rtc"]["type"] = "RV-3032";
@@ -365,7 +376,12 @@ bool command(const String& body, String& response, bool remote) {
     }
   } else if (!strcmp(cmd, "set_display_config") && j["rotation"].is<unsigned>() &&
              j["offset"].is<unsigned>()) {
-    ok = founderDisplay::configure(j["rotation"], j["offset"]);
+    const JsonVariantConst profile = j["controller"];
+    if (profile.isUnbound()) {
+      ok = founderDisplay::configure(j["rotation"], j["offset"]);
+    } else if (!remote && profile.is<const char*>()) {
+      ok = founderDisplay::configure(j["rotation"], j["offset"], profile.as<const char*>());
+    }
   } else if (!strcmp(cmd, "set_rtc_config") && j["enabled"].is<bool>()) {
     ok = rtc_setEnabled(j["enabled"]);
   } else if (!strcmp(cmd, "set_mqtt_config") && !remote) {

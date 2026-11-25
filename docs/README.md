@@ -3,6 +3,7 @@
 ## Current ESP32-S3 controller
 
 - [Architecture and build separation](architecture.md)
+- [OLED menu and encoder guide](display-ui.md)
 - [Equipment and port assignment](equipment.md)
 - [Automation rules](automation.md) and [scheduling](scheduling.md)
 - [Event log](event-log.md), [history and backup](history-backup.md)
@@ -15,7 +16,7 @@
 - [API](api.md), [command safety](command-safety.md), [Wi-Fi setup](wifi-setup.md)
 - [Firmware profiles](firmware-profiles.md), [I2C discovery](i2c-discovery.md)
 - [Fan control](fan-control-concept.md), [pump safety](pump-safety.md)
-- [Local run lifecycle](local-run-lifecycle.md), [display UI](display-ui.md)
+- [Local run lifecycle](local-run-lifecycle.md)
 - [Legacy setup](setup.md), [technical reference](technical.md), [V1 freeze](v1-freeze.md)
 - [Repository conventions](repository-conventions.md) and [test guide](../tests/README.md)
 

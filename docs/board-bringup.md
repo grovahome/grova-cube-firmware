@@ -1,12 +1,15 @@
 # Board bring-up and acceptance
 
-## Current checkpoint — 18 November 2026
+## Current checkpoint — 25 November 2026
 
-The integrated ESP32-S3 application is installed. Latest recorded release:
-`founder-dev.20261118.2` on `main`, verified after OTA.
+The GROVA Core runs `founder-dev.20261125.1`, verified after OTA. The GME64128-02
+OLED and rotary encoder are connected. The Core reports an active OLED I²C
+connection using the SH1107 profile with 180° rotation. Visual alignment and
+physical menu operation with this build remain to be confirmed.
+
 Wi-Fi/OTA, SHT4x on mux channel 3 at `0x44`, mux detection and valid RV-3032
 operation have been confirmed. Short battery-backed RTC retention and RGB sequence
-were checked earlier. Display/encoder work remains deferred.
+were checked earlier.
 
 Open: physical sensor fault/recovery tests, long-term RTC, electrical outputs,
 PWM/tachometer, 0–10 V, pump/load acceptance and the power/recovery questions below.

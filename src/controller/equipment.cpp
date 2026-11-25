@@ -137,6 +137,22 @@ static Preferences settings;
 static bool storage = false, configOk = false, eventsOk = false;
 static uint32_t revision = 0;
 static float requested[Count] = {};
+static_assert(LocalDeviceCount == Count + 2, "Local device slots must include both PWM fans");
+static constexpr uint32_t OverrideMs = 15 * 60 * 1000;
+struct Override {
+  bool active = false;
+  uint8_t percent = 0;
+  uint32_t startedAt = 0;
+};
+static Override overrides[LocalDeviceCount];
+static void clearOverrides() {
+  for (auto& slot : overrides) slot = {};
+}
+static unsigned overrideRemaining(unsigned index) {
+  const auto& entry = overrides[index];
+  const uint32_t age = millis() - entry.startedAt;
+  return entry.active && age < OverrideMs ? OverrideMs - age : 0;
+}
 struct Action {
   char id[48];
   uint8_t slot;
@@ -472,6 +488,7 @@ static void apply(const Device (&next)[Count]) {
     }
   }
   founderOutputs::assignOwners(owners, pulse);
+  clearOverrides();
   for (unsigned i = 0; i < Count; ++i) {
     devices[i] = next[i];
     requested[i] = 0;
@@ -859,6 +876,25 @@ static bool drive(unsigned i, float value) {
   }
   return true;
 }
+static bool manualAllowed() {
+  return settingsReady() && !restMode_isEnabled() && !wifiOTA_requiresSetup() &&
+         !wifiOTA_isTesting() && !founderOutputs::inhibited() && founderOutputs::ready();
+}
+
+static bool setAssignedLevel(unsigned i, float percent) {
+  const bool ok = drive(i, percent);
+  if (ok) requested[i] = percent;
+  return ok;
+}
+
+bool stopLocalTimed(unsigned index) {
+  if (index >= Count || !devices[index].profile || !devices[index].profile->timed ||
+      (devices[index].automatic || devices[index].plan.enabled)) {
+    return false;
+  }
+  return setAssignedLevel(index, 0);
+}
+
 bool operate(JsonObjectConst request, String& message) {
   if (!request["id"].is<const char*>()) {
     message = "Missing device id";
@@ -881,8 +917,7 @@ bool operate(JsonObjectConst request, String& message) {
     message = ok ? "Device stopped" : "Stop failed";
     return ok;
   }
-  if (!settingsReady() || restMode_isEnabled() || wifiOTA_requiresSetup() || wifiOTA_isTesting() ||
-      founderOutputs::inhibited()) {
+  if (!manualAllowed()) {
     message = "Device blocked by Rest, provisioning, OTA or storage";
     return false;
   }
@@ -932,10 +967,7 @@ bool operate(JsonObjectConst request, String& message) {
     message = "Invalid device setpoint";
     return false;
   }
-  bool ok = drive(i, value);
-  if (ok) {
-    requested[i] = value;
-  }
+  const bool ok = setAssignedLevel(i, value);
   message = ok ? "Device applied" : "Device output rejected";
   return ok;
 }
@@ -971,10 +1003,101 @@ bool hasPlans() {
   }
   return false;
 }
+static LocalMode localMode(bool sensor, const founderSchedule::Plan& plan) {
+  return sensor ? LocalMode::Sensor : plan.enabled ? LocalMode::Scheduled : LocalMode::Manual;
+}
+
+uint32_t localRevision() {
+  return revision;
+}
+
+bool localDevice(unsigned index, LocalDevice& out) {
+  if (index >= LocalDeviceCount) {
+    return false;
+  }
+  const unsigned seconds = (overrideRemaining(index) + 999) / 1000;
+  if (index < Count) {
+    const auto& d = devices[index];
+    if (!d.profile) return false;
+    out = {d.name, localMode(d.automatic, d.plan), d.profile->timed, d.profile->analog,
+           unsigned(lroundf(founderOutputs::applied(d.output))), seconds};
+    return true;
+  }
+  const unsigned fan = index - Count;
+  if (!fanEnabled(fan + 1)) return false;
+  const auto& p = fanPorts[fan];
+  out = {p.name, localMode(p.automatic, p.plan), false, true,
+         unsigned(fan ? getFan2TargetPercent() : getFanTargetPercent()), seconds};
+  return true;
+}
+
+bool setLocalLevel(unsigned index, unsigned percent) {
+  LocalDevice device{};
+  if (!manualAllowed() || !localDevice(index, device) || device.timed ||
+      percent > 100 || (!device.variable && percent != 0 && percent != 100) ||
+      (index >= Count && fan_getTachoFault(index - Count + 1))) {
+    return false;
+  }
+  if (device.mode == LocalMode::Manual) {
+    return index < Count ? setAssignedLevel(index, percent) : setFanManual(index - Count + 1, percent);
+  }
+  if (!isTimeSynced()) {
+    return false;
+  }
+  auto& entry = overrides[index];
+  if (!overrideRemaining(index)) entry.startedAt = millis();
+  entry.active = true;
+  entry.percent = percent;
+  return true;
+}
+
+bool cancelLocalOverride(unsigned index) {
+  if (index >= LocalDeviceCount || !overrideRemaining(index)) {
+    return false;
+  }
+  overrides[index] = {};
+  return true;
+}
+
+NextAction nextAction() {
+  NextAction result;
+  if (!manualAllowed() || !isTimeSynced()) return result;
+  const unsigned minute = getHour() * 60 + getMinute();
+  auto consider = [&](const founderSchedule::Plan& plan, const char* name, bool timed, bool variable,
+                      unsigned wait) {
+    auto change = founderSchedule::nextChange(plan, minute, timed, wait);
+    if (change.delta < result.minutesUntil) {
+      result.name = name;
+      result.minute = change.minute;
+      result.minutesUntil = change.delta;
+      result.percent = change.percent;
+      result.pulse = timed;
+      result.variable = variable;
+    }
+  };
+  for (unsigned i = 0; i < Count; ++i) {
+    const auto& device = devices[i];
+    if (!device.profile || device.automatic) continue;
+    const uint32_t now = millis();
+    const auto startup = device.profile->startupLockMs;
+    const unsigned wait = device.profile->timed && now < startup
+        ? (startup - now + 59999) / 60000 : (overrideRemaining(i) + 59999) / 60000;
+    consider(device.plan, device.name, device.profile->timed, device.profile->analog, wait);
+  }
+  for (unsigned n = 0; n < 2; ++n) {
+    const auto& fan = fanPorts[n];
+    if (fanEnabled(n + 1) && !fan.automatic && !fan_getTachoFault(n + 1)) {
+      consider(fan.plan, fan.name, false, true, (overrideRemaining(Count + n) + 59999) / 60000);
+    }
+  }
+  return result;
+}
+
 void loop() {
-  const bool allowed = settingsReady() && !restMode_isEnabled() && !wifiOTA_requiresSetup() &&
-                       !wifiOTA_isTesting() && !founderOutputs::inhibited() &&
-                       founderOutputs::ready() && isTimeSynced();
+  const bool allowed = manualAllowed() && isTimeSynced();
+  for (unsigned i = 0; i < LocalDeviceCount; ++i) {
+    if (!allowed || !overrideRemaining(i)) overrides[i] = {};
+  }
   const unsigned minute = unsigned(getHour() * 60 + getMinute());
   const int date = getDateKey();
   for (unsigned n = 0; n < 2; ++n) {
@@ -990,6 +1113,14 @@ void loop() {
         value = fan.plan.enabled
                     ? (allowed && minute < 1440 ? founderSchedule::percent(fan.plan, minute) : 0)
                     : fanManual[n];
+      }
+    }
+    if (overrides[Count + n].active) {
+      if (fan_getTachoFault(n + 1)) {
+        overrides[Count + n] = {};
+        value = 0;
+      } else {
+        value = overrides[Count + n].percent;
       }
     }
     fan_setDemand(n + 1, value);
@@ -1027,6 +1158,10 @@ void loop() {
           return;
         }
       }
+    }
+    if (overrides[i].active) {
+      setAssignedLevel(i, overrides[i].percent);
+      continue;
     }
     const bool sensor = d.profile && d.automatic;
     unsigned sensorDemand = 0;
@@ -1125,6 +1260,7 @@ void loop() {
   }
 }
 void stopAll() {
+  clearOverrides();
   for (unsigned n = 0; n < 2; ++n) {
     fanManual[n] = 0;
     fan_setDemand(n + 1, 0);
@@ -1193,6 +1329,7 @@ void appendJson(String& out) {
     auto row = fans.add<JsonObject>();
     row["enabled"] = fan.enabled;
     row["name"] = fan.name;
+    row["override_remaining_s"] = (overrideRemaining(Count + (&fan - fanPorts)) + 999) / 1000;
     row["mode"] = fan.automatic ? "automatic" : fan.plan.enabled ? "scheduled" : "manual";
     row["automation_ready"] = fan.automation.count > 0;
     appendAutomation(row, fan.automation, fan.role, true, false);
@@ -1332,6 +1469,7 @@ void appendJson(String& out) {
       row["startup_remaining_ms"] =
           millis() < d.profile->startupLockMs ? d.profile->startupLockMs - millis() : 0;
       row["requested_percent"] = requested[i];
+      row["override_remaining_s"] = (overrideRemaining(i) + 999) / 1000;
       row["applied_percent"] = founderOutputs::applied(d.output);
       row["remaining_ms"] = founderOutputs::remainingMs(d.output);
       row["reason"] = founderOutputs::inhibited()                          ? "OTA"

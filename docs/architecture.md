@@ -66,12 +66,42 @@ This is Wi-Fi provisioning, not the final product onboarding wizard.
 After joining the LAN, open the board IP for the neutral webapp: signals,
 devices, both fans, three switch outputs, two 0-10V setpoints, RTC, targets and
 MQTT configuration. CONFIG held for five seconds enters Rest and opens setup
-without deleting the last validated WLAN. Encoder rotation/click navigates four
-OLED information pages; it does not activate outputs. OLED uses the user-confirmed SSD1317 and a 128 SEG x 64 COM framebuffer,
-probes 0x3C/0x3D on root and retries after missing/failed transfers. Rotation
-0..3 and COM offset 0..95 are persistent settings. The provisional default
-(rotation 0, offset 80) follows a manufacturer 64-MUX reference panel; exact
-module mapping remains to be verified on the supplied display.
+without deleting the last validated WLAN.
+
+The English OLED home screen shows the clock, operating state, climate readings
+and Wi-Fi status. Turn the encoder to choose a view and press to open it. Press
+again to return to the menu. Select Back to Home or hold the encoder to go
+directly to the home screen. Climate shows the active temperature source and
+sample age. When that signal drops out, the display keeps the last known
+source and marks the sensor offline.
+
+Operation confirms Pause all or Resume. The resume screen lists affected
+schedules and sensor-controlled devices. A configuration change invalidates
+the review. The home screen and web overview preview the next regular timer
+change. Paused schedules do not show an upcoming action.
+
+Devices uses configured device and fan assignments. Turn to stage a change
+and press to apply it. An automated device can be overridden for 15 minutes.
+The override is volatile, preserves the automation settings and ends on
+expiry, Pause or loss of the automation interlock. Adjusting an active override
+keeps the original deadline. A timed device can be stopped from the OLED.
+Stopping an automated timed device uses the same Pause all behavior as the web.
+
+Settings saves brightness and the idle mode after one minute without encoder
+input. Choose Screen Off, GROVA Saver or Always On. A turn or press wakes the
+screen without changing the selected menu item.
+
+Service → Output Test runs one physical connection at a time while operation is paused.
+Select a port, turn to choose a level and press to start. Turn to change the
+level during the test or press to stop. The test ends after ten seconds.
+The existing output timer also cuts off the 5 V and 12 V switches. A connected
+device's assigned switch or 0–10 V output remains under equipment control.
+Fans use the existing ramp and tachometer fault handling.
+
+The display probes 0x3C and 0x3D on the root bus and retries failed transfers.
+The transport converts the 128×64 canvas to native 64×128 pages for SH1107.
+System → Display stores the selected controller, rotation and line offset.
+The supported controller profiles are SSD1317, SSD1306, SSD1312 and SH1107.
 
 The application always boots in Rest and clears all five output commands.
 Leaving Rest requires an explicit command and successful Rest persistence.
@@ -128,6 +158,8 @@ POST `/api/v1/control` requires JSON and is disabled on the setup interface.
 Commands: `set_rest_mode`, `set_output`, `set_fan_manual`, `set_fan_auto`,
 `set_fan_policy`, `set_targets`, `set_display_config`, `set_rtc_config`,
 `set_mqtt_config` (HTTP only).
+On the local HTTP interface, `set_display_config` optionally accepts a
+`controller` value of `ssd1317`, `ssd1306`, `ssd1312` or `sh1107`.
 Old pump/light/grow commands are rejected, not redirected to a guessed channel.
 
 The optional broker is configured locally (host, port, user, password). Empty

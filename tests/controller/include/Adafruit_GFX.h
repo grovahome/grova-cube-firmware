@@ -62,6 +62,11 @@ class GFXcanvas1 {
   void print(const T&) {
     ++testGraphics::textCalls;
   }
+  void print(const char* s) {
+    ++testGraphics::textCalls;
+    testGraphics::lines += s;
+    testGraphics::lines += '\n';
+  }
   void print(float, int) {
     ++testGraphics::textCalls;
   }

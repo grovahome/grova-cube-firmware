@@ -86,6 +86,43 @@ inline unsigned percent(const Plan& p, unsigned minute) {
   }
   return 0;
 }
+struct Change {
+  unsigned minute = 0, delta = 1441, percent = 0;
+};
+inline Change nextChange(const Plan& plan, unsigned current, bool pulse, unsigned minimumDelta = 0) {
+  Change result;
+  if (!plan.enabled || current >= 1440) {
+    return result;
+  }
+  auto candidate = [&](unsigned minute) {
+    minute %= 1440;
+    unsigned delta = (minute + 1440 - current) % 1440;
+    if (delta == 0) delta = 1440;
+    if (delta <= minimumDelta || delta >= result.delta) {
+      return;
+    }
+    const unsigned value = pulse ? 100 : percent(plan, minute);
+    if (pulse || value != percent(plan, (minute + 1439) % 1440)) {
+      result.minute = minute;
+      result.delta = delta;
+      result.percent = value;
+    }
+  };
+  const auto& interval = plan.interval;
+  if (interval.enabled) {
+    if (interval.everyMinutes == 0) return result;
+    for (unsigned at = interval.anchor; at < 1440; at += interval.everyMinutes) {
+      candidate(at);
+      if (!pulse) candidate(at + interval.durationMinutes);
+    }
+  } else {
+    for (unsigned i = 0; i < plan.count; ++i) {
+      candidate(plan.slots[i].start);
+      if (!pulse) candidate(plan.slots[i].end);
+    }
+  }
+  return result;
+}
 inline uint32_t token(unsigned dateKey, unsigned minute) {
   return dateKey * 1440U + minute;
 }

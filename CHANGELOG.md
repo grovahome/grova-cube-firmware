@@ -15,6 +15,28 @@ releases; installed versions and physical acceptance are tracked in
 - Leave all outputs paused when saving and review affected automations before
   resuming operation. Guide Wi-Fi setup through selection, testing and handover.
 
+### OLED and rotary encoder
+
+- Add SSD1312 and SH1107 profiles, including native 64×128 pixel mapping for SH1107.
+  Select the controller, orientation and line offset under System → Display.
+- Add an English OLED home screen and detail views for climate, outputs, fans
+  and network. Turn to select, press to open or go back, and hold to return home.
+- Count complete encoder detents and filter contact bounce. Fast turns are
+  limited to one menu step per 140 ms and do not queue delayed steps.
+
+- Show sensor source, sample age and lost-sensor status on the OLED.
+- Add a saved idle choice after one minute of encoder inactivity: screen off,
+  moving GROVA wordmark, or always on.
+- Add timed output tests for both fans and free 5 V, 12 V and 0–10 V connections
+  while automation is paused.
+
+- Add daily controls on the OLED: confirmed pause and resume, configured
+  device controls and 15-minute overrides for automated lights, fans and
+  other non-timed outputs. The timed-device screen offers status and stop.
+- Preview the next scheduled action on the home screen and in the web
+  overview. Display brightness is saved in Settings and port tests are under
+  Service.
+
 ### Branch organization
 
 - Rename current development/default branch to `main` and frozen V1 reference to
